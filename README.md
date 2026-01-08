@@ -160,11 +160,13 @@ xtd2_ws/XTDrone2_ego_planner/xtd2_launch/xtd2_launch/utils/px4_launch.py  16行�
 
 
 
-
 colcon build --symlink-install --parallel-workers 8
+
 
 
 ## 启动飞机单独模拟
 ~/git/PX4-Autopilot$ make px4_sitl gz_x500
 
 ## 地面站QGC
+./QGroundControl-x86_64.AppImage
+

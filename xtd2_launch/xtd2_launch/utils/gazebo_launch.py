@@ -11,6 +11,7 @@ def main():
     args, unknown = parser.parse_known_args()
 
     gazebo_cmd = f'GZ_SIM_RESOURCE_PATH={args.model_store} gz sim -r {args.world}.sdf'
+    # gazebo_cmd = f'gz sim -r {args.world}.sdf'
 
     _handle = subprocess.Popen(['bash', '-c', gazebo_cmd])
 

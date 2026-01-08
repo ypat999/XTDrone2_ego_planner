@@ -32,7 +32,29 @@ def main():
             ns = f"{args.model}_{args.id}"
 
 
-    px4_cmd = f"PX4_UXRCE_DDS_NS={ns} PX4_GZ_WORLD={args.world} PX4_SYS_AUTOSTART={sys_autostart} PX4_SIM_MODEL={args.model} PX4_GZ_MODEL_POSE='{args.x},{args.y},{args.z},{args.roll},{args.pitch},{args.yaw}' PX4_GZ_STANDALONE=1 {args.px4_dir}/build/px4_sitl_default/bin/px4 -d -s {args.px4_dir}/build/px4_sitl_default/etc/init.d-posix/rcS {args.px4_dir}/ROMFS/px4fmu_common -i {args.id} -w {args.px4_dir}/build/px4_sitl_default"
+    # Extract base model name (remove 'gz_' prefix if present)
+    if args.model.startswith("gz_"):
+        sim_model = args.model[3:]  # Remove 'gz_' prefix
+    else:
+        sim_model = args.model
+    
+    # Get XTDrone2 Gazebo simulation resource path
+    import subprocess
+    result = subprocess.run(['ros2', 'pkg', 'prefix', 'xtd2_gz_sim'], capture_output=True, text=True)
+    if result.returncode == 0:
+        xtd2_gz_sim_path = result.stdout.strip()
+        xtd2_gz_models_path = f"{xtd2_gz_sim_path}/share/xtd2_gz_sim/models"
+    else:
+        # Fallback path
+        xtd2_gz_models_path = "/home/ywj/git/xtd2_ws/install/xtd2_gz_sim/share/xtd2_gz_sim/models"
+    
+    # Set XTDrone2 Gazebo model variables similar to PX4 style
+    px4_gz_models_path = f"{args.px4_dir}/Tools/simulation/gz/models"
+    px4_gz_worlds_path = f"{args.px4_dir}/Tools/simulation/gz/worlds"
+    gz_resource_path = f"$GZ_SIM_RESOURCE_PATH:$PX4_GZ_MODELS:$PX4_GZ_WORLDS:{xtd2_gz_models_path}"
+    
+    px4_cmd = f"PX4_UXRCE_DDS_NS={ns} PX4_GZ_WORLD={args.world} PX4_SYS_AUTOSTART={sys_autostart} PX4_SIM_MODEL={sim_model} PX4_GZ_MODEL_POSE='{args.x},{args.y},{args.z},{args.roll},{args.pitch},{args.yaw}' PX4_GZ_MODELS={px4_gz_models_path} PX4_GZ_WORLDS={px4_gz_worlds_path} XTD2_GZ_MODELS={xtd2_gz_models_path} GZ_SIM_RESOURCE_PATH={gz_resource_path} {args.px4_dir}/build/px4_sitl_default/bin/px4 -d -s {args.px4_dir}/build/px4_sitl_default/etc/init.d-posix/rcS {args.px4_dir}/ROMFS/px4fmu_common -i {args.id} -w {args.px4_dir}/build/px4_sitl_default"
+    # px4_cmd = f"PX4_UXRCE_DDS_NS={ns} PX4_GZ_WORLD={args.world} PX4_SYS_AUTOSTART={sys_autostart} PX4_SIM_MODEL={sim_model} PX4_GZ_MODEL_POSE='{args.x},{args.y},{args.z},{args.roll},{args.pitch},{args.yaw}' {args.px4_dir}/build/px4_sitl_default/bin/px4 -d -s {args.px4_dir}/build/px4_sitl_default/etc/init.d-posix/rcS {args.px4_dir}/ROMFS/px4fmu_common -i {args.id} -w {args.px4_dir}/build/px4_sitl_default"
 
     _handle = subprocess.Popen(['bash', '-c', px4_cmd])
 
