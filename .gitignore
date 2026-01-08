@@ -2,10 +2,11 @@
 build/
 install/
 log/
+venv/
 
 # Ignore generated files
 *.pyc
-*.pyo
+*.pyo163256yp
 *.pyd
 *.so
 *.o

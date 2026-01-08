@@ -4,7 +4,6 @@ from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from ros_gz_bridge.actions import RosGzBridge
 
 
 

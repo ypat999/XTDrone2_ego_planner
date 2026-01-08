@@ -27,7 +27,8 @@ def main():
         yaml.safe_dump(yaml.safe_load(template), file)
 
 
-    pose_bridge_cmd = f'ros2 launch ros_gz_bridge ros_gz_bridge.launch.py bridge_name:=ros_gz_bridge_{args.ros_ns} config_file:={yaml_tmp_output}'
+    # 使用ros_gz_bridge节点启动桥接
+    pose_bridge_cmd = f'ros2 run ros_gz_bridge parameter_bridge --ros-args -p config_file:={yaml_tmp_output}'
 
     _handle = subprocess.Popen(['bash', '-c', pose_bridge_cmd])
 

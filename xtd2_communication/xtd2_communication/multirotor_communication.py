@@ -20,7 +20,7 @@ from xtd2_msgs.msg import XTD2VehicleState
 
 import sys
 import math
-from tf_transformations import euler_from_quaternion
+from transforms3d.euler import quat2euler
 from rclpy.qos import QoSProfile, qos_profile_sensor_data
 
 import argparse
@@ -127,7 +127,7 @@ class MultirotorCommunication(Node):
         # Convert quaternion to euler angles
         orientation_q = msg.orientation
         orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
-        (roll, pitch, yaw) = euler_from_quaternion(orientation_list)
+        (roll, pitch, yaw) = quat2euler(orientation_list)
         # Construct TrajectorySetpoint message
         cmd = TrajectorySetpoint()
         cmd.timestamp = self.get_clock_microseconds()
@@ -143,7 +143,7 @@ class MultirotorCommunication(Node):
         # Convert quaternion to euler angles
         orientation_q = msg.orientation
         orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
-        (roll, pitch, yaw) = euler_from_quaternion(orientation_list)
+        (roll, pitch, yaw) = quat2euler(orientation_list)
 
         theta = self.cur_vehicle_local_position.heading
 
