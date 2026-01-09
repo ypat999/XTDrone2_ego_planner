@@ -151,9 +151,12 @@ compilation terminated.
 
 
 
-sudo apt install ros-humble-ros-gz-bridge
+<!-- sudo apt install ros-humble-ros-gz-bridge -->
 sudo apt install ros-humble-tf-transformations 
 <!-- sudo apt install libignition-gazebo6-plugins -->
+
+sudo apt remove libignition-*
+sudo apt install ros-humble-ros-gzharmonic
 
 
 xtd2_ws/XTDrone2_ego_planner/xtd2_launch/xtd2_launch/utils/px4_launch.py  16行配置px4目录

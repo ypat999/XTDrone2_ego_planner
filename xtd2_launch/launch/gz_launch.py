@@ -1,7 +1,8 @@
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (DeclareLaunchArgument, SetEnvironmentVariable,
-                            IncludeLaunchDescription, SetLaunchConfiguration, LogInfo)
+                            IncludeLaunchDescription, SetLaunchConfiguration, LogInfo,
+                            ExecuteProcess)
 from launch.substitutions import PathJoinSubstitution, LaunchConfiguration, TextSubstitution
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 import os
@@ -42,11 +43,8 @@ def generate_launch_description():
         SetEnvironmentVariable('GZ_SIM_RESOURCE_PATH', gz_model_path),
         SetEnvironmentVariable('DISPLAY', ':0'),
         LogInfo(msg=[TextSubstitution(text='Gazebo simulation resources path: '), gz_model_path]),
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(gz_launch_path),
-            launch_arguments={
-                'gz_args': ['-r', ' ', PathJoinSubstitution([pkg_xtdrone2_gz_sim, 'worlds', LaunchConfiguration('world_file')])],
-                'on_exit_shutdown': 'True',
-            }.items(),
+        ExecuteProcess(
+            cmd=['gz', 'sim', '-r', PathJoinSubstitution([pkg_xtdrone2_gz_sim, 'worlds', LaunchConfiguration('world_file')])],
+            on_exit='shutdown',
         ),
     ])
