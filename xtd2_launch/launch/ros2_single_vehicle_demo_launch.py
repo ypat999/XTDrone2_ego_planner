@@ -62,6 +62,16 @@ def generate_launch_description():
             }.items()
         )
 
+    ####################
+    # TF Publisher Node #
+    ####################
+    tf_publisher = Node(
+        package='xtd2_launch',
+        executable='tf_publisher',
+        name='tf_publisher',
+        output='screen'
+    )
+
     # Add all nodes to the launch description
     ld = LaunchDescription([
         world_name_arg,
@@ -70,7 +80,8 @@ def generate_launch_description():
         name_space_arg,
         world_launch,
         xrce_dds_process,
-        TimerAction(period=10.0, actions=[spawn])
+        TimerAction(period=10.0, actions=[spawn]),
+        TimerAction(period=15.0, actions=[tf_publisher])  # 延迟启动，确保其他节点先启动
     ])
 
     return ld
