@@ -1,5 +1,5 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription, TimerAction
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, TextSubstitution
@@ -7,10 +7,15 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 
 def generate_launch_description():
-    world_name_arg = DeclareLaunchArgument('world_name', default_value='aruco', description='Name of the world to launch (without .sdf)')
-    model_name_arg = DeclareLaunchArgument('model_name', default_value='gz_x500', description='Name of the model to spawn')
+    world_name_arg = DeclareLaunchArgument('world_name', 
+                    # default_value='aruco', 
+                    default_value='tugbot_warehouse',
+                    description='Name of the world to launch (without .sdf)')
+    model_name_arg = DeclareLaunchArgument('model_name', default_value='gz_x500_depth', description='Name of the model to spawn')
     id_arg = DeclareLaunchArgument('id', default_value='0', description='ID of the model to spawn')
-    name_space_arg = DeclareLaunchArgument('namespace', default_value='x500_0', description='ROS namespace for the model')
+    name_space_arg = DeclareLaunchArgument('namespace', default_value='x500_depth_0', description='ROS namespace for the model')
+
+
     
     #####################
     # Gazebo Simulation #
@@ -65,7 +70,7 @@ def generate_launch_description():
         name_space_arg,
         world_launch,
         xrce_dds_process,
-        spawn
+        TimerAction(period=10.0, actions=[spawn])
     ])
 
     return ld

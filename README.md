@@ -150,7 +150,7 @@ compilation terminated.
 ✅ 兼容性保证 - 确保与ROS2 Humble版本的兼容性
 
 
-
+### 确保安装gazebo harmonic，并卸载ignition gazebo
 <!-- sudo apt install ros-humble-ros-gz-bridge -->
 sudo apt install ros-humble-tf-transformations 
 <!-- sudo apt install libignition-gazebo6-plugins -->
@@ -162,14 +162,26 @@ sudo apt install ros-humble-ros-gzharmonic
 xtd2_ws/XTDrone2_ego_planner/xtd2_launch/xtd2_launch/utils/px4_launch.py  16行配置px4目录
 
 
-
+cd ~/git/xtd2_ws
 colcon build --symlink-install --parallel-workers 8
-
+source install/setup.bash
 
 
 ## 启动飞机单独模拟
-~/git/PX4-Autopilot$ make px4_sitl gz_x500
+PX4_SIM_MODEL=gz_x500 /home/ywj/git/PX4-Autopilot/build/px4_sitl_default/bin/px4
+
+
+## 启动XTDrones2模拟
+ros2 launch xtd2_launch ros2_single_vehicle_demo_launch.py
 
 ## 地面站QGC
 ./QGroundControl-x86_64.AppImage
 
+## 键盘控制
+ros2 run xtd2_control multirotor_keyboard_control --model gz_x500 --id 0
+
+## 可视化
+rviz2
+
+## 清除后台残余
+/home/ywj/git/xtd2_ws/XTDrone2_ego_planner/clear_background.sh
