@@ -50,7 +50,7 @@
         <always_on>1</always_on>
         <update_rate>30</update_rate>
         <visualize>true</visualize>
-        <!-- <topic>camera</topic> -->
+        <topic>IMX214</topic>
       </sensor>
       <sensor name="StereoOV7251" type="depth_camera">
         <pose>0.01233 -0.03 .01878 0 0 0</pose>
@@ -61,15 +61,18 @@
             <height>480</height>
             <format>R_FLOAT32</format>
           </image>
+          <depth_camera>
+            <output>depth_points</output>
+          </depth_camera>
           <clip>
-            <near>0.2</near>
-            <far>19.1</far>
+            <near>0.1</near>
+            <far>50.0</far>
           </clip>
         </camera>
         <always_on>1</always_on>
         <update_rate>30</update_rate>
         <visualize>true</visualize>
-        <!-- <topic>depth_camera</topic> -->
+        <topic>StereoOV7251</topic>
       </sensor>
       <gravity>true</gravity>
       <velocity_decay/>

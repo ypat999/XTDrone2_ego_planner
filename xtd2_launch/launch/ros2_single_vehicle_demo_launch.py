@@ -65,11 +65,11 @@ def generate_launch_description():
     ####################
     # TF Publisher Node #
     ####################
-    tf_publisher = Node(
-        package='xtd2_launch',
-        executable='tf_publisher',
+    tf_publisher = ExecuteProcess(
+        cmd=["python3", "/home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_launch/launch/tf_publisher.py"],
+        output='screen',
         name='tf_publisher',
-        output='screen'
+        shell=False
     )
 
     # Add all nodes to the launch description

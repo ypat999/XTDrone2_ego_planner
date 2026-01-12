@@ -25,36 +25,81 @@
     </collision>
   </link>
 
-  <!-- Stereo Camera -->
-  <link name="StereoOV7251">
+  <!-- Arms -->
+  <link name="arm_front_right">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.1"/>
-      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.002"/>
     </inertial>
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <box size="0.05 0.1 0.03"/>
+        <cylinder length="0.3" radius="0.01"/>
       </geometry>
       <material name="black">
         <color rgba="0.1 0.1 0.1 1"/>
       </material>
     </visual>
-    <collision>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry>
-        <box size="0.05 0.1 0.03"/>
-      </geometry>
-    </collision>
   </link>
 
-  <!-- IMX214 Camera -->
-  <link name="IMX214">
+  <link name="arm_front_left">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.002"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder length="0.3" radius="0.01"/>
+      </geometry>
+      <material name="black">
+        <color rgba="0.1 0.1 0.1 1"/>
+      </material>
+    </visual>
+  </link>
+
+  <link name="arm_rear_right">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.002"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder length="0.3" radius="0.01"/>
+      </geometry>
+      <material name="black">
+        <color rgba="0.1 0.1 0.1 1"/>
+      </material>
+    </visual>
+  </link>
+
+  <link name="arm_rear_left">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.002"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder length="0.3" radius="0.01"/>
+      </geometry>
+      <material name="black">
+        <color rgba="0.1 0.1 0.1 1"/>
+      </material>
+    </visual>
+  </link>
+
+  <!-- Motors -->
+  <link name="motor_front_right">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.05"/>
-      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+      <inertia ixx="0.0005" ixy="0" ixz="0" iyy="0.0005" iyz="0" izz="0.001"/>
     </inertial>
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -65,16 +110,61 @@
         <color rgba="0.8 0.8 0.8 1"/>
       </material>
     </visual>
-    <collision>
+  </link>
+
+  <link name="motor_front_left">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="0.0005" ixy="0" ixz="0" iyy="0.0005" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
         <cylinder length="0.02" radius="0.02"/>
       </geometry>
-    </collision>
+      <material name="silver">
+        <color rgba="0.8 0.8 0.8 1"/>
+      </material>
+    </visual>
+  </link>
+
+  <link name="motor_rear_right">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="0.0005" ixy="0" ixz="0" iyy="0.0005" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder length="0.02" radius="0.02"/>
+      </geometry>
+      <material name="silver">
+        <color rgba="0.8 0.8 0.8 1"/>
+      </material>
+    </visual>
+  </link>
+
+  <link name="motor_rear_left">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="0.0005" ixy="0" ixz="0" iyy="0.0005" iyz="0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder length="0.02" radius="0.02"/>
+      </geometry>
+      <material name="silver">
+        <color rgba="0.8 0.8 0.8 1"/>
+      </material>
+    </visual>
   </link>
 
   <!-- Propellers -->
-  <link name="propeller_1">
+  <link name="propeller_front_right">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.05"/>
@@ -91,7 +181,7 @@
     </visual>
   </link>
 
-  <link name="propeller_2">
+  <link name="propeller_front_left">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.05"/>
@@ -108,7 +198,7 @@
     </visual>
   </link>
 
-  <link name="propeller_3">
+  <link name="propeller_rear_right">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.05"/>
@@ -125,7 +215,7 @@
     </visual>
   </link>
 
-  <link name="propeller_4">
+  <link name="propeller_rear_left">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.05"/>
@@ -138,45 +228,159 @@
       </geometry>
       <material name="gray">
         <color rgba="0.5 0.5 0.5 1"/>
+      </material>
+    </visual>
+  </link>
+
+  <!-- OakD-Lite Camera Base -->
+  <link name="oakd_lite_base">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.061"/>
+      <inertia ixx="0.000046" ixy="0" ixz="0" iyy="0.0000055" iyz="0" izz="0.0000437"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.0175 0.091 0.028"/>
+      </geometry>
+      <material name="dark_gray">
+        <color rgba="0.2 0.2 0.2 1"/>
+      </material>
+    </visual>
+  </link>
+
+  <!-- IMX214 Camera -->
+  <link name="IMX214">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder length="0.005" radius="0.01"/>
+      </geometry>
+      <material name="silver">
+        <color rgba="0.8 0.8 0.8 1"/>
+      </material>
+    </visual>
+  </link>
+
+  <!-- Stereo OV7251 Camera -->
+  <link name="StereoOV7251">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.02 0.02 0.005"/>
+      </geometry>
+      <material name="black">
+        <color rgba="0.1 0.1 0.1 1"/>
       </material>
     </visual>
   </link>
 
   <!-- Joints -->
-  <joint name="stereo_camera_joint" type="fixed">
+  <!-- Arms -->
+  <joint name="arm_front_right_joint" type="fixed">
     <parent link="base_link"/>
-    <child link="StereoOV7251"/>
-    <origin xyz="0.1 0 0.05" rpy="0 0 0"/>
+    <child link="arm_front_right"/>
+    <origin xyz="0.15 0.15 0.05" rpy="0 0 0.785"/>
   </joint>
 
-  <joint name="imx214_camera_joint" type="fixed">
+  <joint name="arm_front_left_joint" type="fixed">
     <parent link="base_link"/>
+    <child link="arm_front_left"/>
+    <origin xyz="-0.15 0.15 0.05" rpy="0 0 2.356"/>
+  </joint>
+
+  <joint name="arm_rear_right_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="arm_rear_right"/>
+    <origin xyz="0.15 -0.15 0.05" rpy="0 0 -0.785"/>
+  </joint>
+
+  <joint name="arm_rear_left_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="arm_rear_left"/>
+    <origin xyz="-0.15 -0.15 0.05" rpy="0 0 -2.356"/>
+  </joint>
+
+  <!-- Motors -->
+  <joint name="motor_front_right_joint" type="fixed">
+    <parent link="arm_front_right"/>
+    <child link="motor_front_right"/>
+    <origin xyz="0 0.15 0" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="motor_front_left_joint" type="fixed">
+    <parent link="arm_front_left"/>
+    <child link="motor_front_left"/>
+    <origin xyz="0 0.15 0" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="motor_rear_right_joint" type="fixed">
+    <parent link="arm_rear_right"/>
+    <child link="motor_rear_right"/>
+    <origin xyz="0 0.15 0" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="motor_rear_left_joint" type="fixed">
+    <parent link="arm_rear_left"/>
+    <child link="motor_rear_left"/>
+    <origin xyz="0 0.15 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Propellers -->
+  <joint name="propeller_front_right_joint" type="fixed">
+    <parent link="motor_front_right"/>
+    <child link="propeller_front_right"/>
+    <origin xyz="0 0 0.01" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="propeller_front_left_joint" type="fixed">
+    <parent link="motor_front_left"/>
+    <child link="propeller_front_left"/>
+    <origin xyz="0 0 0.01" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="propeller_rear_right_joint" type="fixed">
+    <parent link="motor_rear_right"/>
+    <child link="propeller_rear_right"/>
+    <origin xyz="0 0 0.01" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="propeller_rear_left_joint" type="fixed">
+    <parent link="motor_rear_left"/>
+    <child link="propeller_rear_left"/>
+    <origin xyz="0 0 0.01" rpy="0 0 0"/>
+  </joint>
+
+  <!-- OakD-Lite Camera -->
+  <joint name="oakd_lite_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="oakd_lite_base"/>
+    <origin xyz="0.12 0.03 0.242" rpy="0 0 0"/>
+  </joint>
+
+  <!-- IMX214 Camera -->
+  <joint name="imx214_joint" type="fixed">
+    <parent link="oakd_lite_base"/>
     <child link="IMX214"/>
-    <origin xyz="-0.1 0 0.05" rpy="0 0 0"/>
+    <origin xyz="0.01233 -0.03 0.01878" rpy="0 0 0"/>
   </joint>
 
-  <joint name="propeller_1_joint" type="fixed">
-    <parent link="base_link"/>
-    <child link="propeller_1"/>
-    <origin xyz="0.2 0.2 0.05" rpy="0 0 0"/>
-  </joint>
-
-  <joint name="propeller_2_joint" type="fixed">
-    <parent link="base_link"/>
-    <child link="propeller_2"/>
-    <origin xyz="-0.2 0.2 0.05" rpy="0 0 0"/>
-  </joint>
-
-  <joint name="propeller_3_joint" type="fixed">
-    <parent link="base_link"/>
-    <child link="propeller_3"/>
-    <origin xyz="-0.2 -0.2 0.05" rpy="0 0 0"/>
-  </joint>
-
-  <joint name="propeller_4_joint" type="fixed">
-    <parent link="base_link"/>
-    <child link="propeller_4"/>
-    <origin xyz="0.2 -0.2 0.05" rpy="0 0 0"/>
+  <!-- Stereo OV7251 Camera -->
+  <joint name="stereo_ov7251_joint" type="fixed">
+    <parent link="oakd_lite_base"/>
+    <child link="StereoOV7251"/>
+    <origin xyz="0.01233 -0.03 0.01878" rpy="0 0 0"/>
   </joint>
 
 </robot>

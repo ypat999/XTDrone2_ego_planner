@@ -43,6 +43,13 @@
   direction: GZ_TO_ROS
 
 - ros_topic_name: "${ros_ns}/StereoOV7251/image_raw"
+  gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/StereoOV7251/image
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  lazy: true
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "${ros_ns}/StereoOV7251/depth"
   gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/StereoOV7251/depth_image
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
@@ -50,7 +57,7 @@
   direction: GZ_TO_ROS
 
 - ros_topic_name: "${ros_ns}/StereoOV7251/pointcloud"
-  gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/StereoOV7251/depth_image/points
+  gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/StereoOV7251/points
   ros_type_name: "sensor_msgs/msg/PointCloud2"
   gz_type_name: "gz.msgs.PointCloudPacked"
   lazy: true

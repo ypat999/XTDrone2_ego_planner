@@ -106,6 +106,21 @@ Visualization Manager:
       Value: true
       Visibility: true
       Zoom Factor: 1
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Image Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /x500_depth_0/StereoOV7251/depth
+      Max Value: 10
+      Min Value: 0.1
+      Name: DepthImage
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: raw
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
