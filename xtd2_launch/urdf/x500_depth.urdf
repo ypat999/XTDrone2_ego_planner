@@ -233,7 +233,7 @@
   </link>
 
   <!-- OakD-Lite Camera Base -->
-  <link name="oakd_lite_base">
+  <link name="OakD-Lite/base_link">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.061"/>
@@ -251,7 +251,7 @@
   </link>
 
   <!-- IMX214 Camera -->
-  <link name="IMX214">
+  <link name="OakD-Lite/base_link/IMX214">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.01"/>
@@ -269,7 +269,7 @@
   </link>
 
   <!-- Stereo OV7251 Camera -->
-  <link name="StereoOV7251">
+  <link name="OakD-Lite/base_link/StereoOV7251">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.01"/>
@@ -365,21 +365,21 @@
   <!-- OakD-Lite Camera -->
   <joint name="oakd_lite_joint" type="fixed">
     <parent link="base_link"/>
-    <child link="oakd_lite_base"/>
+    <child link="OakD-Lite/base_link"/>
     <origin xyz="0.12 0.03 0.242" rpy="0 0 0"/>
   </joint>
 
   <!-- IMX214 Camera -->
   <joint name="imx214_joint" type="fixed">
-    <parent link="oakd_lite_base"/>
-    <child link="IMX214"/>
+    <parent link="OakD-Lite/base_link"/>
+    <child link="OakD-Lite/base_link/IMX214"/>
     <origin xyz="0.01233 -0.03 0.01878" rpy="0 0 0"/>
   </joint>
 
   <!-- Stereo OV7251 Camera -->
   <joint name="stereo_ov7251_joint" type="fixed">
-    <parent link="oakd_lite_base"/>
-    <child link="StereoOV7251"/>
+    <parent link="OakD-Lite/base_link"/>
+    <child link="OakD-Lite/base_link/StereoOV7251"/>
     <origin xyz="0.01233 -0.03 0.01878" rpy="0 0 0"/>
   </joint>
 
