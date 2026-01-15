@@ -2,7 +2,7 @@
 <robot name="x500_depth">
 
   <!-- Base Link -->
-  <link name="base_link">
+  <link name="x500_depth_0/base_link">
     <inertial>
       <origin xyz="0 0 0.05" rpy="0 0 0"/>
       <mass value="1.5"/>
@@ -26,7 +26,7 @@
   </link>
 
   <!-- Arms -->
-  <link name="arm_front_right">
+  <link name="x500_depth_0/arm_front_right">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.1"/>
@@ -43,7 +43,7 @@
     </visual>
   </link>
 
-  <link name="arm_front_left">
+  <link name="x500_depth_0/arm_front_left">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.1"/>
@@ -60,7 +60,7 @@
     </visual>
   </link>
 
-  <link name="arm_rear_right">
+  <link name="x500_depth_0/arm_rear_right">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.1"/>
@@ -77,7 +77,7 @@
     </visual>
   </link>
 
-  <link name="arm_rear_left">
+  <link name="x500_depth_0/arm_rear_left">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.1"/>
@@ -95,7 +95,7 @@
   </link>
 
   <!-- Motors -->
-  <link name="motor_front_right">
+  <link name="x500_depth_0/motor_front_right">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.05"/>
@@ -112,7 +112,7 @@
     </visual>
   </link>
 
-  <link name="motor_front_left">
+  <link name="x500_depth_0/motor_front_left">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.05"/>
@@ -129,7 +129,7 @@
     </visual>
   </link>
 
-  <link name="motor_rear_right">
+  <link name="x500_depth_0/motor_rear_right">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.05"/>
@@ -146,7 +146,7 @@
     </visual>
   </link>
 
-  <link name="motor_rear_left">
+  <link name="x500_depth_0/motor_rear_left">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.05"/>
@@ -164,7 +164,7 @@
   </link>
 
   <!-- Propellers -->
-  <link name="propeller_front_right">
+  <link name="x500_depth_0/propeller_front_right">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.05"/>
@@ -181,7 +181,7 @@
     </visual>
   </link>
 
-  <link name="propeller_front_left">
+  <link name="x500_depth_0/propeller_front_left">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.05"/>
@@ -198,7 +198,7 @@
     </visual>
   </link>
 
-  <link name="propeller_rear_right">
+  <link name="x500_depth_0/propeller_rear_right">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.05"/>
@@ -215,7 +215,7 @@
     </visual>
   </link>
 
-  <link name="propeller_rear_left">
+  <link name="x500_depth_0/propeller_rear_left">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.05"/>
@@ -233,7 +233,7 @@
   </link>
 
   <!-- OakD-Lite Camera Base -->
-  <link name="OakD-Lite/base_link">
+  <link name="x500_depth_0/OakD-Lite/base_link">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.061"/>
@@ -251,7 +251,7 @@
   </link>
 
   <!-- IMX214 Camera -->
-  <link name="IMX214">
+  <link name="x500_depth_0/IMX214">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.01"/>
@@ -269,7 +269,7 @@
   </link>
 
   <!-- Stereo OV7251 Camera -->
-  <link name="StereoOV7251">
+  <link name="x500_depth_0/StereoOV7251">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.01"/>
@@ -289,97 +289,97 @@
   <!-- Joints -->
   <!-- Arms -->
   <joint name="arm_front_right_joint" type="fixed">
-    <parent link="base_link"/>
-    <child link="arm_front_right"/>
+    <parent link="x500_depth_0/base_link"/>
+    <child link="x500_depth_0/arm_front_right"/>
     <origin xyz="0.15 0.15 0.05" rpy="0 0 0.785"/>
   </joint>
 
   <joint name="arm_front_left_joint" type="fixed">
-    <parent link="base_link"/>
-    <child link="arm_front_left"/>
+    <parent link="x500_depth_0/base_link"/>
+    <child link="x500_depth_0/arm_front_left"/>
     <origin xyz="-0.15 0.15 0.05" rpy="0 0 2.356"/>
   </joint>
 
   <joint name="arm_rear_right_joint" type="fixed">
-    <parent link="base_link"/>
-    <child link="arm_rear_right"/>
+    <parent link="x500_depth_0/base_link"/>
+    <child link="x500_depth_0/arm_rear_right"/>
     <origin xyz="0.15 -0.15 0.05" rpy="0 0 -0.785"/>
   </joint>
 
   <joint name="arm_rear_left_joint" type="fixed">
-    <parent link="base_link"/>
-    <child link="arm_rear_left"/>
+    <parent link="x500_depth_0/base_link"/>
+    <child link="x500_depth_0/arm_rear_left"/>
     <origin xyz="-0.15 -0.15 0.05" rpy="0 0 -2.356"/>
   </joint>
 
   <!-- Motors -->
   <joint name="motor_front_right_joint" type="fixed">
-    <parent link="arm_front_right"/>
-    <child link="motor_front_right"/>
+    <parent link="x500_depth_0/arm_front_right"/>
+    <child link="x500_depth_0/motor_front_right"/>
     <origin xyz="0 0.15 0" rpy="0 0 0"/>
   </joint>
 
   <joint name="motor_front_left_joint" type="fixed">
-    <parent link="arm_front_left"/>
-    <child link="motor_front_left"/>
+    <parent link="x500_depth_0/arm_front_left"/>
+    <child link="x500_depth_0/motor_front_left"/>
     <origin xyz="0 0.15 0" rpy="0 0 0"/>
   </joint>
 
   <joint name="motor_rear_right_joint" type="fixed">
-    <parent link="arm_rear_right"/>
-    <child link="motor_rear_right"/>
+    <parent link="x500_depth_0/arm_rear_right"/>
+    <child link="x500_depth_0/motor_rear_right"/>
     <origin xyz="0 0.15 0" rpy="0 0 0"/>
   </joint>
 
   <joint name="motor_rear_left_joint" type="fixed">
-    <parent link="arm_rear_left"/>
-    <child link="motor_rear_left"/>
+    <parent link="x500_depth_0/arm_rear_left"/>
+    <child link="x500_depth_0/motor_rear_left"/>
     <origin xyz="0 0.15 0" rpy="0 0 0"/>
   </joint>
 
   <!-- Propellers -->
   <joint name="propeller_front_right_joint" type="fixed">
-    <parent link="motor_front_right"/>
-    <child link="propeller_front_right"/>
+    <parent link="x500_depth_0/motor_front_right"/>
+    <child link="x500_depth_0/propeller_front_right"/>
     <origin xyz="0 0 0.01" rpy="0 0 0"/>
   </joint>
 
   <joint name="propeller_front_left_joint" type="fixed">
-    <parent link="motor_front_left"/>
-    <child link="propeller_front_left"/>
+    <parent link="x500_depth_0/motor_front_left"/>
+    <child link="x500_depth_0/propeller_front_left"/>
     <origin xyz="0 0 0.01" rpy="0 0 0"/>
   </joint>
 
   <joint name="propeller_rear_right_joint" type="fixed">
-    <parent link="motor_rear_right"/>
-    <child link="propeller_rear_right"/>
+    <parent link="x500_depth_0/motor_rear_right"/>
+    <child link="x500_depth_0/propeller_rear_right"/>
     <origin xyz="0 0 0.01" rpy="0 0 0"/>
   </joint>
 
   <joint name="propeller_rear_left_joint" type="fixed">
-    <parent link="motor_rear_left"/>
-    <child link="propeller_rear_left"/>
+    <parent link="x500_depth_0/motor_rear_left"/>
+    <child link="x500_depth_0/propeller_rear_left"/>
     <origin xyz="0 0 0.01" rpy="0 0 0"/>
   </joint>
 
   <!-- OakD-Lite Camera -->
   <joint name="oakd_lite_joint" type="fixed">
-    <parent link="base_link"/>
-    <child link="OakD-Lite/base_link"/>
+    <parent link="x500_depth_0/base_link"/>
+    <child link="x500_depth_0/OakD-Lite/base_link"/>
     <origin xyz="0.12 0.03 0.242" rpy="0 0 0"/>
   </joint>
 
   <!-- IMX214 Camera -->
   <joint name="imx214_joint" type="fixed">
-    <parent link="OakD-Lite/base_link"/>
-    <child link="IMX214"/>
+    <parent link="x500_depth_0/OakD-Lite/base_link"/>
+    <child link="x500_depth_0/IMX214"/>
     <origin xyz="0.01233 -0.03 0.01878" rpy="0 0 0"/>
   </joint>
 
   <!-- Stereo OV7251 Camera -->
   <joint name="stereo_ov7251_joint" type="fixed">
-    <parent link="OakD-Lite/base_link"/>
-    <child link="StereoOV7251"/>
+    <parent link="x500_depth_0/OakD-Lite/base_link"/>
+    <child link="x500_depth_0/StereoOV7251"/>
     <origin xyz="0.01233 -0.03 0.01878" rpy="0 0 0"/>
   </joint>
 
