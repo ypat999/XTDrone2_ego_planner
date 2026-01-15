@@ -185,4 +185,3 @@ rviz2
 
 ## 清除后台残余
 /home/ywj/git/xtd2_ws/XTDrone2_ego_planner/clear_background.sh
-

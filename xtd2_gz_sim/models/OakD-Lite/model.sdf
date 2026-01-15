@@ -51,7 +51,7 @@
         <always_on>true</always_on>
         <update_rate>30</update_rate>
         <visualize>true</visualize>
-        <topic>OakD-Lite/base_link/IMX214</topic>
+        <topic>IMX214</topic>
         <!-- <plugin filename="gz-sim-camera-system" name="gz::sim::systems::Camera">
           <render_engine>ogre2</render_engine>
         </plugin> -->
@@ -76,7 +76,7 @@
         <always_on>true</always_on>
         <update_rate>30</update_rate>
         <visualize>true</visualize>
-        <topic>OakD-Lite/base_link/StereoOV7251</topic>
+        <topic>StereoOV7251</topic>
         <!-- <plugin filename="gz-sim-depth-camera-system" name="gz::sim::systems::DepthCamera">
           <render_engine>ogre2</render_engine>
         </plugin> -->

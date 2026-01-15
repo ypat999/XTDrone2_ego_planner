@@ -1,163 +1,208 @@
 #!/usr/bin/env python3
 
+from curses import noraw
 import rclpy
 from rclpy.node import Node
-from tf2_ros import TransformBroadcaster
+from rclpy.parameter import Parameter
+
+from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
 from geometry_msgs.msg import TransformStamped
 from nav_msgs.msg import Odometry
-import math
+from sensor_msgs.msg import PointCloud2
+
 
 class TfPublisher(Node):
+
     def __init__(self):
-        super().__init__('tf_publisher')
-        
-        # TF广播器
+        super().__init__(
+            'tf_publisher',
+            parameter_overrides=[
+                Parameter('use_sim_time', Parameter.Type.BOOL, True)
+            ]
+        )
+
+        # 动态 TF（odom 真值）
         self.tf_broadcaster = TransformBroadcaster(self)
-        
-        # 订阅odometry话题
-        self.odom_subscription = self.create_subscription(
+
+        # 静态 TF（结构关系）
+        self.static_tf_broadcaster = StaticTransformBroadcaster(self)
+
+        # 订阅 Gazebo 发布的 odometry（真值）
+        self.create_subscription(
             Odometry,
             '/x500_depth_0/odometry',
             self.odom_callback,
+            10
+        )
+
+        # 点云重发布功能
+        # 订阅原始点云话题
+        self.pointcloud_subscription = self.create_subscription(
+            PointCloud2,
+            '/x500_depth_0/StereoOV7251/pointcloud',
+            self.pointcloud_callback,
             10)
         
+        # 创建重发布的点云话题
+        self.pointcloud_publisher = self.create_publisher(
+            PointCloud2,
+            '/x500_depth_0/StereoOV7251/pointcloud_republished',
+            10)
+
+        # 一次性发布所有静态 TF
+        self.publish_static_transforms()
+
         # 定时发布静态TF
-        self.timer = self.create_timer(0.1, self.publish_static_tf)
-        
-        self.get_logger().info('TF Publisher started')
-    
-    def odom_callback(self, msg):
-        # 发布x500_depth_0/odom到x500_depth_0/base_footprint的TF（来自odometry消息）
+        # self.timer = self.create_timer(0.1, self.publish_static_transforms)
+
+        self.get_logger().info('TF publisher started (static + dynamic TF)')
+
+
+    # =========================
+    # 动态 TF（Gazebo 真值）
+    # =========================
+    def odom_callback(self, msg: Odometry):
+        """
+        Gazebo 真值：
+        x500_depth_0/odom -> x500_depth_0/base_footprint
+        """
         t = TransformStamped()
-        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.stamp = msg.header.stamp
         t.header.frame_id = 'x500_depth_0/odom'
         t.child_frame_id = 'x500_depth_0/base_footprint'
-        
+
         t.transform.translation.x = msg.pose.pose.position.x
         t.transform.translation.y = msg.pose.pose.position.y
         t.transform.translation.z = msg.pose.pose.position.z
-        
-        t.transform.rotation.x = msg.pose.pose.orientation.x
-        t.transform.rotation.y = msg.pose.pose.orientation.y
-        t.transform.rotation.z = msg.pose.pose.orientation.z
-        t.transform.rotation.w = msg.pose.pose.orientation.w
-        
+
+        t.transform.rotation = msg.pose.pose.orientation
+
         self.tf_broadcaster.sendTransform(t)
+
+
+    def pointcloud_callback(self, msg):
+        """
+        点云重发布回调函数
+        将点云数据的坐标系从'x500_depth_0/StereoOV7251'修改为'x500_depth_0/OakD-Lite/base_link/StereoOV7251'
+        """
+        # 创建新的点云消息
+        republished_msg = PointCloud2()
         
-        # 发布x500_depth_0/base_footprint到x500_depth_0/base_link的静态TF
-        t2 = TransformStamped()
-        t2.header.stamp = self.get_clock().now().to_msg()
-        t2.header.frame_id = 'x500_depth_0/base_footprint'
-        t2.child_frame_id = 'x500_depth_0/base_link'
+        # 复制所有字段
+        republished_msg.header = msg.header
+        republished_msg.height = msg.height
+        republished_msg.width = msg.width
+        republished_msg.fields = msg.fields
+        republished_msg.is_bigendian = msg.is_bigendian
+        republished_msg.point_step = msg.point_step
+        republished_msg.row_step = msg.row_step
+        republished_msg.data = msg.data
+        republished_msg.is_dense = msg.is_dense
         
-        t2.transform.translation.x = 0.0
-        t2.transform.translation.y = 0.0
-        t2.transform.translation.z = 0.0
+        # 修改坐标系
+        republished_msg.header.frame_id = 'x500_depth_0/StereoOV7251'
         
-        t2.transform.rotation.x = 0.0
-        t2.transform.rotation.y = 0.0
-        t2.transform.rotation.z = 0.0
-        t2.transform.rotation.w = 1.0
+        # 发布重发布的点云
+        self.pointcloud_publisher.publish(republished_msg)
         
-        self.tf_broadcaster.sendTransform(t2)
-        
-        # 发布odom到x500_depth_0/odom的连接TF（将全局odom连接到特定命名空间的odom）
-        t3 = TransformStamped()
-        t3.header.stamp = self.get_clock().now().to_msg()
-        t3.header.frame_id = 'odom'
-        t3.child_frame_id = 'x500_depth_0/odom'
-        
-        t3.transform.translation.x = 0.0
-        t3.transform.translation.y = 0.0
-        t3.transform.translation.z = 0.0
-        
-        t3.transform.rotation.x = 0.0
-        t3.transform.rotation.y = 0.0
-        t3.transform.rotation.z = 0.0
-        t3.transform.rotation.w = 1.0
-        
-        self.tf_broadcaster.sendTransform(t3)
-    
-    def publish_static_tf(self):
-        # 发布map到odom的静态TF（初始位置）
+        # 可选：记录日志
+        self.get_logger().debug('Republished pointcloud with corrected frame_id', throttle_duration_sec=5.0)
+
+    # =========================
+    # 静态 TF       （一次性）
+    # =========================
+    def publish_static_transforms(self):
+        now = self.get_clock().now().to_msg() 
+        while now.sec == 0:  # 等待 /clock 开始发布
+            rclpy.spin_once(self, timeout_sec=0.01)
+            now = self.get_clock().now().to_msg()
+            self.get_logger().info(f'now:{now}')
+
+        tfs = []
+
+        # map -> odom
         t = TransformStamped()
-        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.stamp = now
         t.header.frame_id = 'map'
         t.child_frame_id = 'odom'
-        
-        t.transform.translation.x = 0.0
-        t.transform.translation.y = 0.0
-        t.transform.translation.z = 0.0
-        
-        t.transform.rotation.x = 0.0
-        t.transform.rotation.y = 0.0
-        t.transform.rotation.z = 0.0
         t.transform.rotation.w = 1.0
-        
-        self.tf_broadcaster.sendTransform(t)
-        
-        # 发布x500_depth_0/base_link到OakD-Lite基座的TF
-        t1 = TransformStamped()
-        t1.header.stamp = self.get_clock().now().to_msg()
-        t1.header.frame_id = 'x500_depth_0/base_link'
-        t1.child_frame_id = 'x500_depth_0/OakD-Lite/base_link'
-        
-        t1.transform.translation.x = 0.12  # OakD-Lite在飞机前方12cm
-        t1.transform.translation.y = 0.03  # 右侧3cm
-        t1.transform.translation.z = 0.242  # 上方24.2cm
-        
-        t1.transform.rotation.x = 0.0
-        t1.transform.rotation.y = 0.0
-        t1.transform.rotation.z = 0.0
-        t1.transform.rotation.w = 1.0
-        
-        self.tf_broadcaster.sendTransform(t1)
-        
-        # 发布x500_depth_0/OakD-Lite/base_link到IMX214相机的TF
-        t2 = TransformStamped()
-        t2.header.stamp = self.get_clock().now().to_msg()
-        t2.header.frame_id = 'x500_depth_0/OakD-Lite/base_link'
-        t2.child_frame_id = 'x500_depth_0/OakD-Lite/base_link/IMX214'
-        
-        t2.transform.translation.x = 0.01233  # 相机在基座上的位置
-        t2.transform.translation.y = -0.03
-        t2.transform.translation.z = 0.01878
-        
-        t2.transform.rotation.x = 0.0
-        t2.transform.rotation.y = 0.0
-        t2.transform.rotation.z = 0.0
-        t2.transform.rotation.w = 1.0
-        
-        self.tf_broadcaster.sendTransform(t2)
-        
-        # 发布x500_depth_0/OakD-Lite/base_link到StereoOV7251相机的TF
-        t3 = TransformStamped()
-        t3.header.stamp = self.get_clock().now().to_msg()
-        t3.header.frame_id = 'x500_depth_0/OakD-Lite/base_link'
-        t3.child_frame_id = 'x500_depth_0/OakD-Lite/base_link/StereoOV7251'
-        
-        t3.transform.translation.x = 0.01233  # 相机在基座上的位置
-        t3.transform.translation.y = -0.03
-        t3.transform.translation.z = 0.01878
-        
-        t3.transform.rotation.x = 0.0
-        t3.transform.rotation.y = 0.0
-        t3.transform.rotation.z = 0.0
-        t3.transform.rotation.w = 1.0
-        
-        self.tf_broadcaster.sendTransform(t3)
+        tfs.append(t)
+
+        # odom -> x500_depth_0/odom
+        t = TransformStamped()
+        t.header.stamp = now
+        t.header.frame_id = 'odom'
+        t.child_frame_id = 'x500_depth_0/odom'
+        t.transform.rotation.w = 1.0
+        tfs.append(t)
+
+        # # x500_depth_0/odom -> x500_depth_0/base_footprint
+        # t = TransformStamped()
+        # t.header.stamp = now
+        # t.header.frame_id = 'x500_depth_0/odom'
+        # t.child_frame_id = 'x500_depth_0/base_footprint'
+        # t.transform.rotation.w = 1.0
+        # tfs.append(t)
+
+        # base_footprint -> base_link
+        t = TransformStamped()
+        t.header.stamp = now
+        t.header.frame_id = 'x500_depth_0/base_footprint'
+        t.child_frame_id = 'x500_depth_0/base_link'
+        t.transform.rotation.w = 1.0
+        tfs.append(t)
+
+        # base_link -> OakD-Lite base
+        t = TransformStamped()
+        t.header.stamp = now
+        t.header.frame_id = 'x500_depth_0/base_link'
+        t.child_frame_id = 'x500_depth_0/OakD-Lite/base_link'
+        t.transform.translation.x = 0.12
+        t.transform.translation.y = 0.03
+        t.transform.translation.z = 0.242
+        t.transform.rotation.w = 1.0
+        tfs.append(t)
+
+        # OakD-Lite -> StereoOV7251（点云）
+        t = TransformStamped()
+        t.header.stamp = now
+        t.header.frame_id = 'x500_depth_0/OakD-Lite/base_link'
+        t.child_frame_id = 'x500_depth_0/StereoOV7251'
+        t.transform.translation.x = 0.01233
+        t.transform.translation.y = -0.03
+        t.transform.translation.z = 0.01878
+        t.transform.rotation.w = 1.0
+        tfs.append(t)
+
+        # OakD-Lite -> IMX214（RGB）
+        t = TransformStamped()
+        t.header.stamp = now
+        t.header.frame_id = 'x500_depth_0/OakD-Lite/base_link'
+        t.child_frame_id = 'x500_depth_0/IMX214'
+        t.transform.translation.x = 0.01233
+        t.transform.translation.y = -0.03
+        t.transform.translation.z = 0.01878
+        t.transform.rotation.w = 1.0
+        tfs.append(t)
+
+        self.static_tf_broadcaster.sendTransform(tfs)
+        # self.tf_broadcaster.sendTransform(tfs)
+
+        self.get_logger().info('Static TFs published')
+
 
 def main(args=None):
     rclpy.init(args=args)
-    tf_publisher = TfPublisher()
-    
+    node = TfPublisher()
+
     try:
-        rclpy.spin(tf_publisher)
+        rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
-        tf_publisher.destroy_node()
+        node.destroy_node()
         rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()
