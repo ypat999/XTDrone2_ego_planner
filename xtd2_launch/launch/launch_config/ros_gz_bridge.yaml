@@ -29,42 +29,46 @@
 # Depth Camera: OakD-Lite #
 ###########################
 - ros_topic_name: "${ros_ns}/IMX214/camera_info"
-  gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/IMX214/camera_info
+  # gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/IMX214/camera_info
+  gz_topic_name: /camera_info
   ros_type_name: "sensor_msgs/msg/CameraInfo"
   gz_type_name: "gz.msgs.CameraInfo"
   lazy: true
   direction: GZ_TO_ROS
 
 - ros_topic_name: "${ros_ns}/IMX214/image_raw"
-  gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/IMX214/image
+  # gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/IMX214/image
+  gz_topic_name: /camera
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   lazy: true
   direction: GZ_TO_ROS
 
-- ros_topic_name: "${ros_ns}/StereoOV7251/camera_info"
-  gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/StereoOV7251/camera_info
-  ros_type_name: "sensor_msgs/msg/CameraInfo"
-  gz_type_name: "gz.msgs.CameraInfo"
-  lazy: true
-  direction: GZ_TO_ROS
+# - ros_topic_name: "${ros_ns}/StereoOV7251/camera_info"
+#   # gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/StereoOV7251/camera_info
+#   ros_type_name: "sensor_msgs/msg/CameraInfo"
+#   gz_type_name: "gz.msgs.CameraInfo"
+#   lazy: true
+#   direction: GZ_TO_ROS
 
-- ros_topic_name: "${ros_ns}/StereoOV7251/image_raw"
-  gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/StereoOV7251/image
-  ros_type_name: "sensor_msgs/msg/Image"
-  gz_type_name: "gz.msgs.Image"
-  lazy: true
-  direction: GZ_TO_ROS
+# - ros_topic_name: "${ros_ns}/StereoOV7251/image_raw"
+#   gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/StereoOV7251/image
+#   ros_type_name: "sensor_msgs/msg/Image"
+#   gz_type_name: "gz.msgs.Image"
+#   lazy: true
+#   direction: GZ_TO_ROS
 
 - ros_topic_name: "${ros_ns}/StereoOV7251/depth"
-  gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/StereoOV7251/depth_image
+  # gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/StereoOV7251/depth_image
+  gz_topic_name: /depth_camera
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   lazy: true
   direction: GZ_TO_ROS
 
 - ros_topic_name: "${ros_ns}/StereoOV7251/pointcloud"
-  gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/StereoOV7251/depth_image/points
+  # gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/StereoOV7251/depth_image/points
+  gz_topic_name: /depth_camera/points
   ros_type_name: "sensor_msgs/msg/PointCloud2"
   gz_type_name: "gz.msgs.PointCloudPacked"
   lazy: true

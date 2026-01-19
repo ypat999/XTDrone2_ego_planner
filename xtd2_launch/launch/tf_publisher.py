@@ -35,19 +35,19 @@ class TfPublisher(Node):
             10
         )
 
-        # 点云重发布功能
-        # 订阅原始点云话题
-        self.pointcloud_subscription = self.create_subscription(
-            PointCloud2,
-            '/x500_depth_0/StereoOV7251/pointcloud',
-            self.pointcloud_callback,
-            10)
+        # # 点云重发布功能
+        # # 订阅原始点云话题
+        # self.pointcloud_subscription = self.create_subscription(
+        #     PointCloud2,
+        #     '/x500_depth_0/StereoOV7251/pointcloud',
+        #     self.pointcloud_callback,
+        #     10)
         
-        # 创建重发布的点云话题
-        self.pointcloud_publisher = self.create_publisher(
-            PointCloud2,
-            '/x500_depth_0/StereoOV7251/pointcloud_republished',
-            10)
+        # # 创建重发布的点云话题
+        # self.pointcloud_publisher = self.create_publisher(
+        #     PointCloud2,
+        #     '/x500_depth_0/StereoOV7251/pointcloud_republished',
+        #     10)
 
         # 一次性发布所有静态 TF
         self.publish_static_transforms()
@@ -80,33 +80,33 @@ class TfPublisher(Node):
         self.tf_broadcaster.sendTransform(t)
 
 
-    def pointcloud_callback(self, msg):
-        """
-        点云重发布回调函数
-        将点云数据的坐标系从'x500_depth_0/StereoOV7251'修改为'x500_depth_0/OakD-Lite/base_link/StereoOV7251'
-        """
-        # 创建新的点云消息
-        republished_msg = PointCloud2()
+    # def pointcloud_callback(self, msg):
+    #     """
+    #     点云重发布回调函数
+    #     将点云数据的坐标系从'x500_depth_0/StereoOV7251'修改为'x500_depth_0/OakD-Lite/base_link/StereoOV7251'
+    #     """
+    #     # 创建新的点云消息
+    #     republished_msg = PointCloud2()
         
-        # 复制所有字段
-        republished_msg.header = msg.header
-        republished_msg.height = msg.height
-        republished_msg.width = msg.width
-        republished_msg.fields = msg.fields
-        republished_msg.is_bigendian = msg.is_bigendian
-        republished_msg.point_step = msg.point_step
-        republished_msg.row_step = msg.row_step
-        republished_msg.data = msg.data
-        republished_msg.is_dense = msg.is_dense
+    #     # 复制所有字段
+    #     republished_msg.header = msg.header
+    #     republished_msg.height = msg.height
+    #     republished_msg.width = msg.width
+    #     republished_msg.fields = msg.fields
+    #     republished_msg.is_bigendian = msg.is_bigendian
+    #     republished_msg.point_step = msg.point_step
+    #     republished_msg.row_step = msg.row_step
+    #     republished_msg.data = msg.data
+    #     republished_msg.is_dense = msg.is_dense
         
-        # 修改坐标系
-        republished_msg.header.frame_id = 'x500_depth_0/StereoOV7251'
+    #     # 修改坐标系
+    #     republished_msg.header.frame_id = 'x500_depth_0/StereoOV7251'
         
-        # 发布重发布的点云
-        self.pointcloud_publisher.publish(republished_msg)
+    #     # 发布重发布的点云
+    #     self.pointcloud_publisher.publish(republished_msg)
         
-        # 可选：记录日志
-        self.get_logger().debug('Republished pointcloud with corrected frame_id', throttle_duration_sec=5.0)
+    #     # 可选：记录日志
+    #     self.get_logger().debug('Republished pointcloud with corrected frame_id', throttle_duration_sec=5.0)
 
     # =========================
     # 静态 TF       （一次性）
@@ -182,6 +182,17 @@ class TfPublisher(Node):
         t.transform.translation.x = 0.01233
         t.transform.translation.y = -0.03
         t.transform.translation.z = 0.01878
+        t.transform.rotation.w = 1.0
+        tfs.append(t)
+
+        # StereoOV7251 -> StereoOV7251
+        t = TransformStamped()
+        t.header.stamp = now
+        t.header.frame_id = 'x500_depth_0/StereoOV7251'
+        t.child_frame_id = 'x500_depth_0/OakD-Lite/base_link/StereoOV7251'
+        t.transform.translation.x = 0.0
+        t.transform.translation.y = 0.0
+        t.transform.translation.z = 0.0
         t.transform.rotation.w = 1.0
         tfs.append(t)
 

@@ -1,5 +1,11 @@
 import argparse
 import subprocess
+import sys
+import logging
+
+# Configure logging to stdout so ros2 launch can capture it reliably
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(name)s: %(message)s', stream=sys.stdout)
+logger = logging.getLogger('px4_launch')
 
 def main():
     parser = argparse.ArgumentParser(description='Launch px4 sitl in XTDrone2')
@@ -56,6 +62,7 @@ def main():
     px4_cmd = f"PX4_UXRCE_DDS_NS={ns} PX4_GZ_WORLD={args.world} PX4_SYS_AUTOSTART={sys_autostart} PX4_SIM_MODEL={sim_model} PX4_GZ_MODEL_POSE='{args.x},{args.y},{args.z},{args.roll},{args.pitch},{args.yaw}' PX4_GZ_MODELS={px4_gz_models_path} PX4_GZ_WORLDS={px4_gz_worlds_path} XTD2_GZ_MODELS={xtd2_gz_models_path} GZ_SIM_RESOURCE_PATH={gz_resource_path} {args.px4_dir}/build/px4_sitl_default/bin/px4 -d -s {args.px4_dir}/build/px4_sitl_default/etc/init.d-posix/rcS {args.px4_dir}/ROMFS/px4fmu_common -i {args.id} -w {args.px4_dir}/build/px4_sitl_default"
     # px4_cmd = f"PX4_UXRCE_DDS_NS={ns} PX4_GZ_WORLD={args.world} PX4_SYS_AUTOSTART={sys_autostart} PX4_SIM_MODEL={sim_model} PX4_GZ_MODEL_POSE='{args.x},{args.y},{args.z},{args.roll},{args.pitch},{args.yaw}' {args.px4_dir}/build/px4_sitl_default/bin/px4 -d -s {args.px4_dir}/build/px4_sitl_default/etc/init.d-posix/rcS {args.px4_dir}/ROMFS/px4fmu_common -i {args.id} -w {args.px4_dir}/build/px4_sitl_default"
 
+    logger.info("Launching PX4 with command: %s", px4_cmd)
     _handle = subprocess.Popen(['bash', '-c', px4_cmd])
 
     try:

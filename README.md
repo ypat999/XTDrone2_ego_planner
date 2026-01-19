@@ -155,8 +155,9 @@ compilation terminated.
 sudo apt install ros-humble-tf-transformations 
 <!-- sudo apt install libignition-gazebo6-plugins -->
 
-sudo apt remove libignition-*
-sudo apt install ros-humble-ros-gzharmonic
+<!-- sudo apt remove libignition-* -->
+<!-- sudo apt install ros-humble-ros-gzharmonic -->
+sudo apt install ros-humble-ros-gzgarden
 
 
 xtd2_ws/XTDrone2_ego_planner/xtd2_launch/xtd2_launch/utils/px4_launch.py  16行配置px4目录
@@ -168,7 +169,10 @@ source install/setup.bash
 
 
 ## 启动飞机单独模拟
-PX4_SIM_MODEL=gz_x500 /home/ywj/git/PX4-Autopilot/build/px4_sitl_default/bin/px4
+PX4_SIM_MODEL=gz_x500_depth PX4_GZ_WORLD=tugbot_warehouse /home/ywj/git/PX4-Autopilot/build/px4_sitl_default/bin/px4
+
+
+PX4_UXRCE_DDS_NS=x500_depth_0 PX4_GZ_WORLD=tugbot_warehouse PX4_SYS_AUTOSTART=4002 PX4_SIM_MODEL=x500_depth PX4_GZ_MODEL_POSE='0.0,0.0,0.0,0.0,0.0,0.0' PX4_GZ_MODELS=~/git/PX4-Autopilot/Tools/simulation/gz/models PX4_GZ_WORLDS=~/git/PX4-Autopilot/Tools/simulation/gz/worlds XTD2_GZ_MODELS=/home/ywj/git/xtd2_ws/install/xtd2_gz_sim/share/xtd2_gz_sim/models GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:$PX4_GZ_MODELS:$PX4_GZ_WORLDS:/home/ywj/git/xtd2_ws/install/xtd2_gz_sim/share/xtd2_gz_sim/models ~/git/PX4-Autopilot/build/px4_sitl_default/bin/px4 -d -s ~/git/PX4-Autopilot/build/px4_sitl_default/etc/init.d-posix/rcS ~/git/PX4-Autopilot/ROMFS/px4fmu_common -i 0 -w ~/git/PX4-Autopilot/build/px4_sitl_default
 
 
 ## 启动XTDrones2模拟

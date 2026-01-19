@@ -39,6 +39,7 @@ def generate_launch_description():
             '--yaw', LaunchConfiguration('yaw')
         ],
         output='screen',
+        emulate_tty=True,
         shell=True
     )
 
@@ -59,6 +60,7 @@ def generate_launch_description():
         package='xtd2_communication',
         executable='multirotor_communication',
         output='screen',
+        emulate_tty=True,
         shell=True,
         arguments=[
             "--model", LaunchConfiguration('model'),
