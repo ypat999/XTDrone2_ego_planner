@@ -77,5 +77,6 @@
     <!-- <plugin filename="ignition-gazebo-sensors-system" name="ignition::gazebo::systems::Sensors">
       <render_engine>ogre2</render_engine>
     </plugin> -->
+    <!-- 不可在模型内加载世界级插件，否则会引起世界元素重加载并崩溃 -->
   </model>
 </sdf>
