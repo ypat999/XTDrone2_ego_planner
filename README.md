@@ -182,10 +182,110 @@ ros2 launch xtd2_launch ros2_single_vehicle_demo_launch.py
 ./QGroundControl-x86_64.AppImage
 
 ## 键盘控制
-ros2 run xtd2_control multirotor_keyboard_control --model gz_x500 --id 0
+ros2 run xtd2_control multirotor_keyboard_control --model gz_x500_depth --id 0
 
 ## 可视化
 rviz2
 
+
+ros2 launch xtd2_launch ego_planner_launch.py 
+
 ## 清除后台残余
 /home/ywj/git/xtd2_ws/XTDrone2_ego_planner/clear_background.sh
+
+## 近期重要更新记录
+
+### 2026-01-19 - 修复模拟环境问题，换用gz garden
+**提交**: c9ace48ccdad2f6b5ca361047d99f6f51ec359f4
+
+#### 主要更新内容
+- **模拟环境升级**: 从Ignition Gazebo迁移到Gazebo Garden
+- **新增ego_planner启动文件**: 创建完整的ego planner启动配置
+- **TF关系优化**: 改进坐标变换发布逻辑
+- **PX4启动配置**: 更新PX4启动脚本配置
+
+#### 关键文件修改
+- `xtd2_launch/launch/ego_planner_launch.py` - 新增完整的ego planner启动配置
+- `xtd2_launch/launch/launch_config/ros_gz_bridge.yaml` - 更新ROS-Gazebo桥接配置
+- `xtd2_launch/launch/tf_publisher.py` - 优化TF坐标变换发布
+- `xtd2_gz_sim/models/OakD-Lite/model.sdf` - 修复相机模型配置
+
+#### 依赖更新
+```bash
+# 确保安装Gazebo Garden相关包
+sudo apt install ros-humble-ros-gzgarden
+sudo apt install ros-humble-tf-transformations
+```
+
+### 2026-01-15 - 修正TF关系
+**提交**: 10bebd1c39cd965f78f01bba929d3ffe187a9f27
+
+#### 主要改进
+- **URDF模型优化**: 修正x500_depth无人机的TF坐标关系
+- **坐标变换精度**: 提高传感器和机体坐标变换的准确性
+- **可视化一致性**: 确保RViz显示与实际仿真一致
+
+#### 影响范围
+- 所有使用x500_depth模型的仿真场景
+- 传感器数据与机体坐标的转换精度
+- 点云和图像数据的正确显示
+
+### 2026-01-13 - 修正点云显示
+**提交**: b50518d2b7f17a7ed3f76040d2b9392539217e84
+
+#### 问题修复
+- **点云显示异常**: 修复深度相机点云在RViz中的显示问题
+- **模型配置优化**: 改进OakD-Lite相机模型的SDF配置
+- **桥接配置更新**: 优化ROS-Gazebo点云数据桥接
+
+#### 技术细节
+- 修正了相机坐标系与点云数据的转换关系
+- 优化了点云数据的发布频率和质量
+- 提高了点云在仿真环境中的可视化效果
+
+### 2026-01-12 - 同步更新
+**提交**: e9de8e3
+
+#### 主要内容
+- **代码同步**: 保持与主分支的同步更新
+- **依赖管理**: 更新项目依赖配置
+- **构建优化**: 改进colcon构建配置
+
+### 2026-01-09 - 基础功能完善
+**提交**: 6749e0c, d45ecbf, 60508f5, cdf8daa
+
+#### 主要功能
+- **TF发布器**: 实现完整的坐标变换发布系统
+- **室内环境**: 添加室内环境模型加载功能
+- **启动方式**: 恢复标准的launch文件启动方式
+- **仿真对接**: 完成与Gazebo仿真的完整对接
+
+#### 重要说明
+- 启动程序应为`gz sim`而非`ign gazebo`
+- 需要去除Ignition相关主要组件，保留必要插件
+- 确保与ROS2 Humble版本的兼容性
+
+## 使用注意事项
+
+### 环境要求
+- **ROS2版本**: Humble Hawksbill
+- **Gazebo版本**: Garden (推荐) 或 Harmonic
+- **PX4版本**: 1.15.3
+- **Python版本**: 3.10+
+
+### 配置要点
+1. **PX4目录配置**: 在`xtd2_launch/xtd2_launch/utils/px4_launch.py`第16行配置PX4目录
+2. **环境变量**: 确保正确设置所有必要的环境变量
+3. **模型路径**: 正确配置Gazebo模型搜索路径
+
+### 构建命令
+```bash
+cd ~/git/xtd2_ws
+colcon build --symlink-install --parallel-workers 8
+source install/setup.bash
+```
+
+### 常见问题
+1. **点云显示异常**: 检查TF关系和相机模型配置
+2. **仿真启动失败**: 确认Gazebo版本和模型路径
+3. **规划失败**: 检查ego planner参数配置和传感器数据

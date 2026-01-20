@@ -28,7 +28,7 @@
 ###########################
 # Depth Camera: OakD-Lite #
 ###########################
-- ros_topic_name: "${ros_ns}/IMX214/camera_info"
+- ros_topic_name: "${ros_ns}/StereoOV7251/camera_info"
   # gz_topic_name: /world/${worldname}/model/${gz_ns}/link/OakD-Lite/base_link/sensor/IMX214/camera_info
   gz_topic_name: /camera_info
   ros_type_name: "sensor_msgs/msg/CameraInfo"

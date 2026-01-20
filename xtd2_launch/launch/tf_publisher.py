@@ -6,7 +6,7 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 
 from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
-from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import TransformStamped, PoseStamped
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import PointCloud2
 
@@ -32,6 +32,13 @@ class TfPublisher(Node):
             Odometry,
             '/x500_depth_0/odometry',
             self.odom_callback,
+            10
+        )
+
+        # 创建相机位姿发布器
+        self.camera_pose_publisher = self.create_publisher(
+            PoseStamped,
+            '/x500_depth_0/StereoOV7251/pose',
             10
         )
 
@@ -65,7 +72,9 @@ class TfPublisher(Node):
         """
         Gazebo 真值：
         x500_depth_0/odom -> x500_depth_0/base_footprint
+        同时推算相机位姿并发布
         """
+        # 发布 odom -> base_footprint TF
         t = TransformStamped()
         t.header.stamp = msg.header.stamp
         t.header.frame_id = 'x500_depth_0/odom'
@@ -78,6 +87,74 @@ class TfPublisher(Node):
         t.transform.rotation = msg.pose.pose.orientation
 
         self.tf_broadcaster.sendTransform(t)
+
+        # 发布相机位姿
+        self.publish_camera_pose(msg)
+
+
+    def publish_camera_pose(self, odom_msg: Odometry):
+        """
+        从odom推算相机位姿并发布
+        相机相对于base_footprint的固定变换：
+        - 位置：前方0.1米，下方0.05米（相对于无人机中心）
+        - 朝向：与无人机朝向一致
+        """
+        # 创建相机位姿消息
+        camera_pose = PoseStamped()
+        camera_pose.header.stamp = odom_msg.header.stamp
+        camera_pose.header.frame_id = 'x500_depth_0/odom'
+        
+        # 相机相对于base_footprint的固定偏移
+        # 假设相机位于无人机.12 .03 .242
+        camera_offset_x = 0.12  # 前方偏移
+        camera_offset_y = 0.03  # 侧向偏移
+        camera_offset_z = 0.242  # 下方偏移
+        
+        # 计算相机在世界坐标系中的位置
+        # 使用odom的位姿加上相机相对于无人机的偏移
+        import math
+        
+        # 获取无人机的朝向（四元数）
+        qx = odom_msg.pose.pose.orientation.x
+        qy = odom_msg.pose.pose.orientation.y
+        qz = odom_msg.pose.pose.orientation.z
+        qw = odom_msg.pose.pose.orientation.w
+        
+        # 将相机偏移旋转到世界坐标系
+        # 计算旋转矩阵
+        # 简化的旋转计算（假设无人机主要在水平面运动）
+        yaw = math.atan2(2.0*(qw*qz + qx*qy), 1.0 - 2.0*(qy*qy + qz*qz))
+        
+        # 旋转相机偏移
+        rotated_offset_x = camera_offset_x * math.cos(yaw) - camera_offset_y * math.sin(yaw)
+        rotated_offset_y = camera_offset_x * math.sin(yaw) + camera_offset_y * math.cos(yaw)
+        rotated_offset_z = camera_offset_z
+        
+        # 计算相机在世界坐标系中的位置
+        camera_pose.pose.position.x = odom_msg.pose.pose.position.x + rotated_offset_x
+        camera_pose.pose.position.y = odom_msg.pose.pose.position.y + rotated_offset_y
+        camera_pose.pose.position.z = odom_msg.pose.pose.position.z + rotated_offset_z
+        
+        # 相机朝向与无人机朝向一致
+        camera_pose.pose.orientation = odom_msg.pose.pose.orientation
+        
+        # 发布相机位姿
+        self.camera_pose_publisher.publish(camera_pose)
+        
+        # 可选：发布相机TF
+        camera_tf = TransformStamped()
+        camera_tf.header.stamp = odom_msg.header.stamp
+        camera_tf.header.frame_id = 'x500_depth_0/base_footprint'
+        camera_tf.child_frame_id = 'x500_depth_0/StereoOV7251'
+        
+        camera_tf.transform.translation.x = camera_offset_x
+        camera_tf.transform.translation.y = camera_offset_y
+        camera_tf.transform.translation.z = camera_offset_z
+        
+        # 相机相对于无人机的旋转（这里假设相机与无人机朝向一致）
+        camera_tf.transform.rotation.w = 1.0  # 无旋转
+        
+        self.tf_broadcaster.sendTransform(camera_tf)
 
 
     # def pointcloud_callback(self, msg):
@@ -119,6 +196,14 @@ class TfPublisher(Node):
             self.get_logger().info(f'now:{now}')
 
         tfs = []
+
+        # world -> map
+        t = TransformStamped()
+        t.header.stamp = now
+        t.header.frame_id = 'world'
+        t.child_frame_id = 'map'
+        t.transform.rotation.w = 1.0
+        tfs.append(t)
 
         # map -> odom
         t = TransformStamped()
