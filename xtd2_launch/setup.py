@@ -29,6 +29,7 @@ setup(
             'bridge_launch = xtd2_launch.utils.bridge_launch:main',
             'tf_publisher = launch.tf_publisher:main',
             'tf_publisher_robot_state = launch.tf_publisher_robot_state:main',
+            'goal_pose_marker = launch.interactive_markers:main',
         ],
     },
 )

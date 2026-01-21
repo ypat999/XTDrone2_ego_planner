@@ -11,6 +11,13 @@ def generate_launch_description():
     # 配置参数 - 针对Gazebo仿真环境
     namespace = LaunchConfiguration('namespace', default='x500_depth_0')
     drone_id = LaunchConfiguration('drone_id', default=0)
+
+    map_size_x = LaunchConfiguration('map_size_x', default=200.0)
+    map_size_y = LaunchConfiguration('map_size_y', default=200.0)
+    map_size_z = LaunchConfiguration('map_size_z', default=40.0)
+
+    max_vel = LaunchConfiguration('max_vel', default=2.0)
+    max_acc = LaunchConfiguration('max_acc', default=6.0)
     
     # 启用仿真时间
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
@@ -47,13 +54,18 @@ def generate_launch_description():
             # ('grid_map/depth', ['/', namespace, '/StereoOV7251/depth']),  # 使用无人机的深度相机深度图像
             ('grid_map/odom', ['/', namespace, '/odometry']),  # 里程计数据用于地图构建
             ('grid_map/pose', ['/', namespace, '/StereoOV7251/pose']),  # 位姿数据用于地图构建
-            ('planning/bspline', ['drone_', drone_id, '_planning/bspline']),
-            ('planning/data_display', ['drone_', drone_id, '_planning/data_display']),
-            ('/move_base_simple/goal', '/goal_pose'),  # RVIZ目标点话题
+            # ('grid_map/occupancy_inflate', ['drone_', drone_id, '_grid/grid_map/occupancy_inflate']),
+
+            ('planning/bspline', ['/', namespace, '/planning/bspline']),
+            ('planning/data_display', ['/', namespace, '/planning/data_display']),
+            ('planning/broadcast_bspline_from_planner', '/broadcast_bspline'),
+            ('planning/broadcast_bspline_to_planner', '/broadcast_bspline'),
+
+            ('/move_base_simple/goal', '/goal_pose_3d'),  # RVIZ目标点话题
+            ('goal_point', '/goal_pose_3d'),
         ],
         parameters=[
             # 基本参数
-            {'manager/drone_id': drone_id},
             {'use_sim_time': use_sim_time},
             
             # FSM 参数
@@ -86,54 +98,105 @@ def generate_launch_description():
             
             # 网格地图参数 - 针对Gazebo环境
             {'grid_map/resolution': 0.2},  # 地图分辨率
-            {'grid_map/map_size_x': 200.0},  # 地图X轴大小
-            {'grid_map/map_size_y': 200.0},  # 地图Y轴大小
-            {'grid_map/map_size_z': 40.0},  # 地图Z轴大小
+            {'grid_map/map_size_x': map_size_x},  # 地图X轴大小
+            {'grid_map/map_size_y': map_size_y},  # 地图Y轴大小
+            {'grid_map/map_size_z': map_size_z},  # 地图Z轴大小
             {'grid_map/local_update_range_x': 20.0},  # 局部更新范围X
             {'grid_map/local_update_range_y': 20.0},  # 局部更新范围Y
             {'grid_map/local_update_range_z': 10.0},  # 局部更新范围Z
             {'grid_map/obstacles_inflation': 0.2},  # 障碍物膨胀半径
             {'grid_map/local_map_margin': 5},  # 局部地图边界
-            {'grid_map/ground_height': 0.0},  # 地面高度
-            {'grid_map/p_occ': 0.2185},  # 占用概率
-            {'grid_map/visualization_truncate_height': 10.0},  # 可视化截断高度
-            {'grid_map/frame_id': 'world'},  # 地图坐标系
-            
-            # 规划器参数
-            {'planning/max_vel': 2.0},  # 最大速度
-            {'planning/max_acc': 6.0},  # 最大加速度
-            {'planning/optimization_iters': 50},  # 优化迭代次数
+            {'grid_map/ground_height': -0.01},  # 地面高度
 
-            # manager参数 - 确保与planner_manager兼容
-            {'manager/max_vel': 2.0},
-            {'manager/max_acc': 6.0},
-            {'manager/max_jerk': 10.0},
-            {'manager/control_points_distance': 0.5},
-            {'manager/planning_horizon': 7.5},
-            
+            # depth filter
+            {'grid_map/use_depth_filter': True}, #
+            {'grid_map/depth_filter_tolerance': 0.15}, #
+            {'grid_map/depth_filter_maxdist': 20.0}, #
+            {'grid_map/depth_filter_mindist': 0.1}, #
             # 点云处理参数
             {'grid_map/depth_filter_margin': 1},  # 深度滤波边界
             {'grid_map/skip_pixel': 2},  # 像素跳转
             {'grid_map/depth_scale': 1.0},  # 深度缩放
+
+            # local fusion
+            {'grid_map/p_hit': 0.65},
+            {'grid_map/p_miss': 0.35},
+            {'grid_map/p_min': 0.12},
+            {'grid_map/p_max': 0.90},
+            {'grid_map/p_occ': 0.2185},  # 占用概率
+            {'grid_map/min_ray_length': 0.1},
+            {'grid_map/max_ray_length': 14.5},
+
+            {'grid_map/virtual_ceil_height': 40.0}, #
+            {'grid_map/pose_type': 1}, #
+            {'grid_map/show_occ_time': False}, #
+            {'grid_map/visualization_truncate_height': 40.0},  # 可视化截断高度
+            {'grid_map/frame_id': 'world'},  # 地图坐标系
+
+            
+            # 规划器参数
+            {'planning/max_vel': max_vel},  # 最大速度
+            {'planning/max_acc': max_acc},  # 最大加速度
+            {'planning/optimization_iters': 50},  # 优化迭代次数
+
+            # manager参数 - 确保与planner_manager兼容
+            {'manager/max_vel': max_vel},
+            {'manager/max_acc': max_acc},
+            {'manager/max_jerk': 10.0},
+            {'manager/control_points_distance': 0.5},
+            {'manager/feasibility_tolerance': 0.05}, #
+            {'manager/planning_horizon': 7.5},
+            {'manager/use_distinctive_trajs': True}, #
+            {'manager/drone_id': drone_id},
+
+
+             # Trajectory optimization parameters
+            {'optimization/lambda_smooth': 1.0}, #
+            {'optimization/lambda_collision': 0.5}, #
+            {'optimization/lambda_feasibility': 0.1}, #
+            {'optimization/lambda_fitness': 1.0}, #
+            {'optimization/dist0': 0.5}, #
+            {'optimization/swarm_clearance': 0.5}, #
+            {'optimization/max_vel': max_vel}, #
+            {'optimization/max_acc': max_acc}, #
+            
+            # B-Spline parameters
+            {'bspline/limit_vel': max_vel}, #
+            {'bspline/limit_acc': max_acc}, #
+            {'bspline/limit_ratio': 1.1}, #
+
+            # Object prediction parameters
+            {'prediction/obj_num': 10}, #
+            {'prediction/lambda': 1.0}, #
+            {'prediction/predict_rate': 1.0} #
         ]
     )
     
     # 轨迹服务器节点
     traj_server_node = Node(
         package='ego_planner',
-        executable='traj_server',
-        name='traj_server',
-        namespace=namespace,
+        executable='xtd2_traj_server',
+        name='xtd2_traj_server',
         output='screen',
         parameters=[
             # 基本参数
             {'use_sim_time': use_sim_time},
+            {'traj_server/time_forward': 1.0},
         ],
         remappings=[
-            ('position_cmd', 'position_cmd'),
-            ('traj_start_trigger', 'traj_start_trigger'),
-            ('odom', ['/', namespace, '/odometry']),
+            # ('position_cmd', 'position_cmd'),
+            # ('traj_start_trigger', 'traj_start_trigger'),
+            # ('odom', ['/', namespace, '/odometry']),
+            ('/xtdrone2/planning/cmd_pose_local_ned', ['/xtdrone2/', 'x500_depth_0', '/cmd_pose_local_ned']),
+            ('planning/bspline', '/x500_depth_0/planning/bspline')
         ]
+    )
+
+    interactive_marker_node = ExecuteProcess(
+        cmd=["python3", "/home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_launch/launch/interactive_markers.py"],
+        output='screen',
+        name='interactive_marker_node',
+        shell=False
     )
     
     # RVIZ启动（延迟启动，确保其他节点先启动）
@@ -153,7 +216,9 @@ def generate_launch_description():
         # 声明参数
         DeclareLaunchArgument('namespace', default_value='x500_depth_0'),
         DeclareLaunchArgument('drone_id', default_value='0'),
-        
+
+        interactive_marker_node,
+
         # 启动ego-planner节点
         ego_planner_node,
         
