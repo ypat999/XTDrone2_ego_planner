@@ -12,6 +12,9 @@ def generate_launch_description():
     namespace = LaunchConfiguration('namespace', default='x500_depth_0')
     drone_id = LaunchConfiguration('drone_id', default=0)
     
+    # 启用仿真时间
+    use_sim_time = LaunchConfiguration('use_sim_time', default='true')
+    
     # 路径点参数 - 根据Gazebo环境调整
     point_num = LaunchConfiguration('point_num', default=4)
     point0_x = LaunchConfiguration('point0_x', default=-1.0)
@@ -51,6 +54,7 @@ def generate_launch_description():
         parameters=[
             # 基本参数
             {'manager/drone_id': drone_id},
+            {'use_sim_time': use_sim_time},
             
             # FSM 参数
             {'fsm/flight_type': 1},  # PRESET_TARGET模式
@@ -85,15 +89,15 @@ def generate_launch_description():
             {'grid_map/map_size_x': 200.0},  # 地图X轴大小
             {'grid_map/map_size_y': 200.0},  # 地图Y轴大小
             {'grid_map/map_size_z': 40.0},  # 地图Z轴大小
-            {'grid_map/local_update_range_x': 8.0},  # 局部更新范围X
-            {'grid_map/local_update_range_y': 8.0},  # 局部更新范围Y
-            {'grid_map/local_update_range_z': 4.0},  # 局部更新范围Z
+            {'grid_map/local_update_range_x': 20.0},  # 局部更新范围X
+            {'grid_map/local_update_range_y': 20.0},  # 局部更新范围Y
+            {'grid_map/local_update_range_z': 10.0},  # 局部更新范围Z
             {'grid_map/obstacles_inflation': 0.2},  # 障碍物膨胀半径
             {'grid_map/local_map_margin': 5},  # 局部地图边界
             {'grid_map/ground_height': 0.0},  # 地面高度
             {'grid_map/p_occ': 0.2185},  # 占用概率
             {'grid_map/visualization_truncate_height': 10.0},  # 可视化截断高度
-            {'grid_map/frame_id': [ namespace, '/StereoOV7251']},  # 地图坐标系
+            {'grid_map/frame_id': 'world'},  # 地图坐标系
             
             # 规划器参数
             {'planning/max_vel': 2.0},  # 最大速度
@@ -121,6 +125,10 @@ def generate_launch_description():
         name='traj_server',
         namespace=namespace,
         output='screen',
+        parameters=[
+            # 基本参数
+            {'use_sim_time': use_sim_time},
+        ],
         remappings=[
             ('position_cmd', 'position_cmd'),
             ('traj_start_trigger', 'traj_start_trigger'),
