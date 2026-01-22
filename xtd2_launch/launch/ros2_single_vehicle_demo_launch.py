@@ -8,8 +8,8 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():
     world_name_arg = DeclareLaunchArgument('world_name', 
-                    # default_value='aruco', 
-                    default_value='tugbot_warehouse',
+                    default_value='aruco', 
+                    # default_value='tugbot_warehouse',
                     description='Name of the world to launch (without .sdf)')
     model_name_arg = DeclareLaunchArgument('model_name', default_value='gz_x500_depth', description='Name of the model to spawn')
     id_arg = DeclareLaunchArgument('id', default_value='0', description='ID of the model to spawn')
@@ -72,6 +72,24 @@ def generate_launch_description():
         shell=False
     )
 
+    #######################
+    # EGO Planner Launch #
+    #######################
+    ego_planner_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare('xtd2_launch'),
+                'launch',
+                'ego_planner_launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'namespace': LaunchConfiguration('namespace'),
+            'drone_id': LaunchConfiguration('id'),
+            'use_sim_time': 'true',
+        }.items()
+    )
+
     # Add all nodes to the launch description
     ld = LaunchDescription([
         world_name_arg,
@@ -81,7 +99,8 @@ def generate_launch_description():
         world_launch,
         xrce_dds_process,
         TimerAction(period=10.0, actions=[spawn]),
-        TimerAction(period=15.0, actions=[tf_publisher])  # 延迟启动，确保其他节点先启动
+        TimerAction(period=15.0, actions=[tf_publisher]),  # 延迟启动，确保其他节点先启动
+        # TimerAction(period=20.0, actions=[ego_planner_launch])  # EGO Planner延迟启动，确保PX4和Gazebo完全就绪
     ])
 
     return ld

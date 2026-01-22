@@ -167,16 +167,104 @@ cd ~/git/xtd2_ws
 colcon build --symlink-install --parallel-workers 8
 source install/setup.bash
 
+.bashrc:
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+source /opt/ros/humble/setup.bash 
+cd ~/git/xtd2_ws && source install/setup.bash
+export GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:~/.gz/fuel/fuel.ignitionrobotics.org/openrobotics/models:~/.gz/fuel/fuel.gazebosim.org/openrobotics/models
 
 ## 启动飞机单独模拟
 PX4_SIM_MODEL=gz_x500_depth PX4_GZ_WORLD=tugbot_warehouse /home/ywj/git/PX4-Autopilot/build/px4_sitl_default/bin/px4
 
-
+详细参数
 PX4_UXRCE_DDS_NS=x500_depth_0 PX4_GZ_WORLD=tugbot_warehouse PX4_SYS_AUTOSTART=4002 PX4_SIM_MODEL=x500_depth PX4_GZ_MODEL_POSE='0.0,0.0,0.0,0.0,0.0,0.0' PX4_GZ_MODELS=~/git/PX4-Autopilot/Tools/simulation/gz/models PX4_GZ_WORLDS=~/git/PX4-Autopilot/Tools/simulation/gz/worlds XTD2_GZ_MODELS=/home/ywj/git/xtd2_ws/install/xtd2_gz_sim/share/xtd2_gz_sim/models GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:$PX4_GZ_MODELS:$PX4_GZ_WORLDS:/home/ywj/git/xtd2_ws/install/xtd2_gz_sim/share/xtd2_gz_sim/models ~/git/PX4-Autopilot/build/px4_sitl_default/bin/px4 -d -s ~/git/PX4-Autopilot/build/px4_sitl_default/etc/init.d-posix/rcS ~/git/PX4-Autopilot/ROMFS/px4fmu_common -i 0 -w ~/git/PX4-Autopilot/build/px4_sitl_default
 
 
-## 启动XTDrones2模拟
+## 坐标系说明 / Coordinate System
+
+### NED 与 FLU 坐标系转换
+XTDrone2使用两种坐标系：
+
+#### NED 坐标系 (North-East-Down)
+- **X轴**: 指向地理北向
+- **Y轴**: 指向地理东向  
+- **Z轴**: 指向地心（向下为负）
+- **应用**: PX4飞控、GPS导航、外部定位
+
+#### FLU 坐标系 (Forward-Left-Up)
+- **X轴**: 指向机体前方
+- **Y轴**: 指向机体左侧
+- **Z轴**: 指向机体上方
+- **应用**: EGO Planner路径规划、传感器数据、内部控制
+
+#### 坐标系对应关系
+| FLU坐标系 | NED坐标系 | 转换说明 |
+|-----------|-----------|----------|
+| X (前向)  | Y (东向)  | X->Y (前向->东向) |
+| Y (左向)  | X (北向)  | Y->X (左向->北向) |
+| Z (上向)  | -Z (下向) | Z->-Z (上向->下向) |
+
+#### 坐标系转换
+在轨迹服务器中实现完整的FLU到NED坐标转换：
+```cpp
+// EGO Planner使用FLU坐标系（X前Y左Z上）
+// PX4飞控使用NED坐标系（X北Y东Z地）
+// 转换规则：FLU(X前,Y左,Z上) -> NED(X北,Y东,Z地)
+// 需要交换X/Y轴并反转Z轴
+// 方向角：FLU atan2(Y前向, X左向) -> NED atan2(Y东向, X北向)
+cmd.position.x = pos(1);      // FLU Y左 -> NED X北
+cmd.position.y = pos(0);      // FLU X前 -> NED Y东  
+cmd.position.z = -pos(2);     // FLU Z上 -> NED Z地（取反）
+// 方向角计算：由于X/Y轴交换，atan2参数也需要交换
+double yaw_temp = dir.norm() > 0.1 ? atan2(dir(0), dir(1)) : last_yaw_;
+```
+
+#### 实际影响
+- **目标点设置**: RViz中设置的目标点使用FLU坐标系
+- **高度显示**: 正值表示向上，负值表示向下
+- **路径规划**: EGO Planner在FLU坐标系中规划路径
+- **飞控接收**: PX4在NED坐标系中执行命令
+
+#### 常见问题
+1. **高度异常**: 如果无人机高度显示为负值，检查坐标系转换
+2. **目标点无效**: 确保RViz中设置的目标点Z值合理（正值向上）
+3. **路径规划失败**: 检查地图边界和坐标系设置
+
+#### 验证方法
+```bash
+# 查看当前坐标系话题
+echo /xtdrone2/x500_depth_0/cmd_pose_local_ned
+# 检查Z轴数值是否为正值（向上）
+```
+
+## 快速启动 / Quick Start
+### 完整仿真环境（包含路径规划）
+```bash
+# 一键启动完整仿真环境（Gazebo + PX4 + EGO Planner）
 ros2 launch xtd2_launch ros2_single_vehicle_demo_launch.py
+
+# 启动键盘控制
+ros2 run xtd2_control multirotor_keyboard_control --model gz_x500_depth --id 0
+```
+
+### 分步启动 / Step-by-Step Launch
+#### 1. 基础仿真环境
+```bash
+# 启动基础仿真（不含路径规划）
+ros2 launch xtd2_launch ros2_single_vehicle_demo_launch.py
+
+# 启动键盘控制
+ros2 run xtd2_control multirotor_keyboard_control --model gz_x500_depth --id 0
+```
+
+#### 2. 路径规划系统
+```bash
+# 单独启动EGO Planner路径规划
+ros2 launch xtd2_launch ego_planner_launch.py
+
+# 启动RViz可视化
+ros2 launch ego_planner rviz.launch.py
+```
 
 ## 地面站QGC
 ./QGroundControl-x86_64.AppImage
@@ -187,13 +275,82 @@ ros2 run xtd2_control multirotor_keyboard_control --model gz_x500_depth --id 0
 ## 可视化
 rviz2
 
+## 导航 / Path Planning
+### EGO Planner 路径规划系统
 
-ros2 launch xtd2_launch ego_planner_launch.py 
+XTDrone2现在集成了增强版的EGO Planner路径规划系统，支持：
+- **TF2坐标转换**: 自动处理相机到世界坐标系的转换
+- **增强点云处理**: 改进的错误处理和内存优化
+- **多无人机支持**: 集群路径规划和协调
+- **实时障碍物避让**: 动态环境下的路径重规划
+
+#### 快速启动 / Quick Start
+```bash
+# 启动完整仿真环境（包含EGO Planner）
+ros2 launch xtd2_launch ros2_single_vehicle_demo_launch.py
+
+# 或者单独启动EGO Planner
+ros2 launch xtd2_launch ego_planner_launch.py
+```
+
+#### 参数配置 / Parameter Configuration
+EGO Planner支持多种参数配置：
+- **namespace**: 无人机命名空间，默认`x500_depth_0`
+- **drone_id**: 无人机ID，默认`0`
+- **use_sim_time**: 使用仿真时间，默认`true`
+- **map_size**: 地图尺寸 (x:200, y:200, z:40)
+- **max_vel/max_acc**: 最大速度和加速度限制
+
+#### 高级功能 / Advanced Features
+- **坐标系转换**: 自动处理相机坐标系到世界坐标系的转换
+- **错误处理**: 增强的点云数据处理和异常处理
+- **性能优化**: 内存预分配和TF2缓冲区优化
+- **多传感器融合**: 支持深度相机和激光雷达数据
+
+#### RViz可视化 / RViz Visualization
+```bash
+# 启动RViz查看路径规划结果
+ros2 launch ego_planner rviz.launch.py
+```
+
+#### 交互式目标设置 / Interactive Goal Setting
+EGO Planner包含交互式标记器，允许在RViz中通过拖拽设置目标位置：
+- **目标标记**: 在RViz中出现可拖拽的3D标记
+- **实时发布**: 拖拽标记时实时发布目标位置到`/goal_pose_3d`话题
+- **坐标系**: 基于world坐标系
+
+#### 键盘控制 / Keyboard Control
+```bash
+# 使用键盘控制无人机飞行
+ros2 run xtd2_control multirotor_keyboard_control --model gz_x500_depth --id 0
+```
 
 ## 清除后台残余
 /home/ywj/git/xtd2_ws/XTDrone2_ego_planner/clear_background.sh
 
 ## 近期重要更新记录
+
+### 2026-01-22 - EGO Planner完整集成和优化
+**提交**: [最新提交]
+
+#### 主要更新内容
+- **EGO Planner完整集成**: 实现单文件启动完整路径规划仿真环境
+- **TF2坐标转换**: 添加自动相机坐标系到世界坐标系转换
+- **增强点云处理**: 改进错误处理和内存优化
+- **构建系统集成**: 完善rviz配置文件安装和包管理
+- **ROS2兼容性**: 优化DDS配置，解决性能问题
+
+#### 技术改进
+- 在`ros2_single_vehicle_demo_launch.py`中集成`ego_planner_launch.py`
+- 修改`grid_map.cpp`支持TF2坐标转换
+- 更新CMakeLists.txt包含rviz文件安装
+- 修复interactive marker命名冲突问题
+- 完善README文档和使用说明
+
+#### 问题修复
+- **Interactive Marker**: 修复了`interactive_markers.py`与ROS2包名冲突导致的循环导入问题
+- **文件重命名**: 将`interactive_markers.py`重命名为`goal_pose_interactive_marker.py`
+- **API适配**: 更新ROS2 InteractiveMarkerServer的使用方法
 
 ### 2026-01-19 - 修复模拟环境问题，换用gz garden
 **提交**: c9ace48ccdad2f6b5ca361047d99f6f51ec359f4
@@ -264,6 +421,39 @@ sudo apt install ros-humble-tf-transformations
 - 启动程序应为`gz sim`而非`ign gazebo`
 - 需要去除Ignition相关主要组件，保留必要插件
 - 确保与ROS2 Humble版本的兼容性
+
+## 故障排除 / Troubleshooting
+
+### Interactive Marker问题
+**问题**: `ModuleNotFoundError: No module named 'interactive_markers'`
+**解决**: 文件已重命名为`goal_pose_interactive_marker.py`避免命名冲突
+
+### 路径规划启动失败
+**问题**: EGO Planner节点启动失败
+**检查**:
+1. 确保所有依赖包已正确安装
+2. 检查命名空间和话题映射是否正确
+3. 验证TF2坐标系配置
+
+### RViz可视化问题
+**问题**: 路径规划结果无法在RViz中显示
+**解决**:
+1. 确认`egoplanner.rviz`文件已正确安装
+2. 检查话题名称和坐标系设置
+3. 确保点云数据正常发布
+
+### 性能优化建议
+- 使用`rmw_cyclonedds_cpp`作为DDS实现
+- 适当调整地图大小和分辨率参数
+- 在复杂环境中减少点云密度
+
+### 坐标系问题
+**问题**: 目标点高度不正确或无人机飞行方向异常
+**原因**: NED和FLU坐标系转换错误
+**解决**: 
+1. 检查轨迹服务器中的坐标系转换逻辑
+2. 确认RViz中设置的目标点使用FLU坐标系
+3. 验证PX4接收的NED坐标系数据正确
 
 ## 使用注意事项
 

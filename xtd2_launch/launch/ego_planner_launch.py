@@ -62,7 +62,7 @@ def generate_launch_description():
             ('planning/broadcast_bspline_to_planner', '/broadcast_bspline'),
 
             ('/move_base_simple/goal', '/goal_pose_3d'),  # RVIZ目标点话题
-            ('goal_point', '/goal_pose_3d'),
+            # ('goal_point', '/goal_pose_3d'),
         ],
         parameters=[
             # 基本参数
@@ -112,10 +112,10 @@ def generate_launch_description():
             {'grid_map/use_depth_filter': True}, #
             {'grid_map/depth_filter_tolerance': 0.15}, #
             {'grid_map/depth_filter_maxdist': 20.0}, #
-            {'grid_map/depth_filter_mindist': 0.1}, #
+            {'grid_map/depth_filter_mindist': 1.0}, #
             # 点云处理参数
             {'grid_map/depth_filter_margin': 1},  # 深度滤波边界
-            {'grid_map/skip_pixel': 2},  # 像素跳转
+            {'grid_map/skip_pixel': 10},  # 像素跳转
             {'grid_map/depth_scale': 1.0},  # 深度缩放
 
             # local fusion
@@ -124,7 +124,7 @@ def generate_launch_description():
             {'grid_map/p_min': 0.12},
             {'grid_map/p_max': 0.90},
             {'grid_map/p_occ': 0.2185},  # 占用概率
-            {'grid_map/min_ray_length': 0.1},
+            {'grid_map/min_ray_length': 0.5},
             {'grid_map/max_ray_length': 14.5},
 
             {'grid_map/virtual_ceil_height': 40.0}, #
@@ -177,6 +177,7 @@ def generate_launch_description():
         package='ego_planner',
         executable='xtd2_traj_server',
         name='xtd2_traj_server',
+        namespace=namespace,
         output='screen',
         parameters=[
             # 基本参数
@@ -193,7 +194,7 @@ def generate_launch_description():
     )
 
     interactive_marker_node = ExecuteProcess(
-        cmd=["python3", "/home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_launch/launch/interactive_markers.py"],
+        cmd=["python3", "/home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_launch/launch/goal_pose_interactive_marker.py"],
         output='screen',
         name='interactive_marker_node',
         shell=False
@@ -205,7 +206,7 @@ def generate_launch_description():
              PathJoinSubstitution([
                  FindPackageShare('ego_planner'),
                  'launch',
-                 'default.rviz'
+                 'egoplanner.rviz'
              ])],
         output='screen',
         name='rviz2'
