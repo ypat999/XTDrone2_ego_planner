@@ -4,11 +4,14 @@ from curses import noraw
 import rclpy
 from rclpy.node import Node
 from rclpy.parameter import Parameter
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
 from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
 from geometry_msgs.msg import TransformStamped, PoseStamped
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import PointCloud2
+from px4_msgs.msg import VehicleOdometry
+import numpy as np
 
 
 class TfPublisher(Node):
@@ -27,6 +30,19 @@ class TfPublisher(Node):
         # 静态 TF（结构关系）
         self.static_tf_broadcaster = StaticTransformBroadcaster(self)
 
+        # PX4 visual odometry发布器
+        qos_profile = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1
+        )
+        
+        self.px4_visual_pub = self.create_publisher(
+            VehicleOdometry,
+            '/x500_depth_0/fmu/in/vehicle_visual_odometry',
+            qos_profile
+        )
+
         # 订阅 Gazebo 发布的 odometry（真值）
         self.create_subscription(
             Odometry,
@@ -42,28 +58,72 @@ class TfPublisher(Node):
             10
         )
 
-        # # 点云重发布功能
-        # # 订阅原始点云话题
-        # self.pointcloud_subscription = self.create_subscription(
-        #     PointCloud2,
-        #     '/x500_depth_0/StereoOV7251/pointcloud',
-        #     self.pointcloud_callback,
-        #     10)
-        
-        # # 创建重发布的点云话题
-        # self.pointcloud_publisher = self.create_publisher(
-        #     PointCloud2,
-        #     '/x500_depth_0/StereoOV7251/pointcloud_republished',
-        #     10)
-
         # 一次性发布所有静态 TF
         self.publish_static_transforms()
 
-        # 定时发布静态TF
-        # self.timer = self.create_timer(0.1, self.publish_static_transforms)
+        self.get_logger().info('TF publisher started (static + dynamic TF + PX4 visual odometry)')
 
-        self.get_logger().info('TF publisher started (static + dynamic TF)')
 
+    def enu_to_ned_position(self, x, y, z):
+        """将ENU坐标系的位置转换为NED坐标系"""
+        # ENU: x=East, y=North, z=Up
+        # NED: x=North, y=East, z=Down
+        return [y, x, -z]
+
+    # def enu_to_ned_quaternion(self, qw, qx, qy, qz):
+    #     """将ENU坐标系的四元数转换为NED坐标系"""
+    #     # ENU到NED的旋转是90度绕X轴旋转
+    #     # q_ENU_to_NED = [cos(45), sin(45), 0, 0] = [0.7071, 0.7071, 0, 0]
+    #     # 但这里我们直接重新排列四元数分量
+    #     # 因为ENU和NED的坐标轴关系：
+    #     # ENU: (x=East, y=North, z=Up) -> NED: (x=North, y=East, z=Down)
+    #     # 所以四元数需要重新映射
+    #     return [qw, qz, qx, -qy]
+
+
+    def quat_to_rot(self, w, x, y, z):
+        return np.array([
+            [1-2*y*y-2*z*z, 2*x*y-2*z*w, 2*x*z+2*y*w],
+            [2*x*y+2*z*w, 1-2*x*x-2*z*z, 2*y*z-2*x*w],
+            [2*x*z-2*y*w, 2*y*z+2*x*w, 1-2*x*x-2*y*y]
+        ])
+
+    def rot_to_quat(self, R):
+        w = np.sqrt(1 + np.trace(R)) / 2
+        x = (R[2,1] - R[1,2]) / (4*w)
+        y = (R[0,2] - R[2,0]) / (4*w)
+        z = (R[1,0] - R[0,1]) / (4*w)
+        return [w, x, y, z]
+
+    def enu_to_ned_quaternion(self, qw, qx, qy, qz):
+        R_enu = self.quat_to_rot(qw, qx, qy, qz)
+
+        T = np.array([
+            [0, 1, 0],
+            [1, 0, 0],
+            [0, 0, -1]
+        ])
+
+        R_ned = T @ R_enu @ T.T
+
+        T_yaw = np.array([
+            [0, -1, 0],
+            [1, 0, 0],
+            [0, 0, 1]
+        ])
+
+        r_ned_final = T_yaw @ R_ned
+
+        return self.rot_to_quat(r_ned_final)
+
+
+    def enu_to_ned_velocity(self, vx, vy, vz):
+        """将ENU坐标系的速度转换为NED坐标系"""
+        return [vy, vx, -vz]
+
+    def enu_to_ned_angular_velocity(self, wx, wy, wz):
+        """将ENU坐标系的角速度转换为NED坐标系"""
+        return [wy, wx, -wz]
 
     # =========================
     # 动态 TF（Gazebo 真值）
@@ -73,6 +133,7 @@ class TfPublisher(Node):
         Gazebo 真值：
         x500_depth_0/odom -> x500_depth_0/base_footprint
         同时推算相机位姿并发布
+        转发到PX4 visual odometry
         """
         # 发布 odom -> base_footprint TF
         t = TransformStamped()
@@ -90,6 +151,75 @@ class TfPublisher(Node):
 
         # 发布相机位姿
         self.publish_camera_pose(msg)
+        
+        # 转发到PX4 visual odometry
+        self.publish_px4_visual_odometry(msg)
+
+
+    def publish_px4_visual_odometry(self, msg: Odometry):
+        """转换并发布PX4 visual odometry"""
+        try:
+            px4_msg = VehicleOdometry()
+            
+            # 时间戳 - 转换为PX4时间基准（微秒）
+            px4_msg.timestamp = int(msg.header.stamp.sec * 1e6 + msg.header.stamp.nanosec / 1000)
+            px4_msg.timestamp_sample = px4_msg.timestamp
+            
+            # 坐标系设置
+            px4_msg.pose_frame = VehicleOdometry.POSE_FRAME_NED
+            px4_msg.velocity_frame = VehicleOdometry.VELOCITY_FRAME_NED
+            
+            # 提取原始数据
+            pos_x = msg.pose.pose.position.x
+            pos_y = msg.pose.pose.position.y
+            pos_z = msg.pose.pose.position.z
+            
+            ori_w = msg.pose.pose.orientation.w
+            ori_x = msg.pose.pose.orientation.x
+            ori_y = msg.pose.pose.orientation.y
+            ori_z = msg.pose.pose.orientation.z
+            
+            vel_x = msg.twist.twist.linear.x
+            vel_y = msg.twist.twist.linear.y
+            vel_z = msg.twist.twist.linear.z
+            
+            ang_vel_x = msg.twist.twist.angular.x
+            ang_vel_y = msg.twist.twist.angular.y
+            ang_vel_z = msg.twist.twist.angular.z
+            
+            # 位置转换: ENU -> NED
+            px4_msg.position = self.enu_to_ned_position(pos_x, pos_y, pos_z)
+            
+            # 四元数转换: ENU -> NED
+            px4_msg.q = self.enu_to_ned_quaternion(ori_w, ori_x, ori_y, ori_z)
+            
+            # 速度转换: ENU -> NED
+            px4_msg.velocity = self.enu_to_ned_velocity(vel_x, vel_y, vel_z)
+            
+            # 角速度转换: ENU -> NED
+            px4_msg.angular_velocity = self.enu_to_ned_angular_velocity(ang_vel_x, ang_vel_y, ang_vel_z)
+            
+            # 协方差 (简化处理)
+            px4_msg.position_variance = [0.001, 0.001, 0.001]
+            px4_msg.orientation_variance = [0.005, 0.005, 0.005]
+            px4_msg.velocity_variance = [0.001, 0.001, 0.001]
+            
+            # 质量指标
+            px4_msg.quality = 100  # 最高质量
+            px4_msg.reset_counter = 0
+            
+            # 发布消息
+            self.px4_visual_pub.publish(px4_msg)
+            
+            # 日志记录（限制频率）
+            self.get_logger().debug(
+                f'PX4 Visual Odom: pos=[{px4_msg.position[0]:.2f}, {px4_msg.position[1]:.2f}, {px4_msg.position[2]:.2f}], '
+                f'vel=[{px4_msg.velocity[0]:.2f}, {px4_msg.velocity[1]:.2f}, {px4_msg.velocity[2]:.2f}]',
+                throttle_duration_sec=1.0
+            )
+            
+        except Exception as e:
+            self.get_logger().error(f'Error converting to PX4 visual odometry: {str(e)}')
 
 
     def publish_camera_pose(self, odom_msg: Odometry):
@@ -221,14 +351,6 @@ class TfPublisher(Node):
         t.transform.rotation.w = 1.0
         tfs.append(t)
 
-        # # x500_depth_0/odom -> x500_depth_0/base_footprint
-        # t = TransformStamped()
-        # t.header.stamp = now
-        # t.header.frame_id = 'x500_depth_0/odom'
-        # t.child_frame_id = 'x500_depth_0/base_footprint'
-        # t.transform.rotation.w = 1.0
-        # tfs.append(t)
-
         # base_footprint -> base_link
         t = TransformStamped()
         t.header.stamp = now
@@ -282,7 +404,6 @@ class TfPublisher(Node):
         tfs.append(t)
 
         self.static_tf_broadcaster.sendTransform(tfs)
-        # self.tf_broadcaster.sendTransform(tfs)
 
         self.get_logger().info('Static TFs published')
 

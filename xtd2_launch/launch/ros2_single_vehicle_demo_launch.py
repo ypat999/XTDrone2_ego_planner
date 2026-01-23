@@ -15,7 +15,6 @@ def generate_launch_description():
     id_arg = DeclareLaunchArgument('id', default_value='0', description='ID of the model to spawn')
     name_space_arg = DeclareLaunchArgument('namespace', default_value='x500_depth_0', description='ROS namespace for the model')
 
-
     
     #####################
     # Gazebo Simulation #
