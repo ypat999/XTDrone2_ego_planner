@@ -366,7 +366,7 @@
   <joint name="oakd_lite_joint" type="fixed">
     <parent link="x500_depth_0/base_link"/>
     <child link="x500_depth_0/OakD-Lite/base_link"/>
-    <origin xyz="0.12 0.03 0.242" rpy="0 0 0"/>
+    <origin xyz="0.12 0.03 0.242" rpy="0 -1.57 0"/>
   </joint>
 
   <!-- IMX214 Camera -->

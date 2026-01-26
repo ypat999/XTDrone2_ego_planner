@@ -200,9 +200,9 @@ class TfPublisher(Node):
             px4_msg.angular_velocity = self.enu_to_ned_angular_velocity(ang_vel_x, ang_vel_y, ang_vel_z)
             
             # 协方差 (简化处理)
-            px4_msg.position_variance = [0.001, 0.001, 0.001]
-            px4_msg.orientation_variance = [0.005, 0.005, 0.005]
-            px4_msg.velocity_variance = [0.001, 0.001, 0.001]
+            px4_msg.position_variance = [0.0001, 0.0001, 0.0001]
+            px4_msg.orientation_variance = [0.0001, 0.0001, 0.0001]
+            px4_msg.velocity_variance = [0.0001, 0.0001, 0.0001]
             
             # 质量指标
             px4_msg.quality = 100  # 最高质量
@@ -266,7 +266,34 @@ class TfPublisher(Node):
         camera_pose.pose.position.z = odom_msg.pose.pose.position.z + rotated_offset_z
         
         # 相机朝向与无人机朝向一致
-        camera_pose.pose.orientation = odom_msg.pose.pose.orientation
+        # 相机相对于无人机绕 Y 轴旋转 90°，将该相对旋转应用到 odom 的朝向上
+        qw = odom_msg.pose.pose.orientation.w
+        qx = odom_msg.pose.pose.orientation.x
+        qy = odom_msg.pose.pose.orientation.y
+        qz = odom_msg.pose.pose.orientation.z
+
+        # 相对旋转四元数（绕 y 轴 90°）
+        import math
+        rot_w = math.cos(-math.pi / 4)
+        rot_x = 0.0
+        rot_y = math.sin(-math.pi / 4)
+        rot_z = 0.0
+
+        def quat_mult(a, b):
+            aw, ax, ay, az = a
+            bw, bx, by, bz = b
+            return [
+                aw*bw - ax*bx - ay*by - az*bz,
+                aw*bx + ax*bw + ay*bz - az*by,
+                aw*by - ax*bz + ay*bw + az*bx,
+                aw*bz + ax*by - ay*bx + az*bw
+            ]
+
+        cam_q = quat_mult([qw, qx, qy, qz], [rot_w, rot_x, rot_y, rot_z])
+        camera_pose.pose.orientation.w = cam_q[0]
+        camera_pose.pose.orientation.x = cam_q[1]
+        camera_pose.pose.orientation.y = cam_q[2]
+        camera_pose.pose.orientation.z = cam_q[3]
         
         # 发布相机位姿
         self.camera_pose_publisher.publish(camera_pose)
@@ -275,14 +302,18 @@ class TfPublisher(Node):
         camera_tf = TransformStamped()
         camera_tf.header.stamp = odom_msg.header.stamp
         camera_tf.header.frame_id = 'x500_depth_0/base_footprint'
-        camera_tf.child_frame_id = 'x500_depth_0/StereoOV7251'
+        camera_tf.child_frame_id = 'x500_depth_0/OakD-Lite/base_link/StereoOV7251' #'x500_depth_0/StereoOV7251'
         
         camera_tf.transform.translation.x = camera_offset_x
         camera_tf.transform.translation.y = camera_offset_y
         camera_tf.transform.translation.z = camera_offset_z
         
         # 相机相对于无人机的旋转（这里假设相机与无人机朝向一致）
-        camera_tf.transform.rotation.w = 1.0  # 无旋转
+        # 相机相对于 base_footprint 绕 Y 轴旋转 90°
+        camera_tf.transform.rotation.w = rot_w
+        camera_tf.transform.rotation.x = rot_x
+        camera_tf.transform.rotation.y = rot_y
+        camera_tf.transform.rotation.z = rot_z
         
         self.tf_broadcaster.sendTransform(camera_tf)
 
@@ -374,11 +405,14 @@ class TfPublisher(Node):
         t = TransformStamped()
         t.header.stamp = now
         t.header.frame_id = 'x500_depth_0/OakD-Lite/base_link'
-        t.child_frame_id = 'x500_depth_0/StereoOV7251'
+        t.child_frame_id = 'x500_depth_0/OakD-Lite/base_link/StereoOV7251' #'x500_depth_0/StereoOV7251'
         t.transform.translation.x = 0.01233
         t.transform.translation.y = -0.03
         t.transform.translation.z = 0.01878
-        t.transform.rotation.w = 1.0
+        t.transform.rotation.x = 0.707
+        t.transform.rotation.y = 0.0
+        t.transform.rotation.z = 0.707
+        t.transform.rotation.w = 0.0
         tfs.append(t)
 
         # OakD-Lite -> IMX214（RGB）
@@ -395,8 +429,8 @@ class TfPublisher(Node):
         # StereoOV7251 -> StereoOV7251
         t = TransformStamped()
         t.header.stamp = now
-        t.header.frame_id = 'x500_depth_0/StereoOV7251'
-        t.child_frame_id = 'x500_depth_0/OakD-Lite/base_link/StereoOV7251'
+        t.header.frame_id = 'x500_depth_0/OakD-Lite/base_link/StereoOV7251'
+        t.child_frame_id = 'x500_depth_0/StereoOV7251'
         t.transform.translation.x = 0.0
         t.transform.translation.y = 0.0
         t.transform.translation.z = 0.0
