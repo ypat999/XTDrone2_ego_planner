@@ -274,9 +274,11 @@ class TfPublisher(Node):
 
         # 相对旋转四元数（绕 y 轴 90°）
         import math
-        rot_w = math.cos(-math.pi / 4)
+        # rot_w = math.cos(-math.pi / 4)
+        rot_w = 1.0
         rot_x = 0.0
-        rot_y = math.sin(-math.pi / 4)
+        # rot_y = math.sin(-math.pi / 4)
+        rot_y = 0.0
         rot_z = 0.0
 
         def quat_mult(a, b):

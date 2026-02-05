@@ -164,6 +164,7 @@ xtd2_ws/XTDrone2_ego_planner/xtd2_launch/xtd2_launch/utils/px4_launch.py  16è¡Œé
 
 
 cd ~/git/xtd2_ws
+source install/setup.bash
 colcon build --symlink-install --parallel-workers 8
 source install/setup.bash
 

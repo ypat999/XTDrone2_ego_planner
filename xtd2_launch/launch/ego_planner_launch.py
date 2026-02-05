@@ -101,9 +101,9 @@ def generate_launch_description():
             {'grid_map/map_size_x': map_size_x},  # 地图X轴大小
             {'grid_map/map_size_y': map_size_y},  # 地图Y轴大小
             {'grid_map/map_size_z': map_size_z},  # 地图Z轴大小
-            {'grid_map/local_update_range_x': 30.0},  # 局部更新范围X
-            {'grid_map/local_update_range_y': 30.0},  # 局部更新范围Y
-            {'grid_map/local_update_range_z': 8.0},  # 局部更新范围Z
+            {'grid_map/local_update_range_x': 10.0},  # 局部更新范围X
+            {'grid_map/local_update_range_y': 10.0},  # 局部更新范围Y
+            {'grid_map/local_update_range_z': 6.0},  # 局部更新范围Z
             {'grid_map/obstacles_inflation': 0.6},  # 障碍物膨胀半径
             {'grid_map/local_map_margin': 5},  # 局部地图边界
             {'grid_map/ground_height': -0.01},  # 地面高度
