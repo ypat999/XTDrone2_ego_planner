@@ -126,7 +126,7 @@ class MultirotorCommunication(Node):
         self.OFFBOARD_STATE = "POSE_LOCAL_NED"
         # Convert quaternion to euler angles
         orientation_q = msg.orientation
-        orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
+        orientation_list = [ orientation_q.w, orientation_q.x, orientation_q.y, orientation_q.z]
         (roll, pitch, yaw) = quat2euler(orientation_list)
         # Construct TrajectorySetpoint message
         cmd = TrajectorySetpoint()
@@ -142,7 +142,7 @@ class MultirotorCommunication(Node):
         self.OFFBOARD_STATE = "POSE_LOCAL_FLU"
         # Convert quaternion to euler angles
         orientation_q = msg.orientation
-        orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
+        orientation_list = [orientation_q.w, orientation_q.x, orientation_q.y, orientation_q.z]
         (roll, pitch, yaw) = quat2euler(orientation_list)
 
         theta = self.cur_vehicle_local_position.heading

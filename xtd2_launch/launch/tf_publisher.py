@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 
-from curses import noraw
 import rclpy
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
 from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
-from geometry_msgs.msg import TransformStamped, PoseStamped
+from geometry_msgs.msg import TransformStamped, PoseStamped, Pose
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import PointCloud2
 from px4_msgs.msg import VehicleOdometry
 import numpy as np
+import threading
+from collections import deque
 
 
 class TfPublisher(Node):
@@ -43,11 +43,34 @@ class TfPublisher(Node):
             qos_profile
         )
 
+        # 补偿后的轨迹发布器
+        self.compensated_traj_pub = self.create_publisher(
+            Pose,
+            '/xtdrone2/x500_depth_0/cmd_pose_local_ned',
+            50
+        )
+
         # 订阅 Gazebo 发布的 odometry（真值）
         self.create_subscription(
             Odometry,
             '/x500_depth_0/odometry',
             self.odom_callback,
+            10
+        )
+
+        # 订阅 PX4 odometry
+        self.create_subscription(
+            VehicleOdometry,
+            '/x500_depth_0/fmu/out/vehicle_odometry',
+            self.px4_odom_callback,
+            QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, depth=1)
+        )
+
+        # 订阅原始轨迹（Gazebo坐标系）
+        self.create_subscription(
+            PoseStamped,
+            '/xtdrone2/planning/raw_trajectory',
+            self.raw_trajectory_callback,
             10
         )
 
@@ -58,11 +81,20 @@ class TfPublisher(Node):
             10
         )
 
+        # 补偿参数
+        self.compensation_lock = threading.Lock()
+        self.position_compensation = np.array([0.0, 0.0, 0.0])
+        self.orientation_compensation = np.array([1.0, 0.0, 0.0, 0.0])  # w, x, y, z
+        self.compensation_alpha = 0.8  # 低通滤波器系数
+        
+        # 数据缓冲区
+        self.gazebo_odom_buffer = deque(maxlen=10)
+        self.px4_odom_buffer = deque(maxlen=10)
+
         # 一次性发布所有静态 TF
         self.publish_static_transforms()
 
-        self.get_logger().info('TF publisher started (static + dynamic TF + PX4 visual odometry)')
-
+        self.get_logger().info('Enhanced TF publisher started (static + dynamic TF + PX4 visual odometry + trajectory compensation)')
 
     def enu_to_ned_position(self, x, y, z):
         """将ENU坐标系的位置转换为NED坐标系"""
@@ -116,7 +148,6 @@ class TfPublisher(Node):
 
         return self.rot_to_quat(r_ned_final)
 
-
     def enu_to_ned_velocity(self, vx, vy, vz):
         """将ENU坐标系的速度转换为NED坐标系"""
         return [vy, vx, -vz]
@@ -125,16 +156,106 @@ class TfPublisher(Node):
         """将ENU坐标系的角速度转换为NED坐标系"""
         return [wy, wx, -wz]
 
-    # =========================
-    # 动态 TF（Gazebo 真值）
-    # =========================
+    def calculate_compensation(self):
+        """计算Gazebo和PX4之间的补偿值"""
+        with self.compensation_lock:
+            if len(self.gazebo_odom_buffer) == 0 or len(self.px4_odom_buffer) == 0:
+                return
+            
+            # 获取最新的数据
+            gazebo_odom = self.gazebo_odom_buffer[-1]
+            px4_odom = self.px4_odom_buffer[-1]
+            
+            # 计算位置差异
+            gazebo_pos = np.array([
+                gazebo_odom['position'][0],
+                gazebo_odom['position'][1], 
+                gazebo_odom['position'][2]
+            ])
+            
+            # PX4位置已经是NED坐标系，需要转换到ENU进行比较
+            px4_pos_ned = np.array([
+                px4_odom['position'][0],
+                px4_odom['position'][1],
+                px4_odom['position'][2]
+            ])
+            
+            # 将PX4 NED位置转换为ENU
+            px4_pos_enu = np.array([
+                px4_pos_ned[1],  # East = North
+                px4_pos_ned[0],  # North = East
+                -px4_pos_ned[2]  # Up = -Down
+            ])
+            
+            # 计算位置补偿
+            position_diff = px4_pos_enu - gazebo_pos
+            
+            # 应用低通滤波器
+            self.position_compensation = (
+                self.compensation_alpha * self.position_compensation + 
+                (1.0 - self.compensation_alpha) * position_diff
+            )
+            
+            # self.get_logger().info(
+            #     f'Compensation calculated: position=({self.position_compensation[0]:.3f}, '
+            #     f'{self.position_compensation[1]:.3f}, {self.position_compensation[2]:.3f})',
+            #     throttle_duration_sec=2.0
+            # )
+
+    def raw_trajectory_callback(self, msg: PoseStamped):
+        """处理原始轨迹并应用补偿"""
+        try:
+            with self.compensation_lock:
+                # 获取原始轨迹位置
+                raw_position = np.array([
+                    msg.pose.position.x,
+                    msg.pose.position.y,
+                    msg.pose.position.z
+                ])
+                
+                # 应用位置补偿
+                compensated_position = raw_position + self.position_compensation
+                
+                # 将补偿后的ENU位置转换为NED坐标系
+                ned_position = self.enu_to_ned_position(
+                    compensated_position[0],
+                    compensated_position[1],
+                    compensated_position[2]
+                )
+                
+                # 转换姿态到NED坐标系
+                ned_orientation = self.enu_to_ned_quaternion(
+                    msg.pose.orientation.w,
+                    msg.pose.orientation.x,
+                    msg.pose.orientation.y,
+                    msg.pose.orientation.z
+                )
+                
+                # 创建补偿后的轨迹消息
+                compensated_pose = Pose()
+                compensated_pose.position.x = ned_position[0]
+                compensated_pose.position.y = ned_position[1]
+                compensated_pose.position.z = ned_position[2]
+                
+                compensated_pose.orientation.w = ned_orientation[0]
+                compensated_pose.orientation.x = ned_orientation[1]
+                compensated_pose.orientation.y = ned_orientation[2]
+                compensated_pose.orientation.z = ned_orientation[3]
+                
+                # 发布补偿后的轨迹
+                self.compensated_traj_pub.publish(compensated_pose)
+                
+                self.get_logger().debug(
+                    f'Compensated trajectory: position=({ned_position[0]:.3f}, '
+                    f'{ned_position[1]:.3f}, {ned_position[2]:.3f})',
+                    throttle_duration_sec=1.0
+                )
+                
+        except Exception as e:
+            self.get_logger().error(f'Error processing trajectory: {str(e)}')
+
     def odom_callback(self, msg: Odometry):
-        """
-        Gazebo 真值：
-        x500_depth_0/odom -> x500_depth_0/base_footprint
-        同时推算相机位姿并发布
-        转发到PX4 visual odometry
-        """
+        """Gazebo odometry callback"""
         # 发布 odom -> base_footprint TF
         t = TransformStamped()
         t.header.stamp = msg.header.stamp
@@ -149,12 +270,40 @@ class TfPublisher(Node):
 
         self.tf_broadcaster.sendTransform(t)
 
+        # 存储Gazebo odometry数据
+        gazebo_data = {
+            'timestamp': msg.header.stamp,
+            'position': [msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z],
+            'orientation': [msg.pose.pose.orientation.w, msg.pose.pose.orientation.x, 
+                          msg.pose.pose.orientation.y, msg.pose.pose.orientation.z]
+        }
+        
+        with self.compensation_lock:
+            self.gazebo_odom_buffer.append(gazebo_data)
+        
         # 发布相机位姿
         self.publish_camera_pose(msg)
         
         # 转发到PX4 visual odometry
         self.publish_px4_visual_odometry(msg)
+        
+        # 计算补偿
+        self.calculate_compensation()
 
+    def px4_odom_callback(self, msg: VehicleOdometry):
+        """PX4 odometry callback"""
+        # 存储PX4 odometry数据
+        px4_data = {
+            'timestamp': msg.timestamp,
+            'position': [msg.position[0], msg.position[1], msg.position[2]],
+            'orientation': [msg.q[0], msg.q[1], msg.q[2], msg.q[3]]
+        }
+        
+        with self.compensation_lock:
+            self.px4_odom_buffer.append(px4_data)
+        
+        # 计算补偿
+        self.calculate_compensation()
 
     def publish_px4_visual_odometry(self, msg: Odometry):
         """转换并发布PX4 visual odometry"""
@@ -211,37 +360,26 @@ class TfPublisher(Node):
             # 发布消息
             self.px4_visual_pub.publish(px4_msg)
             
-            # 日志记录（限制频率）
             self.get_logger().debug(
-                f'PX4 Visual Odom: pos=[{px4_msg.position[0]:.2f}, {px4_msg.position[1]:.2f}, {px4_msg.position[2]:.2f}], '
-                f'vel=[{px4_msg.velocity[0]:.2f}, {px4_msg.velocity[1]:.2f}, {px4_msg.velocity[2]:.2f}]',
+                f'PX4 Visual Odom: pos=[{px4_msg.position[0]:.2f}, {px4_msg.position[1]:.2f}, {px4_msg.position[2]:.2f}]',
                 throttle_duration_sec=1.0
             )
             
         except Exception as e:
             self.get_logger().error(f'Error converting to PX4 visual odometry: {str(e)}')
 
-
     def publish_camera_pose(self, odom_msg: Odometry):
-        """
-        从odom推算相机位姿并发布
-        相机相对于base_footprint的固定变换：
-        - 位置：前方0.1米，下方0.05米（相对于无人机中心）
-        - 朝向：与无人机朝向一致
-        """
-        # 创建相机位姿消息
+        """从odom推算相机位姿并发布"""
         camera_pose = PoseStamped()
         camera_pose.header.stamp = odom_msg.header.stamp
         camera_pose.header.frame_id = 'x500_depth_0/odom'
         
         # 相机相对于base_footprint的固定偏移
-        # 假设相机位于无人机.12 .03 .242
         camera_offset_x = 0.12  # 前方偏移
         camera_offset_y = 0.03  # 侧向偏移
         camera_offset_z = 0.242  # 下方偏移
         
         # 计算相机在世界坐标系中的位置
-        # 使用odom的位姿加上相机相对于无人机的偏移
         import math
         
         # 获取无人机的朝向（四元数）
@@ -250,9 +388,7 @@ class TfPublisher(Node):
         qz = odom_msg.pose.pose.orientation.z
         qw = odom_msg.pose.pose.orientation.w
         
-        # 将相机偏移旋转到世界坐标系
-        # 计算旋转矩阵
-        # 简化的旋转计算（假设无人机主要在水平面运动）
+        # 简化的旋转计算
         yaw = math.atan2(2.0*(qw*qz + qx*qy), 1.0 - 2.0*(qy*qy + qz*qz))
         
         # 旋转相机偏移
@@ -266,92 +402,31 @@ class TfPublisher(Node):
         camera_pose.pose.position.z = odom_msg.pose.pose.position.z + rotated_offset_z
         
         # 相机朝向与无人机朝向一致
-        # 相机相对于无人机绕 Y 轴旋转 90°，将该相对旋转应用到 odom 的朝向上
-        qw = odom_msg.pose.pose.orientation.w
-        qx = odom_msg.pose.pose.orientation.x
-        qy = odom_msg.pose.pose.orientation.y
-        qz = odom_msg.pose.pose.orientation.z
-
-        # 相对旋转四元数（绕 y 轴 90°）
-        import math
-        # rot_w = math.cos(-math.pi / 4)
-        rot_w = 1.0
-        rot_x = 0.0
-        # rot_y = math.sin(-math.pi / 4)
-        rot_y = 0.0
-        rot_z = 0.0
-
-        def quat_mult(a, b):
-            aw, ax, ay, az = a
-            bw, bx, by, bz = b
-            return [
-                aw*bw - ax*bx - ay*by - az*bz,
-                aw*bx + ax*bw + ay*bz - az*by,
-                aw*by - ax*bz + ay*bw + az*bx,
-                aw*bz + ax*by - ay*bx + az*bw
-            ]
-
-        cam_q = quat_mult([qw, qx, qy, qz], [rot_w, rot_x, rot_y, rot_z])
-        camera_pose.pose.orientation.w = cam_q[0]
-        camera_pose.pose.orientation.x = cam_q[1]
-        camera_pose.pose.orientation.y = cam_q[2]
-        camera_pose.pose.orientation.z = cam_q[3]
+        camera_pose.pose.orientation = odom_msg.pose.pose.orientation
         
         # 发布相机位姿
         self.camera_pose_publisher.publish(camera_pose)
         
-        # 可选：发布相机TF
+        # 发布相机TF
         camera_tf = TransformStamped()
         camera_tf.header.stamp = odom_msg.header.stamp
         camera_tf.header.frame_id = 'x500_depth_0/base_footprint'
-        camera_tf.child_frame_id = 'x500_depth_0/OakD-Lite/base_link/StereoOV7251' #'x500_depth_0/StereoOV7251'
+        camera_tf.child_frame_id = 'x500_depth_0/OakD-Lite/base_link/StereoOV7251'
         
         camera_tf.transform.translation.x = camera_offset_x
         camera_tf.transform.translation.y = camera_offset_y
         camera_tf.transform.translation.z = camera_offset_z
         
-        # 相机相对于无人机的旋转（这里假设相机与无人机朝向一致）
         # 相机相对于 base_footprint 绕 Y 轴旋转 90°
-        camera_tf.transform.rotation.w = rot_w
-        camera_tf.transform.rotation.x = rot_x
-        camera_tf.transform.rotation.y = rot_y
-        camera_tf.transform.rotation.z = rot_z
+        camera_tf.transform.rotation.w = 1.0
+        camera_tf.transform.rotation.x = 0.0
+        camera_tf.transform.rotation.y = 0.0
+        camera_tf.transform.rotation.z = 0.0
         
         self.tf_broadcaster.sendTransform(camera_tf)
 
-
-    # def pointcloud_callback(self, msg):
-    #     """
-    #     点云重发布回调函数
-    #     将点云数据的坐标系从'x500_depth_0/StereoOV7251'修改为'x500_depth_0/OakD-Lite/base_link/StereoOV7251'
-    #     """
-    #     # 创建新的点云消息
-    #     republished_msg = PointCloud2()
-        
-    #     # 复制所有字段
-    #     republished_msg.header = msg.header
-    #     republished_msg.height = msg.height
-    #     republished_msg.width = msg.width
-    #     republished_msg.fields = msg.fields
-    #     republished_msg.is_bigendian = msg.is_bigendian
-    #     republished_msg.point_step = msg.point_step
-    #     republished_msg.row_step = msg.row_step
-    #     republished_msg.data = msg.data
-    #     republished_msg.is_dense = msg.is_dense
-        
-    #     # 修改坐标系
-    #     republished_msg.header.frame_id = 'x500_depth_0/StereoOV7251'
-        
-    #     # 发布重发布的点云
-    #     self.pointcloud_publisher.publish(republished_msg)
-        
-    #     # 可选：记录日志
-    #     self.get_logger().debug('Republished pointcloud with corrected frame_id', throttle_duration_sec=5.0)
-
-    # =========================
-    # 静态 TF       （一次性）
-    # =========================
     def publish_static_transforms(self):
+        """发布静态TF变换"""
         now = self.get_clock().now().to_msg() 
         while now.sec == 0:  # 等待 /clock 开始发布
             rclpy.spin_once(self, timeout_sec=0.01)
@@ -447,7 +522,7 @@ class TfPublisher(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = TfPublisher()
-
+    
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

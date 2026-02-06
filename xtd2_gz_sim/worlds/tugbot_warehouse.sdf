@@ -1,246 +1,2932 @@
-<?xml version='1.0' encoding='ASCII'?>
-<sdf version='1.7'>
+<sdf version='1.10'>
   <world name='tugbot_warehouse'>
-    <gravity>0 0 -9.8</gravity>
+    <gravity>0 0 -9.8000000000000007</gravity>
     <physics type='ode'>
       <max_step_size>0.01</max_step_size>
       <real_time_factor>1</real_time_factor>
       <max_contacts>10</max_contacts>
+      <real_time_update_rate>1000</real_time_update_rate>
     </physics>
-    <plugin name="gz::sim::systems::Physics" filename="gz-sim-physics-system"/>
-    <plugin name="gz::sim::systems::UserCommands" filename="gz-sim-user-commands-system"/>
-    <plugin name="gz::sim::systems::SceneBroadcaster" filename="gz-sim-scene-broadcaster-system"/>
-    <plugin name="gz::sim::systems::Contact" filename="gz-sim-contact-system"/>
-    <plugin name="gz::sim::systems::Imu" filename="gz-sim-imu-system"/>
-    <plugin name="gz::sim::systems::AirPressure" filename="gz-sim-air-pressure-system"/>
-    <plugin name="gz::sim::systems::ApplyLinkWrench" filename="gz-sim-apply-link-wrench-system"/>
-    <plugin name="gz::sim::systems::NavSat" filename="gz-sim-navsat-system"/>
-    <plugin name="gz::sim::systems::Sensors" filename="gz-sim-sensors-system">
+    <plugin name='gz::sim::systems::Physics' filename='gz-sim-physics-system'/>
+    <plugin name='gz::sim::systems::UserCommands' filename='gz-sim-user-commands-system'/>
+    <plugin name='gz::sim::systems::SceneBroadcaster' filename='gz-sim-scene-broadcaster-system'/>
+    <plugin name='gz::sim::systems::Contact' filename='gz-sim-contact-system'/>
+    <plugin name='gz::sim::systems::Imu' filename='gz-sim-imu-system'/>
+    <plugin name='gz::sim::systems::AirPressure' filename='gz-sim-air-pressure-system'/>
+    <plugin name='gz::sim::systems::ApplyLinkWrench' filename='gz-sim-apply-link-wrench-system'/>
+    <plugin name='gz::sim::systems::NavSat' filename='gz-sim-navsat-system'/>
+    <plugin name='gz::sim::systems::Sensors' filename='gz-sim-sensors-system'>
       <render_engine>ogre2</render_engine>
     </plugin>
     <scene>
       <ambient>1 1 1 1</ambient>
-      <background>0.3 0.7 0.9 1</background>
-      <shadows>0</shadows>
+      <background>0.300000012 0.699999988 0.899999976 1</background>
+      <shadows>false</shadows>
       <grid>false</grid>
     </scene>
-
-    <light type="directional" name="sun">
-      <cast_shadows>0</cast_shadows>
-      <pose>-5 -3 10 0 0 0</pose>
-      <diffuse>1 1 1 1</diffuse>
-      <specular>1 1 1 1</specular>
-      <direction>0 0 -1</direction>
-    </light>
-
+    <magnetic_field>5.5644999999999998e-06 2.2875799999999999e-05 -4.2388400000000002e-05</magnetic_field>
+    <atmosphere type='adiabatic'/>
     <model name='ground_plane'>
       <static>true</static>
       <link name='link'>
         <collision name='collision'>
           <geometry>
             <plane>
-              <normal>0.0 0.0 1</normal>
+              <normal>0 0 1</normal>
               <size>1 1</size>
             </plane>
           </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
         </collision>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
       </link>
       <pose>0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
     </model>
-
-    <!-- Base -->
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/Warehouse
-      </uri>
-      <name>warehouse</name>
-      <pose>0 0 -0.09 0 0 0</pose>
-    </include>
-
-    <!-- Tugbot -->
-
-    <!-- <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/Tugbot-charging-station
-      </uri>
-      <name>charging_station</name>
-      <pose>14.7 -10.6 -0.04 0 0 0</pose>
-    </include>
-
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/Tugbot
-      </uri>
-      <name>tugbot</name>
-      <pose>13.9 -10.6 0.1 0 0 0</pose>
-    </include> -->
-
-    <!-- Carts -->
-
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/cart_model_2
-      </uri>
-      <name>cart1</name>
-      <pose>-5.73 15 0.25 0 -0 0</pose>
-    </include>
-
-    <!-- Objects -->
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf_big
-      </uri>
-      <name>shelf_big_0</name>
-      <pose>-9.34177 -13.5598 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf
-      </uri>
-      <name>shelf</name>
-      <pose>-4.41528 -0.690987 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf
-      </uri>
-      <name>shelf_0</name>
-      <pose>-4.41528 2.30697 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf
-      </uri>
-      <name>shelf_1</name>
-      <pose>-4.41528 5.30708 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf
-      </uri>
-      <name>shelf_2</name>
-      <pose>-4.41528 8.34352 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf
-      </uri>
-      <name>shelf_3</name>
-      <pose>5.60144 8.34352 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf
-      </uri>
-      <name>shelf_4</name>
-      <pose>5.60144 5.30708 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf
-      </uri>
-      <name>shelf_5</name>
-      <pose>5.60144 -0.690987 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf
-      </uri>
-      <name>shelf_6</name>
-      <pose>5.60144 2.30697 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/pallet_box_mobile
-      </uri>
-      <name>pallet_box_mobile</name>
-      <pose>4.4161 14.6952 0.01 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/pallet_box_mobile
-      </uri>
-      <name>pallet_box_mobile_0</name>
-      <pose>4.45415 13.6212 0.01 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/pallet_box_mobile
-      </uri>
-      <name>pallet_box_mobile_1</name>
-      <pose>4.4468 12.229 0.01 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/pallet_box_mobile
-      </uri>
-      <name>pallet_box</name>
-      <pose>-6.11913 13.7079 0.01 0 -0 0</pose>
+    <model name='warehouse'>
+      <pose>0 0 -0.089999999999999997 0 0 0</pose>
+      <self_collide>false</self_collide>
+      <link name='warehouse_base'>
+        <pose>0 0 0 0 0 0</pose>
+        <collision name='warehouse_collision'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/warehouse/1/meshes/warehouse_colision.stl</uri>
+            </mesh>
+          </geometry>
+        </collision>
+        <visual name='warehouse_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/warehouse/1/meshes/warehouse.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='drop_area_visual'>
+          <pose>0 0 0.10100000000000001 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/warehouse/1/meshes/warehouse.dae</uri>
+              <submesh>
+                <name>drop1</name>
+                <center>true</center>
+              </submesh>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
       <static>true</static>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf_big
-      </uri>
-      <name>shelf_big_1</name>
-      <pose>13.9821 15.319 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf_big
-      </uri>
-      <name>shelf_big_2</name>
-      <pose>6.19777 -12.9647 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf_big
-      </uri>
-      <name>shelf_big_3</name>
-      <pose>0.594376 -12.9647 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf_big
-      </uri>
-      <name>shelf_big_4</name>
-      <pose>-5.36284 -12.9647 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf
-      </uri>
-      <name>shelf_7</name>
-      <pose>13.3818 -21.2416 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf
-      </uri>
-      <name>shelf_8</name>
-      <pose>13.3818 -19.0028 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf
-      </uri>
-      <name>shelf_9</name>
-      <pose>13.3818 -16.4478 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf
-      </uri>
-      <name>shelf_10</name>
-      <pose>13.3818 -14.1028 0 0 -0 0</pose>
-    </include>
-    <include>
-      <uri>
-        https://fuel.ignitionrobotics.org/1.0/MovAi/models/pallet_box_mobile
-      </uri>
-      <name>pallet_box_0</name>
-      <pose>14.0222 -24.335 0.01 0 -0 0</pose>
+    </model>
+    <model name='cart1'>
+      <pose>-5.7300000883552569 15 0.10999135674640396 4.4491019810620895e-13 -8.032281449600928e-07 3.4971846593498692e-14</pose>
+      <link name='base_link'>
+        <pose>0 0 0 0 0 -1.57079632679</pose>
+        <inertial>
+          <pose>0 -0.5 0.5 0 0 0</pose>
+          <mass>30</mass>
+          <inertia>
+            <ixx>0.10000000000000001</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.10000000000000001</iyy>
+            <iyz>0</iyz>
+            <izz>0.10000000000000001</izz>
+          </inertia>
+        </inertial>
+        <collision name='base_link_collision'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/cart_model_2/2/meshes/cart_base_collision.stl</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>5</max_contacts>
+          <surface>
+            <contact>
+              <ode>
+                <soft_cfm>1</soft_cfm>
+                <soft_erp>0.40000000000000002</soft_erp>
+                <kp>1000000</kp>
+                <kd>1</kd>
+                <min_depth>0.01</min_depth>
+              </ode>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1.1599999999999999</mu>
+                <mu2>1.1599999999999999</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='base_link_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/cart_model_2/2/meshes/cart_base.dae</uri>
+              <submesh>
+                <name>base_metal</name>
+                <center>false</center>
+              </submesh>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='base_shelf_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/cart_model_2/2/meshes/cart_base.dae</uri>
+              <submesh>
+                <name>base_shelf</name>
+                <center>false</center>
+              </submesh>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='back_left_sup_visual'>
+          <pose>-0.245 -1.0049999999999999 0.050000000000000003 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/cart_model_2/2/meshes/sup_wheels.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='back_right_sup_visual'>
+          <pose>0.245 -1.0049999999999999 0.050000000000000003 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/cart_model_2/2/meshes/sup_wheels.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='tag_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/cart_model_2/2/meshes/cart_base.dae</uri>
+              <submesh>
+                <name>tag</name>
+                <center>false</center>
+              </submesh>
+            </mesh>
+          </geometry>
+          <material>
+            <diffuse>1 1 1 1</diffuse>
+            <specular>1 1 1 1</specular>
+            <pbr>
+              <metal>
+                <albedo_map>meshes/cart_tag.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+        <enable_wind>false</enable_wind>
+      </link>
+      <link name='back_left'>
+        <pose>-1.0400000000000009 -0.24499999999999389 -0.049999999999999982 -9.1969529567801406e-17 -1.0475532645748699e-22 1.5707963270000005</pose>
+        <inertial>
+          <pose>0 0 0 0 1.5707963267948966 0</pose>
+          <mass>0.01</mass>
+          <inertia>
+            <ixx>1.7499999999999998e-05</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1.7499999999999998e-05</iyy>
+            <iyz>0</iyz>
+            <izz>3.1250000000000001e-05</izz>
+          </inertia>
+        </inertial>
+        <collision name='back_left_collision'>
+          <pose>0 0 0 0 1.5707963267948966 0</pose>
+          <geometry>
+            <cylinder>
+              <length>0.029999999999999999</length>
+              <radius>0.059999999999999998</radius>
+            </cylinder>
+          </geometry>
+          <max_contacts>5</max_contacts>
+          <surface>
+            <contact>
+              <ode>
+                <soft_cfm>1</soft_cfm>
+                <soft_erp>0.40000000000000002</soft_erp>
+                <kp>1000000</kp>
+                <kd>1</kd>
+                <min_depth>0.01</min_depth>
+              </ode>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1.1599999999999999</mu>
+                <mu2>1.1599999999999999</mu2>
+              </ode>
+            </friction>
+            <bounce/>
+          </surface>
+        </collision>
+        <visual name='back_left_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/cart_model_2/2/meshes/wheel.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <enable_wind>false</enable_wind>
+      </link>
+      <joint name='back_left_joint' type='revolute'>
+        <child>back_left</child>
+        <parent>base_link</parent>
+        <axis>
+          <xyz>1 0 0</xyz>
+          <limit>
+            <lower>-inf</lower>
+            <upper>inf</upper>
+            <effort>inf</effort>
+            <velocity>inf</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0.0001</damping>
+            <friction>0.5</friction>
+          </dynamics>
+        </axis>
+        <pose>-1.1102230246251565e-16 -2.2204460492503131e-16 0 0 0 0</pose>
+      </joint>
+      <link name='back_right'>
+        <pose>-1.04 0.24500000000000455 -0.049999999999999989 -8.958079618143911e-17 -1.0475557147891674e-22 1.5707963270000005</pose>
+        <inertial>
+          <pose>0 0 0 0 1.5707963267948966 0</pose>
+          <mass>0.01</mass>
+          <inertia>
+            <ixx>1.7499999999999998e-05</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1.7499999999999998e-05</iyy>
+            <iyz>0</iyz>
+            <izz>3.1250000000000001e-05</izz>
+          </inertia>
+        </inertial>
+        <collision name='back_right_collision'>
+          <pose>0 0 0 0 1.5707963267948966 0</pose>
+          <geometry>
+            <cylinder>
+              <length>0.029999999999999999</length>
+              <radius>0.059999999999999998</radius>
+            </cylinder>
+          </geometry>
+          <max_contacts>5</max_contacts>
+          <surface>
+            <contact>
+              <ode>
+                <soft_cfm>1</soft_cfm>
+                <soft_erp>0.40000000000000002</soft_erp>
+                <kp>1000000</kp>
+                <kd>1</kd>
+                <min_depth>0.01</min_depth>
+              </ode>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1.1599999999999999</mu>
+                <mu2>1.1599999999999999</mu2>
+              </ode>
+            </friction>
+            <bounce/>
+          </surface>
+        </collision>
+        <visual name='back_right_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/cart_model_2/2/meshes/wheel.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <enable_wind>false</enable_wind>
+      </link>
+      <joint name='back_right_joint' type='revolute'>
+        <child>back_right</child>
+        <parent>base_link</parent>
+        <axis>
+          <xyz>1 0 0</xyz>
+          <limit>
+            <lower>-inf</lower>
+            <upper>inf</upper>
+            <effort>inf</effort>
+            <velocity>inf</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0.0001</damping>
+            <friction>0.5</friction>
+          </dynamics>
+        </axis>
+        <pose>1.1102230246251565e-16 -2.2204460492503131e-16 0 0 0 0</pose>
+      </joint>
+      <link name='wheel_sup_front_left'>
+        <pose>0 -0.24500000000000099 0.049999999999999961 -4.4921483395456559e-22 -1.7963260229206318e-22 1.5707963269997183</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>0.01</mass>
+          <inertia>
+            <ixx>1.7499999999999998e-05</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1.7499999999999998e-05</iyy>
+            <iyz>0</iyz>
+            <izz>1.7499999999999998e-05</izz>
+          </inertia>
+        </inertial>
+        <visual name='wheel_sup_front_left_visual'>
+          <pose>0 0 0 0 0 -3.1415926535895866</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/cart_model_2/2/meshes/sup_wheels.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <enable_wind>false</enable_wind>
+      </link>
+      <joint name='wheel_sup_front_left_joint' type='revolute'>
+        <child>wheel_sup_front_left</child>
+        <parent>base_link</parent>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>-inf</lower>
+            <upper>inf</upper>
+            <effort>inf</effort>
+            <velocity>inf</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0.001</damping>
+            <friction>0</friction>
+          </dynamics>
+        </axis>
+        <pose>-2.7755575615628914e-17 0 0 0 0 0</pose>
+      </joint>
+      <link name='front_left'>
+        <pose>-0.040000000000000036 -0.24499999999998856 -0.049999999999999947 -8.4516136364456836e-17 1.9471526754833726e-22 1.5707963269997178</pose>
+        <inertial>
+          <pose>0 0 0 0 1.5707963267948966 0</pose>
+          <mass>0.01</mass>
+          <inertia>
+            <ixx>1.7499999999999998e-05</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1.7499999999999998e-05</iyy>
+            <iyz>0</iyz>
+            <izz>3.1250000000000001e-05</izz>
+          </inertia>
+        </inertial>
+        <collision name='front_left_collision'>
+          <pose>0 0 0 0 1.5707963267948966 0</pose>
+          <geometry>
+            <cylinder>
+              <length>0.029999999999999999</length>
+              <radius>0.059999999999999998</radius>
+            </cylinder>
+          </geometry>
+          <max_contacts>5</max_contacts>
+          <surface>
+            <contact>
+              <ode>
+                <soft_cfm>1</soft_cfm>
+                <soft_erp>0.40000000000000002</soft_erp>
+                <kp>1000000</kp>
+                <kd>1</kd>
+                <min_depth>0.01</min_depth>
+              </ode>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1.1599999999999999</mu>
+                <mu2>1.1599999999999999</mu2>
+              </ode>
+            </friction>
+            <bounce/>
+          </surface>
+        </collision>
+        <visual name='front_left_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/cart_model_2/2/meshes/wheel.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <enable_wind>false</enable_wind>
+      </link>
+      <joint name='front_left_joint' type='revolute'>
+        <child>front_left</child>
+        <parent>wheel_sup_front_left</parent>
+        <axis>
+          <xyz>1 0 0</xyz>
+          <limit>
+            <lower>-inf</lower>
+            <upper>inf</upper>
+            <effort>inf</effort>
+            <velocity>inf</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0.0001</damping>
+            <friction>0.5</friction>
+          </dynamics>
+        </axis>
+        <pose>0 -1.3877787807814457e-17 0 0 0 0</pose>
+      </joint>
+      <link name='wheel_sup_front_right'>
+        <pose>8.8817841970012523e-16 0.24499999999999922 0.049999999999999989 -5.2408267656981661e-22 -2.5450044489574026e-22 1.5707963270002849</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>0.01</mass>
+          <inertia>
+            <ixx>1.7499999999999998e-05</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1.7499999999999998e-05</iyy>
+            <iyz>0</iyz>
+            <izz>1.7499999999999998e-05</izz>
+          </inertia>
+        </inertial>
+        <visual name='wheel_sup_front_right_visual'>
+          <pose>0 0 0 0 0 -3.1415926535895866</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/cart_model_2/2/meshes/sup_wheels.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <enable_wind>false</enable_wind>
+      </link>
+      <joint name='wheel_sup_front_right_joint' type='revolute'>
+        <child>wheel_sup_front_right</child>
+        <parent>base_link</parent>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>-inf</lower>
+            <upper>inf</upper>
+            <effort>inf</effort>
+            <velocity>inf</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0.001</damping>
+            <friction>0</friction>
+          </dynamics>
+        </axis>
+        <pose>2.7755575615628914e-17 0 0 0 0 0</pose>
+      </joint>
+      <link name='front_right'>
+        <pose>-0.040000000000000036 0.24499999999998856 -0.049999999999999933 -8.9350128358353106e-17 1.1984794539339916e-22 1.5707963270002847</pose>
+        <inertial>
+          <pose>0 0 0 0 1.5707963267948966 0</pose>
+          <mass>0.01</mass>
+          <inertia>
+            <ixx>1.7499999999999998e-05</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1.7499999999999998e-05</iyy>
+            <iyz>0</iyz>
+            <izz>3.1250000000000001e-05</izz>
+          </inertia>
+        </inertial>
+        <collision name='front_right_collision'>
+          <pose>0 0 0 0 1.5707963267948966 0</pose>
+          <geometry>
+            <cylinder>
+              <length>0.029999999999999999</length>
+              <radius>0.059999999999999998</radius>
+            </cylinder>
+          </geometry>
+          <max_contacts>5</max_contacts>
+          <surface>
+            <contact>
+              <ode>
+                <soft_cfm>1</soft_cfm>
+                <soft_erp>0.40000000000000002</soft_erp>
+                <kp>1000000</kp>
+                <kd>1</kd>
+                <min_depth>0.01</min_depth>
+              </ode>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1.1599999999999999</mu>
+                <mu2>1.1599999999999999</mu2>
+              </ode>
+            </friction>
+            <bounce/>
+          </surface>
+        </collision>
+        <visual name='front_right_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/cart_model_2/2/meshes/wheel.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <enable_wind>false</enable_wind>
+      </link>
+      <joint name='front_right_joint' type='revolute'>
+        <child>front_right</child>
+        <parent>wheel_sup_front_right</parent>
+        <axis>
+          <xyz>1 0 0</xyz>
+          <limit>
+            <lower>-inf</lower>
+            <upper>inf</upper>
+            <effort>inf</effort>
+            <velocity>inf</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0.0001</damping>
+            <friction>0.5</friction>
+          </dynamics>
+        </axis>
+        <pose>5.5511151231257827e-17 2.7755575615628914e-17 0 0 0 0</pose>
+      </joint>
+      <static>false</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name='shelf_big_0'>
+      <pose>-9.3417700000000004 -13.559799999999999 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_big_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_big_chassi_collision'>
+          <pose>0 0 3 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>2.1000000000000001 18 6</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_big_chassi_visual'>
+          <pose>0 0 0 0 0 1.57079632679</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf_big/2/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
       <static>true</static>
-    </include>
+    </model>
+    <model name='shelf'>
+      <pose>-4.4152800000000001 -0.69098700000000002 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_chassi_collision'>
+          <pose>0 0 0.90000000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3.6000000000000001 0.59999999999999998 1.8</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_chassi_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.20000000000000001 0.29999999999999999 0.29999999999999999</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf/1/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+    </model>
+    <model name='shelf_0'>
+      <pose>-4.4152800000000001 2.3069700000000002 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_chassi_collision'>
+          <pose>0 0 0.90000000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3.6000000000000001 0.59999999999999998 1.8</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_chassi_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.20000000000000001 0.29999999999999999 0.29999999999999999</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf/1/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+    </model>
+    <model name='shelf_1'>
+      <pose>-4.4152800000000001 5.30708 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_chassi_collision'>
+          <pose>0 0 0.90000000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3.6000000000000001 0.59999999999999998 1.8</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_chassi_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.20000000000000001 0.29999999999999999 0.29999999999999999</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf/1/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+    </model>
+    <model name='shelf_2'>
+      <pose>-4.4152800000000001 8.3435199999999998 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_chassi_collision'>
+          <pose>0 0 0.90000000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3.6000000000000001 0.59999999999999998 1.8</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_chassi_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.20000000000000001 0.29999999999999999 0.29999999999999999</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf/1/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+    </model>
+    <model name='shelf_3'>
+      <pose>5.6014400000000002 8.3435199999999998 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_chassi_collision'>
+          <pose>0 0 0.90000000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3.6000000000000001 0.59999999999999998 1.8</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_chassi_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.20000000000000001 0.29999999999999999 0.29999999999999999</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf/1/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+    </model>
+    <model name='shelf_4'>
+      <pose>5.6014400000000002 5.30708 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_chassi_collision'>
+          <pose>0 0 0.90000000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3.6000000000000001 0.59999999999999998 1.8</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_chassi_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.20000000000000001 0.29999999999999999 0.29999999999999999</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf/1/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+    </model>
+    <model name='shelf_5'>
+      <pose>5.6014400000000002 -0.69098700000000002 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_chassi_collision'>
+          <pose>0 0 0.90000000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3.6000000000000001 0.59999999999999998 1.8</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_chassi_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.20000000000000001 0.29999999999999999 0.29999999999999999</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf/1/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+    </model>
+    <model name='shelf_6'>
+      <pose>5.6014400000000002 2.3069700000000002 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_chassi_collision'>
+          <pose>0 0 0.90000000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3.6000000000000001 0.59999999999999998 1.8</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_chassi_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.20000000000000001 0.29999999999999999 0.29999999999999999</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf/1/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+    </model>
+    <model name='pallet_box_mobile'>
+      <pose>4.4161000000000001 14.6952 -0.0050731850330384869 1.0865603389397017e-15 -4.1483468828772962e-15 -1.021934611843909e-16</pose>
+      <self_collide>false</self_collide>
+      <link name='pallet_base'>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0.40000000000000002 0 0 0</pose>
+          <mass>200</mass>
+          <inertia>
+            <ixx>0.10000000000000001</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.10000000000000001</iyy>
+            <iyz>0</iyz>
+            <izz>0.10000000000000001</izz>
+          </inertia>
+        </inertial>
+        <collision name='pallet_top_collision'>
+          <pose>0 0 0.125 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.80000000000000004 0.040000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>0.40000000000000002</mu>
+                <mu2>0.40000000000000002</mu2>
+              </ode>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='pallet_center_collision'>
+          <pose>0 0 0.055 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.10000000000000001 0.10000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='pallet_left_collision'>
+          <pose>0 -0.34999999999999998 0.055 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.10000000000000001 0.10000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='pallet_right_collision'>
+          <pose>0 0.34999999999999998 0.055 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.10000000000000001 0.10000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='boxes_collision'>
+          <pose>0 0 0.64400000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.80000000000000004 1</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='pallet_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/pallet/tip/files/meshes/pallet.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='boxes_visual'>
+          <pose>-0.053874999999999999 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>https://fuel.ignitionrobotics.org/1.0/movai/models/pallet_box_mobile/3/files/meshes/boxes.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <enable_wind>false</enable_wind>
+      </link>
+      <plugin name='ignition::gazebo::systems::PosePublisher' filename='ignition-gazebo-pose-publisher-system'>
+        <publish_link_pose>true</publish_link_pose>
+        <publish_collision_pose>false</publish_collision_pose>
+        <publish_visual_pose>false</publish_visual_pose>
+        <publish_nested_model_pose>true</publish_nested_model_pose>
+        <update_frequency>20</update_frequency>
+      </plugin>
+      <static>false</static>
+    </model>
+    <model name='pallet_box_mobile_0'>
+      <pose>4.4541500000000003 13.6212 -0.0050731850330390732 -2.2172081070425667e-15 -3.1398503556557732e-15 1.1502159220109962e-17</pose>
+      <self_collide>false</self_collide>
+      <link name='pallet_base'>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0.40000000000000002 0 0 0</pose>
+          <mass>200</mass>
+          <inertia>
+            <ixx>0.10000000000000001</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.10000000000000001</iyy>
+            <iyz>0</iyz>
+            <izz>0.10000000000000001</izz>
+          </inertia>
+        </inertial>
+        <collision name='pallet_top_collision'>
+          <pose>0 0 0.125 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.80000000000000004 0.040000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>0.40000000000000002</mu>
+                <mu2>0.40000000000000002</mu2>
+              </ode>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='pallet_center_collision'>
+          <pose>0 0 0.055 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.10000000000000001 0.10000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='pallet_left_collision'>
+          <pose>0 -0.34999999999999998 0.055 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.10000000000000001 0.10000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='pallet_right_collision'>
+          <pose>0 0.34999999999999998 0.055 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.10000000000000001 0.10000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='boxes_collision'>
+          <pose>0 0 0.64400000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.80000000000000004 1</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='pallet_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/pallet/tip/files/meshes/pallet.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='boxes_visual'>
+          <pose>-0.053874999999999999 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>https://fuel.ignitionrobotics.org/1.0/movai/models/pallet_box_mobile/3/files/meshes/boxes.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <enable_wind>false</enable_wind>
+      </link>
+      <plugin name='ignition::gazebo::systems::PosePublisher' filename='ignition-gazebo-pose-publisher-system'>
+        <publish_link_pose>true</publish_link_pose>
+        <publish_collision_pose>false</publish_collision_pose>
+        <publish_visual_pose>false</publish_visual_pose>
+        <publish_nested_model_pose>true</publish_nested_model_pose>
+        <update_frequency>20</update_frequency>
+      </plugin>
+      <static>false</static>
+    </model>
+    <model name='pallet_box_mobile_1'>
+      <pose>4.4467999999999996 12.228999999999999 -0.0050731850330391123 2.8862881024159312e-16 -4.6091802632541534e-15 -5.7859641242011662e-16</pose>
+      <self_collide>false</self_collide>
+      <link name='pallet_base'>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0.40000000000000002 0 0 0</pose>
+          <mass>200</mass>
+          <inertia>
+            <ixx>0.10000000000000001</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.10000000000000001</iyy>
+            <iyz>0</iyz>
+            <izz>0.10000000000000001</izz>
+          </inertia>
+        </inertial>
+        <collision name='pallet_top_collision'>
+          <pose>0 0 0.125 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.80000000000000004 0.040000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>0.40000000000000002</mu>
+                <mu2>0.40000000000000002</mu2>
+              </ode>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='pallet_center_collision'>
+          <pose>0 0 0.055 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.10000000000000001 0.10000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='pallet_left_collision'>
+          <pose>0 -0.34999999999999998 0.055 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.10000000000000001 0.10000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='pallet_right_collision'>
+          <pose>0 0.34999999999999998 0.055 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.10000000000000001 0.10000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='boxes_collision'>
+          <pose>0 0 0.64400000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.80000000000000004 1</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='pallet_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/pallet/tip/files/meshes/pallet.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='boxes_visual'>
+          <pose>-0.053874999999999999 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>https://fuel.ignitionrobotics.org/1.0/movai/models/pallet_box_mobile/3/files/meshes/boxes.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <enable_wind>false</enable_wind>
+      </link>
+      <plugin name='ignition::gazebo::systems::PosePublisher' filename='ignition-gazebo-pose-publisher-system'>
+        <publish_link_pose>true</publish_link_pose>
+        <publish_collision_pose>false</publish_collision_pose>
+        <publish_visual_pose>false</publish_visual_pose>
+        <publish_nested_model_pose>true</publish_nested_model_pose>
+        <update_frequency>20</update_frequency>
+      </plugin>
+      <static>false</static>
+    </model>
+    <model name='pallet_box'>
+      <pose>-6.1191300000000002 13.7079 -0.0050731861208290494 -1.0341845599791959e-15 -3.2345118066449744e-15 -3.225383673502314e-17</pose>
+      <self_collide>false</self_collide>
+      <link name='pallet_base'>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0.40000000000000002 0 0 0</pose>
+          <mass>200</mass>
+          <inertia>
+            <ixx>0.10000000000000001</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.10000000000000001</iyy>
+            <iyz>0</iyz>
+            <izz>0.10000000000000001</izz>
+          </inertia>
+        </inertial>
+        <collision name='pallet_top_collision'>
+          <pose>0 0 0.125 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.80000000000000004 0.040000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>0.40000000000000002</mu>
+                <mu2>0.40000000000000002</mu2>
+              </ode>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='pallet_center_collision'>
+          <pose>0 0 0.055 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.10000000000000001 0.10000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='pallet_left_collision'>
+          <pose>0 -0.34999999999999998 0.055 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.10000000000000001 0.10000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='pallet_right_collision'>
+          <pose>0 0.34999999999999998 0.055 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.10000000000000001 0.10000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='boxes_collision'>
+          <pose>0 0 0.64400000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.80000000000000004 1</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='pallet_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/pallet/tip/files/meshes/pallet.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='boxes_visual'>
+          <pose>-0.053874999999999999 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>https://fuel.ignitionrobotics.org/1.0/movai/models/pallet_box_mobile/3/files/meshes/boxes.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <enable_wind>false</enable_wind>
+      </link>
+      <plugin name='ignition::gazebo::systems::PosePublisher' filename='ignition-gazebo-pose-publisher-system'>
+        <publish_link_pose>true</publish_link_pose>
+        <publish_collision_pose>false</publish_collision_pose>
+        <publish_visual_pose>false</publish_visual_pose>
+        <publish_nested_model_pose>true</publish_nested_model_pose>
+        <update_frequency>20</update_frequency>
+      </plugin>
+      <static>false</static>
+    </model>
+    <model name='shelf_big_1'>
+      <pose>13.982100000000001 15.319000000000001 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_big_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_big_chassi_collision'>
+          <pose>0 0 3 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>2.1000000000000001 18 6</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_big_chassi_visual'>
+          <pose>0 0 0 0 0 1.57079632679</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf_big/2/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+    </model>
+    <model name='shelf_big_2'>
+      <pose>6.1977700000000002 -12.964700000000001 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_big_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_big_chassi_collision'>
+          <pose>0 0 3 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>2.1000000000000001 18 6</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_big_chassi_visual'>
+          <pose>0 0 0 0 0 1.57079632679</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf_big/2/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+    </model>
+    <model name='shelf_big_3'>
+      <pose>0.59437600000000002 -12.964700000000001 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_big_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_big_chassi_collision'>
+          <pose>0 0 3 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>2.1000000000000001 18 6</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_big_chassi_visual'>
+          <pose>0 0 0 0 0 1.57079632679</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf_big/2/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+    </model>
+    <model name='shelf_big_4'>
+      <pose>-5.3628400000000003 -12.964700000000001 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_big_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_big_chassi_collision'>
+          <pose>0 0 3 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>2.1000000000000001 18 6</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_big_chassi_visual'>
+          <pose>0 0 0 0 0 1.57079632679</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf_big/2/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+    </model>
+    <model name='shelf_7'>
+      <pose>13.3818 -21.241599999999998 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_chassi_collision'>
+          <pose>0 0 0.90000000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3.6000000000000001 0.59999999999999998 1.8</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_chassi_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.20000000000000001 0.29999999999999999 0.29999999999999999</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf/1/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+    </model>
+    <model name='shelf_8'>
+      <pose>13.3818 -19.002800000000001 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_chassi_collision'>
+          <pose>0 0 0.90000000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3.6000000000000001 0.59999999999999998 1.8</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_chassi_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.20000000000000001 0.29999999999999999 0.29999999999999999</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf/1/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+    </model>
+    <model name='shelf_9'>
+      <pose>13.3818 -16.447800000000001 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_chassi_collision'>
+          <pose>0 0 0.90000000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3.6000000000000001 0.59999999999999998 1.8</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_chassi_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.20000000000000001 0.29999999999999999 0.29999999999999999</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf/1/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+    </model>
+    <model name='shelf_10'>
+      <pose>13.3818 -14.1028 0 0 0 0</pose>
+      <self_collide>true</self_collide>
+      <link name='shelf_base'>
+        <pose>-0.5 0 0 0 0 0</pose>
+        <collision name='shelf_chassi_collision'>
+          <pose>0 0 0.90000000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3.6000000000000001 0.59999999999999998 1.8</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='shelf_chassi_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.20000000000000001 0.29999999999999999 0.29999999999999999</scale>
+              <uri>file:///home/ywj/.gz/fuel/fuel.ignitionrobotics.org/movai/models/shelf/1/meshes/shelf_big_movai.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+    </model>
+    <model name='pallet_box_0'>
+      <pose>14.0222 -24.335000000000001 -0.0050731861208296019 -5.8667893914722331e-16 -3.6348419741139989e-15 -6.594636289534708e-16</pose>
+      <self_collide>false</self_collide>
+      <link name='pallet_base'>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0.40000000000000002 0 0 0</pose>
+          <mass>200</mass>
+          <inertia>
+            <ixx>0.10000000000000001</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.10000000000000001</iyy>
+            <iyz>0</iyz>
+            <izz>0.10000000000000001</izz>
+          </inertia>
+        </inertial>
+        <collision name='pallet_top_collision'>
+          <pose>0 0 0.125 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.80000000000000004 0.040000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>0.40000000000000002</mu>
+                <mu2>0.40000000000000002</mu2>
+              </ode>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='pallet_center_collision'>
+          <pose>0 0 0.055 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.10000000000000001 0.10000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='pallet_left_collision'>
+          <pose>0 -0.34999999999999998 0.055 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.10000000000000001 0.10000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='pallet_right_collision'>
+          <pose>0 0.34999999999999998 0.055 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.10000000000000001 0.10000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <collision name='boxes_collision'>
+          <pose>0 0 0.64400000000000002 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.22 0.80000000000000004 1</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='pallet_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/pallet/tip/files/meshes/pallet.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='boxes_visual'>
+          <pose>-0.053874999999999999 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>https://fuel.ignitionrobotics.org/1.0/movai/models/pallet_box_mobile/3/files/meshes/boxes.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <enable_wind>false</enable_wind>
+      </link>
+      <plugin name='ignition::gazebo::systems::PosePublisher' filename='ignition-gazebo-pose-publisher-system'>
+        <publish_link_pose>true</publish_link_pose>
+        <publish_collision_pose>false</publish_collision_pose>
+        <publish_visual_pose>false</publish_visual_pose>
+        <publish_nested_model_pose>true</publish_nested_model_pose>
+        <update_frequency>20</update_frequency>
+      </plugin>
+      <static>false</static>
+    </model>
+    <model name='x500_depth_0'>
+      <frame name='_merged__x500__model__' attached_to='base_link'>
+        <pose relative_to='__model__'>0 0 0 0 0 0</pose>
+      </frame>
+      <frame name='_merged__x500_base__model__' attached_to='base_link'>
+        <pose relative_to='_merged__x500__model__'>0 0 0.23999999999999999 0 0 0</pose>
+      </frame>
+      <link name='base_link'>
+        <inertial>
+          <mass>2</mass>
+          <inertia>
+            <ixx>0.021666666666666671</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.021666666666666671</iyy>
+            <iyz>0</iyz>
+            <izz>0.040000000000000008</izz>
+          </inertia>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <gravity>true</gravity>
+        <velocity_decay/>
+        <visual name='base_link_visual'>
+          <pose>0 0 0.025000000000000001 0 0 -3.1415926531795866</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_gz_sim/models/x500_depth/model://x500_base/meshes/NXP-HGD-CF.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='5010_motor_base_0'>
+          <pose>0.17399999999999999 0.17399999999999999 0.032000000000000001 0 0 -0.45000000000000001</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_gz_sim/models/x500_depth/model://x500_base/meshes/5010Base.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='5010_motor_base_1'>
+          <pose>-0.17399999999999999 0.17399999999999999 0.032000000000000001 0 0 -0.45000000000000001</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_gz_sim/models/x500_depth/model://x500_base/meshes/5010Base.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='5010_motor_base_2'>
+          <pose>0.17399999999999999 -0.17399999999999999 0.032000000000000001 0 0 -0.45000000000000001</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_gz_sim/models/x500_depth/model://x500_base/meshes/5010Base.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='5010_motor_base_3'>
+          <pose>-0.17399999999999999 -0.17399999999999999 0.032000000000000001 0 0 -0.45000000000000001</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_gz_sim/models/x500_depth/model://x500_base/meshes/5010Base.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='NXP_FMUK66_FRONT'>
+          <pose>0.047 0.001 0.042999999999999997 1 1.1102230246251565e-16 1.5699999999999998</pose>
+          <cast_shadows>false</cast_shadows>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.012999999999999999 0.0070000000000000001</size>
+            </plane>
+          </geometry>
+          <material>
+            <diffuse>1 1 1 1</diffuse>
+            <specular>1 1 1 1</specular>
+            <pbr>
+              <metal>
+                <albedo_map>model://x500_base/materials/textures/nxp.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+        <visual name='NXP_FMUK66_TOP'>
+          <pose>-0.023 0 0.051499999999999997 0 0 -1.5700000000000001</pose>
+          <cast_shadows>false</cast_shadows>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.012999999999999999 0.0070000000000000001</size>
+            </plane>
+          </geometry>
+          <material>
+            <diffuse>1 1 1 1</diffuse>
+            <specular>1 1 1 1</specular>
+            <pbr>
+              <metal>
+                <albedo_map>model://x500_base/materials/textures/nxp.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+        <visual name='RDDRONE_FMUK66_TOP'>
+          <pose>-0.029999999999999999 0 0.051499999999999997 0 0 -1.5700000000000001</pose>
+          <cast_shadows>false</cast_shadows>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.032000000000000001 0.0033999999999999998</size>
+            </plane>
+          </geometry>
+          <material>
+            <diffuse>1 1 1 1</diffuse>
+            <specular>1 1 1 1</specular>
+            <pbr>
+              <metal>
+                <albedo_map>model://x500_base/materials/textures/rd.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+        <collision name='base_link_collision_0'>
+          <pose>0 0 0.0070000000000000001 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.35355339059327373 0.35355339059327373 0.050000000000000003</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <ode>
+                <min_depth>0.001</min_depth>
+                <max_vel>0</max_vel>
+              </ode>
+            </contact>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+          </surface>
+        </collision>
+        <collision name='base_link_collision_1'>
+          <pose>0 -0.098000000000000004 -0.123 -0.34999999999999998 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.014999999999999999 0.014999999999999999 0.20999999999999999</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <ode>
+                <min_depth>0.001</min_depth>
+                <max_vel>0</max_vel>
+              </ode>
+            </contact>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+          </surface>
+        </collision>
+        <collision name='base_link_collision_2'>
+          <pose>0 0.098000000000000004 -0.123 0.34999999999999998 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.014999999999999999 0.014999999999999999 0.20999999999999999</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <ode>
+                <min_depth>0.001</min_depth>
+                <max_vel>0</max_vel>
+              </ode>
+            </contact>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+          </surface>
+        </collision>
+        <collision name='base_link_collision_3'>
+          <pose>0 -0.13200000000000001 -0.2195 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.25 0.014999999999999999 0.014999999999999999</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <ode>
+                <min_depth>0.001</min_depth>
+                <max_vel>0</max_vel>
+              </ode>
+            </contact>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+          </surface>
+        </collision>
+        <collision name='base_link_collision_4'>
+          <pose>0 0.13200000000000001 -0.2195 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.25 0.014999999999999999 0.014999999999999999</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <ode>
+                <min_depth>0.001</min_depth>
+                <max_vel>0</max_vel>
+              </ode>
+            </contact>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+          </surface>
+        </collision>
+        <sensor name='air_pressure_sensor' type='air_pressure'>
+          <pose>0 0 0 0 0 0</pose>
+          <topic>__default__</topic>
+          <update_rate>50</update_rate>
+          <enable_metrics>false</enable_metrics>
+          <air_pressure>
+            <reference_altitude>0</reference_altitude>
+            <pressure>
+              <noise type='gaussian'>
+                <mean>0</mean>
+                <stddev>0.01</stddev>
+                <bias_mean>0</bias_mean>
+                <bias_stddev>0</bias_stddev>
+                <dynamic_bias_stddev>0</dynamic_bias_stddev>
+                <dynamic_bias_correlation_time>0</dynamic_bias_correlation_time>
+                <precision>0</precision>
+              </noise>
+            </pressure>
+          </air_pressure>
+        </sensor>
+        <sensor name='imu_sensor' type='imu'>
+          <pose>0 0 0 0 0 0</pose>
+          <topic>__default__</topic>
+          <update_rate>250</update_rate>
+          <enable_metrics>false</enable_metrics>
+          <imu>
+            <orientation_reference_frame>
+              <localization>CUSTOM</localization>
+              <custom_rpy>0 0 0</custom_rpy>
+              <grav_dir_x>1 0 0</grav_dir_x>
+            </orientation_reference_frame>
+            <angular_velocity>
+              <x>
+                <noise type='gaussian'>
+                  <mean>0</mean>
+                  <stddev>0.00018665000000000001</stddev>
+                  <bias_mean>0</bias_mean>
+                  <bias_stddev>0</bias_stddev>
+                  <dynamic_bias_stddev>3.8785000000000002e-05</dynamic_bias_stddev>
+                  <dynamic_bias_correlation_time>1000</dynamic_bias_correlation_time>
+                  <precision>0</precision>
+                </noise>
+              </x>
+              <y>
+                <noise type='gaussian'>
+                  <mean>0</mean>
+                  <stddev>0.00018665000000000001</stddev>
+                  <bias_mean>0</bias_mean>
+                  <bias_stddev>0</bias_stddev>
+                  <dynamic_bias_stddev>3.8785000000000002e-05</dynamic_bias_stddev>
+                  <dynamic_bias_correlation_time>1000</dynamic_bias_correlation_time>
+                  <precision>0</precision>
+                </noise>
+              </y>
+              <z>
+                <noise type='gaussian'>
+                  <mean>0</mean>
+                  <stddev>0.00018665000000000001</stddev>
+                  <bias_mean>0</bias_mean>
+                  <bias_stddev>0</bias_stddev>
+                  <dynamic_bias_stddev>3.8785000000000002e-05</dynamic_bias_stddev>
+                  <dynamic_bias_correlation_time>1000</dynamic_bias_correlation_time>
+                  <precision>0</precision>
+                </noise>
+              </z>
+            </angular_velocity>
+            <linear_acceleration>
+              <x>
+                <noise type='gaussian'>
+                  <mean>0</mean>
+                  <stddev>0.0018600000000000001</stddev>
+                  <bias_mean>0</bias_mean>
+                  <bias_stddev>0</bias_stddev>
+                  <dynamic_bias_stddev>0.0060000000000000001</dynamic_bias_stddev>
+                  <dynamic_bias_correlation_time>300</dynamic_bias_correlation_time>
+                  <precision>0</precision>
+                </noise>
+              </x>
+              <y>
+                <noise type='gaussian'>
+                  <mean>0</mean>
+                  <stddev>0.0018600000000000001</stddev>
+                  <bias_mean>0</bias_mean>
+                  <bias_stddev>0</bias_stddev>
+                  <dynamic_bias_stddev>0.0060000000000000001</dynamic_bias_stddev>
+                  <dynamic_bias_correlation_time>300</dynamic_bias_correlation_time>
+                  <precision>0</precision>
+                </noise>
+              </y>
+              <z>
+                <noise type='gaussian'>
+                  <mean>0</mean>
+                  <stddev>0.0018600000000000001</stddev>
+                  <bias_mean>0</bias_mean>
+                  <bias_stddev>0</bias_stddev>
+                  <dynamic_bias_stddev>0.0060000000000000001</dynamic_bias_stddev>
+                  <dynamic_bias_correlation_time>300</dynamic_bias_correlation_time>
+                  <precision>0</precision>
+                </noise>
+              </z>
+            </linear_acceleration>
+            <enable_orientation>true</enable_orientation>
+          </imu>
+        </sensor>
+        <sensor name='navsat_sensor' type='navsat'>
+          <always_on>true</always_on>
+          <update_rate>30</update_rate>
+          <gps/>
+        </sensor>
+        <pose>0 0 0.23999999999999999 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <link name='rotor_0'>
+        <gravity>true</gravity>
+        <self_collide>false</self_collide>
+        <velocity_decay/>
+        <pose>0.17400000000000002 -0.17399999999999996 0.29999999999999999 -2.4323040743756837e-33 1.0337653176498167e-33 -1.6925247209073944e-21</pose>
+        <inertial>
+          <mass>0.016076923076923075</mass>
+          <inertia>
+            <ixx>3.8464910483993325e-07</ixx>
+            <iyy>2.6115851691700804e-05</iyy>
+            <izz>2.6498582347140039e-05</izz>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyz>0</iyz>
+          </inertia>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <visual name='rotor_0_visual'>
+          <pose>-0.021999999999999999 -0.14638461538461536 -0.016 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.84615384615384615 0.84615384615384615 0.84615384615384615</scale>
+              <uri>file:///home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_gz_sim/models/x500_depth/model://x500_base/meshes/1345_prop_ccw.stl</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/DarkGrey</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <visual name='rotor_0_visual_motor_bell'>
+          <pose>0 0 -0.032000000000000001 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_gz_sim/models/x500_depth/model://x500_base/meshes/5010Bell.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <collision name='rotor_0_collision'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.27923076923076923 0.016923076923076923 0.0008461538461538462</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <ode>
+                <min_depth>0.001</min_depth>
+                <max_vel>0</max_vel>
+              </ode>
+            </contact>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+          </surface>
+        </collision>
+        <enable_wind>false</enable_wind>
+      </link>
+      <joint name='rotor_0_joint' type='revolute'>
+        <parent>base_link</parent>
+        <child>rotor_0</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>-10000000000000000</lower>
+            <upper>10000000000000000</upper>
+            <effort>inf</effort>
+            <velocity>inf</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0</damping>
+            <friction>0</friction>
+          </dynamics>
+        </axis>
+        <pose>0 0 0 0 0 0</pose>
+      </joint>
+      <link name='rotor_1'>
+        <gravity>true</gravity>
+        <self_collide>false</self_collide>
+        <velocity_decay/>
+        <pose>-0.17400000000000002 0.17400000000000002 0.29999999999999999 -1.3754068179757953e-33 1.0337653176504932e-33 -4.1247446588921462e-21</pose>
+        <inertial>
+          <mass>0.016076923076923075</mass>
+          <inertia>
+            <ixx>3.8464910483993325e-07</ixx>
+            <iyy>2.6115851691700804e-05</iyy>
+            <izz>2.6498582347140039e-05</izz>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyz>0</iyz>
+          </inertia>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <visual name='rotor_1_visual'>
+          <pose>-0.021999999999999999 -0.14638461538461536 -0.016 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.84615384615384615 0.84615384615384615 0.84615384615384615</scale>
+              <uri>file:///home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_gz_sim/models/x500_depth/model://x500_base/meshes/1345_prop_ccw.stl</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/DarkGrey</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <visual name='rotor_1_visual_motor_top'>
+          <pose>0 0 -0.032000000000000001 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_gz_sim/models/x500_depth/model://x500_base/meshes/5010Bell.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <collision name='rotor_1_collision'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.27923076923076923 0.016923076923076923 0.0008461538461538462</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <ode>
+                <min_depth>0.001</min_depth>
+                <max_vel>0</max_vel>
+              </ode>
+            </contact>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+          </surface>
+        </collision>
+        <enable_wind>false</enable_wind>
+      </link>
+      <joint name='rotor_1_joint' type='revolute'>
+        <parent>base_link</parent>
+        <child>rotor_1</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>-10000000000000000</lower>
+            <upper>10000000000000000</upper>
+            <effort>inf</effort>
+            <velocity>inf</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0</damping>
+            <friction>0</friction>
+          </dynamics>
+        </axis>
+        <pose>0 0 0 0 0 0</pose>
+      </joint>
+      <link name='rotor_2'>
+        <gravity>true</gravity>
+        <self_collide>false</self_collide>
+        <velocity_decay/>
+        <pose>0.17400000000000002 0.17400000000000002 0.30000000000000004 -4.0827774887988559e-34 1.0337653176495158e-33 -6.109523062853441e-22</pose>
+        <inertial>
+          <mass>0.016076923076923075</mass>
+          <inertia>
+            <ixx>3.8464910483993325e-07</ixx>
+            <iyy>2.6115851691700804e-05</iyy>
+            <izz>2.6498582347140039e-05</izz>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyz>0</iyz>
+          </inertia>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <visual name='rotor_2_visual'>
+          <pose>-0.021999999999999999 -0.14638461538461536 -0.016 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.84615384615384615 0.84615384615384615 0.84615384615384615</scale>
+              <uri>file:///home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_gz_sim/models/x500_depth/model://x500_base/meshes/1345_prop_cw.stl</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/DarkGrey</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <visual name='rotor_2_visual_motor_top'>
+          <pose>0 0 -0.032000000000000001 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_gz_sim/models/x500_depth/model://x500_base/meshes/5010Bell.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <collision name='rotor_2_collision'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.27923076923076923 0.016923076923076923 0.0008461538461538462</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <ode>
+                <min_depth>0.001</min_depth>
+                <max_vel>0</max_vel>
+              </ode>
+            </contact>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+          </surface>
+        </collision>
+        <enable_wind>false</enable_wind>
+      </link>
+      <joint name='rotor_2_joint' type='revolute'>
+        <parent>base_link</parent>
+        <child>rotor_2</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>-10000000000000000</lower>
+            <upper>10000000000000000</upper>
+            <effort>inf</effort>
+            <velocity>inf</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0</damping>
+            <friction>0</friction>
+          </dynamics>
+        </axis>
+        <pose>0 0 0 0 0 0</pose>
+      </joint>
+      <link name='rotor_3'>
+        <gravity>true</gravity>
+        <self_collide>false</self_collide>
+        <velocity_decay/>
+        <pose>-0.17400000000000002 -0.17399999999999996 0.30000000000000004 -1.277150000255445e-33 1.0337653176495543e-33 -7.4969210749680213e-22</pose>
+        <inertial>
+          <mass>0.016076923076923075</mass>
+          <inertia>
+            <ixx>3.8464910483993325e-07</ixx>
+            <iyy>2.6115851691700804e-05</iyy>
+            <izz>2.6498582347140039e-05</izz>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyz>0</iyz>
+          </inertia>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <visual name='rotor_3_visual'>
+          <pose>-0.021999999999999999 -0.14638461538461536 -0.016 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.84615384615384615 0.84615384615384615 0.84615384615384615</scale>
+              <uri>file:///home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_gz_sim/models/x500_depth/model://x500_base/meshes/1345_prop_cw.stl</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/DarkGrey</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <visual name='rotor_3_visual_motor_top'>
+          <pose>0 0 -0.032000000000000001 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_gz_sim/models/x500_depth/model://x500_base/meshes/5010Bell.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <collision name='rotor_3_collision'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.27923076923076923 0.016923076923076923 0.0008461538461538462</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <ode>
+                <min_depth>0.001</min_depth>
+                <max_vel>0</max_vel>
+              </ode>
+            </contact>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+          </surface>
+        </collision>
+        <enable_wind>false</enable_wind>
+      </link>
+      <joint name='rotor_3_joint' type='revolute'>
+        <parent>base_link</parent>
+        <child>rotor_3</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>-10000000000000000</lower>
+            <upper>10000000000000000</upper>
+            <effort>inf</effort>
+            <velocity>inf</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0</damping>
+            <friction>0</friction>
+          </dynamics>
+        </axis>
+        <pose>0 0 0 0 0 0</pose>
+      </joint>
+      <plugin name='gz::sim::systems::MulticopterMotorModel' filename='gz-sim-multicopter-motor-model-system'>
+        <jointName>rotor_0_joint</jointName>
+        <linkName>rotor_0</linkName>
+        <turningDirection>ccw</turningDirection>
+        <timeConstantUp>0.0125</timeConstantUp>
+        <timeConstantDown>0.025</timeConstantDown>
+        <maxRotVelocity>1000.0</maxRotVelocity>
+        <motorConstant>8.54858e-06</motorConstant>
+        <momentConstant>0.016</momentConstant>
+        <commandSubTopic>command/motor_speed</commandSubTopic>
+        <motorNumber>0</motorNumber>
+        <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+        <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+        <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+        <motorType>velocity</motorType>
+      </plugin>
+      <plugin name='gz::sim::systems::MulticopterMotorModel' filename='gz-sim-multicopter-motor-model-system'>
+        <jointName>rotor_1_joint</jointName>
+        <linkName>rotor_1</linkName>
+        <turningDirection>ccw</turningDirection>
+        <timeConstantUp>0.0125</timeConstantUp>
+        <timeConstantDown>0.025</timeConstantDown>
+        <maxRotVelocity>1000.0</maxRotVelocity>
+        <motorConstant>8.54858e-06</motorConstant>
+        <momentConstant>0.016</momentConstant>
+        <commandSubTopic>command/motor_speed</commandSubTopic>
+        <motorNumber>1</motorNumber>
+        <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+        <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+        <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+        <motorType>velocity</motorType>
+      </plugin>
+      <plugin name='gz::sim::systems::MulticopterMotorModel' filename='gz-sim-multicopter-motor-model-system'>
+        <jointName>rotor_2_joint</jointName>
+        <linkName>rotor_2</linkName>
+        <turningDirection>cw</turningDirection>
+        <timeConstantUp>0.0125</timeConstantUp>
+        <timeConstantDown>0.025</timeConstantDown>
+        <maxRotVelocity>1000.0</maxRotVelocity>
+        <motorConstant>8.54858e-06</motorConstant>
+        <momentConstant>0.016</momentConstant>
+        <commandSubTopic>command/motor_speed</commandSubTopic>
+        <motorNumber>2</motorNumber>
+        <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+        <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+        <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+        <motorType>velocity</motorType>
+      </plugin>
+      <plugin name='gz::sim::systems::MulticopterMotorModel' filename='gz-sim-multicopter-motor-model-system'>
+        <jointName>rotor_3_joint</jointName>
+        <linkName>rotor_3</linkName>
+        <turningDirection>cw</turningDirection>
+        <timeConstantUp>0.0125</timeConstantUp>
+        <timeConstantDown>0.025</timeConstantDown>
+        <maxRotVelocity>1000.0</maxRotVelocity>
+        <motorConstant>8.54858e-06</motorConstant>
+        <momentConstant>0.016</momentConstant>
+        <commandSubTopic>command/motor_speed</commandSubTopic>
+        <motorNumber>3</motorNumber>
+        <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+        <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+        <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+        <motorType>velocity</motorType>
+      </plugin>
+      <plugin name='ignition::gazebo::systems::PosePublisher' filename='libignition-gazebo-pose-publisher-system.so'>
+        <publish_link_pose>true</publish_link_pose>
+        <publish_sensor_pose>true</publish_sensor_pose>
+        <publish_collision_pose>false</publish_collision_pose>
+        <publish_visual_pose>false</publish_visual_pose>
+        <publish_nested_model_pose>true</publish_nested_model_pose>
+        <use_pose_vector_msg>true</use_pose_vector_msg>
+        <static_publisher>true</static_publisher>
+        <static_update_frequency>1</static_update_frequency>
+      </plugin>
+      <plugin name='ignition::gazebo::systems::OdometryPublisher' filename='libignition-gazebo-odometry-publisher-system.so'>
+        <dimensions>3</dimensions>
+        <odom_publish_frequency>100</odom_publish_frequency>
+      </plugin>
+      <frame name='_merged__OakD-Lite__model__' attached_to='OakD-Lite/base_link'>
+        <pose relative_to='__model__'>0.12 0.029999999999999999 0.24199999999999999 0 0 0</pose>
+      </frame>
+      <link name='OakD-Lite/base_link'>
+        <inertial>
+          <pose>0.0035799999999999998 -0.029999999999999999 0.014 0 0 0</pose>
+          <mass>0.060999999999999999</mass>
+          <inertia>
+            <ixx>4.60804e-05</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>5.5420999999999998e-06</iyy>
+            <iyz>0</iyz>
+            <izz>4.3651900000000001e-05</izz>
+          </inertia>
+        </inertial>
+        <visual name='OakD-Lite/visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_gz_sim/models/x500_depth/model://OakD-Lite/meshes/OakDLite.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <collision name='OakD-Lite/collision'>
+          <pose>0.0035799999999999998 -0.029999999999999999 0.014 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.017500000000000002 0.090999999999999998 0.028000000000000001</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <sensor name='IMX214' type='camera'>
+          <pose>0.012330000000000001 -0.029999999999999999 0.018780000000000002 0 0 0</pose>
+          <topic>camera</topic>
+          <update_rate>30</update_rate>
+          <enable_metrics>false</enable_metrics>
+          <camera name='__default__'>
+            <pose>0 0 0 0 0 0</pose>
+            <horizontal_fov>1.204</horizontal_fov>
+            <image>
+              <width>1920</width>
+              <height>1080</height>
+              <format>RGB_INT8</format>
+              <anti_aliasing>4</anti_aliasing>
+            </image>
+            <camera_info_topic>__default__</camera_info_topic>
+            <trigger_topic></trigger_topic>
+            <triggered>false</triggered>
+            <clip>
+              <near>0.10000000000000001</near>
+              <far>100</far>
+            </clip>
+            <save enabled='false'>
+              <path>__default__</path>
+            </save>
+            <visibility_mask>4294967295</visibility_mask>
+            <noise>
+              <type>none</type>
+              <mean>0</mean>
+              <stddev>0</stddev>
+            </noise>
+            <distortion>
+              <k1>0</k1>
+              <k2>0</k2>
+              <k3>0</k3>
+              <p1>0</p1>
+              <p2>0</p2>
+              <center>0.5 0.5</center>
+            </distortion>
+            <lens>
+              <type>stereographic</type>
+              <scale_to_hfov>true</scale_to_hfov>
+              <cutoff_angle>1.5707963267948966</cutoff_angle>
+              <env_texture_size>256</env_texture_size>
+            </lens>
+            <optical_frame_id></optical_frame_id>
+          </camera>
+        </sensor>
+        <sensor name='StereoOV7251' type='depth_camera'>
+          <pose>0.012330000000000001 -0.029999999999999999 0.018780000000000002 0 0 0</pose>
+          <topic>depth_camera</topic>
+          <update_rate>30</update_rate>
+          <enable_metrics>false</enable_metrics>
+          <camera name='__default__'>
+            <pose>0 0 0 0 0 0</pose>
+            <horizontal_fov>1.274</horizontal_fov>
+            <image>
+              <width>640</width>
+              <height>480</height>
+              <format>R_FLOAT32</format>
+              <anti_aliasing>4</anti_aliasing>
+            </image>
+            <camera_info_topic>__default__</camera_info_topic>
+            <trigger_topic></trigger_topic>
+            <triggered>false</triggered>
+            <clip>
+              <near>0.5</near>
+              <far>50</far>
+            </clip>
+            <save enabled='false'>
+              <path>__default__</path>
+            </save>
+            <visibility_mask>4294967295</visibility_mask>
+            <noise>
+              <type>none</type>
+              <mean>0</mean>
+              <stddev>0</stddev>
+            </noise>
+            <distortion>
+              <k1>0</k1>
+              <k2>0</k2>
+              <k3>0</k3>
+              <p1>0</p1>
+              <p2>0</p2>
+              <center>0.5 0.5</center>
+            </distortion>
+            <lens>
+              <type>stereographic</type>
+              <scale_to_hfov>true</scale_to_hfov>
+              <cutoff_angle>1.5707963267948966</cutoff_angle>
+              <env_texture_size>256</env_texture_size>
+            </lens>
+            <optical_frame_id></optical_frame_id>
+          </camera>
+        </sensor>
+        <gravity>true</gravity>
+        <velocity_decay/>
+        <pose>0.12 0.029999999999999995 0.24200000000000005 0 1.0337653176493457e-33 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <joint name='CameraJoint' type='fixed'>
+        <parent>base_link</parent>
+        <child>OakD-Lite/base_link</child>
+        <pose>0 0 0.23999999999999999 0 0 0</pose>
+      </joint>
+      <pose>-4.9727116361719348e-10 -2.5571881399451211e-17 -0.013000584390784053 -6.2374726306320062e-17 3.356983314284165e-08 3.314692783419543e-17</pose>
+      <static>false</static>
+      <self_collide>false</self_collide>
+    </model>
+    <light name='sun' type='directional'>
+      <pose>-5 -3 10 0 0 0</pose>
+      <cast_shadows>false</cast_shadows>
+      <intensity>1</intensity>
+      <direction>0 0 -1</direction>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>1 1 1 1</specular>
+      <attenuation>
+        <range>10</range>
+        <linear>1</linear>
+        <constant>1</constant>
+        <quadratic>0</quadratic>
+      </attenuation>
+      <spot>
+        <inner_angle>0</inner_angle>
+        <outer_angle>0</outer_angle>
+        <falloff>0</falloff>
+      </spot>
+    </light>
   </world>
 </sdf>

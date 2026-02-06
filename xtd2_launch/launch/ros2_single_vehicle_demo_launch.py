@@ -89,6 +89,22 @@ def generate_launch_description():
         }.items()
     )
 
+    #######################
+    # RViz Visualization #
+    #######################
+    rviz_node = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        arguments=['-d', PathJoinSubstitution([
+            FindPackageShare('xtd2_launch'),
+            'rviz',
+            'x500_depth.rviz'
+        ])],
+        parameters=[{'use_sim_time': True}],
+        output='screen'
+    )
+
     # Add all nodes to the launch description
     ld = LaunchDescription([
         world_name_arg,
@@ -99,7 +115,8 @@ def generate_launch_description():
         xrce_dds_process,
         TimerAction(period=10.0, actions=[spawn]),
         TimerAction(period=15.0, actions=[tf_publisher]),  # 延迟启动，确保其他节点先启动
-        # TimerAction(period=20.0, actions=[ego_planner_launch])  # EGO Planner延迟启动，确保PX4和Gazebo完全就绪
+        TimerAction(period=15.0, actions=[ego_planner_launch]),  # EGO Planner延迟启动，确保PX4和Gazebo完全就绪
+        TimerAction(period=10.0, actions=[rviz_node])  # RViz延迟启动，确保所有TF和话题数据就绪
     ])
 
     return ld
