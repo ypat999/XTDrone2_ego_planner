@@ -429,7 +429,7 @@ class TfPublisher(Node):
         """发布静态TF变换"""
         now = self.get_clock().now().to_msg() 
         while now.sec == 0:  # 等待 /clock 开始发布
-            rclpy.spin_once(self, timeout_sec=0.01)
+            rclpy.spin_once(self, timeout_sec=0.1)
             now = self.get_clock().now().to_msg()
             self.get_logger().info(f'now:{now}')
 

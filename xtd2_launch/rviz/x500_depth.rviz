@@ -5,11 +5,9 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /TF1
         - /TF1/Frames1
         - /TF1/Tree1
         - /PointCloud2_depth1/Topic1
-        - /PointCloud2_inflate1
       Splitter Ratio: 0.6323529481887817
     Tree Height: 824
   - Class: rviz_common/Selection
@@ -239,7 +237,7 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 12.09000015258789
+        Max Value: 7.489999771118164
         Min Value: 0.09000000357627869
         Value: true
       Axis: Z
@@ -401,10 +399,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.4747962951660156
+      Pitch: 0.8047960996627808
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.2583969831466675
+      Yaw: 2.696575164794922
     Saved: ~
 Window Geometry:
   Displays:

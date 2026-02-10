@@ -152,7 +152,7 @@ def generate_launch_description():
 
              # Trajectory optimization parameters - 轨迹优化参数
             {'optimization/lambda_smooth': 1.0},  # 平滑性权重
-            {'optimization/lambda_collision': 2.0},  # 碰撞避免权重
+            {'optimization/lambda_collision': 5.0},  # 碰撞避免权重
             {'optimization/lambda_feasibility': 0.5},  # 可行性权重
             {'optimization/lambda_fitness': 1.0},  # 适应性权重
             {'optimization/dist0': 0.5},  # 初始距离
@@ -166,7 +166,7 @@ def generate_launch_description():
             {'bspline/limit_ratio': 1.1},  # B样条限制比例
 
             # Object prediction parameters - 目标预测参数
-            {'prediction/obj_num': 10},  # 目标数量
+            {'prediction/obj_num': 1},  # 目标数量
             {'prediction/lambda': 1.0},  # 预测权重系数
             {'prediction/predict_rate': 1.0}  # 预测频率
         ]
@@ -183,6 +183,7 @@ def generate_launch_description():
             # 基本参数
             {'use_sim_time': use_sim_time},
             {'traj_server/time_forward': 1.0},
+            {'traj_server/time_finish_thresh_percent': 0.2},
         ],
         remappings=[
             # ('position_cmd', 'position_cmd'),
