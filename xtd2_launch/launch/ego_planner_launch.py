@@ -183,7 +183,6 @@ def generate_launch_description():
             # 基本参数
             {'use_sim_time': use_sim_time},
             {'traj_server/time_forward': 1.0},
-            {'traj_server/time_finish_thresh_percent': 0.2},
         ],
         remappings=[
             # ('position_cmd', 'position_cmd'),
