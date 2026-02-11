@@ -73,7 +73,7 @@ def generate_launch_description():
             {'fsm/thresh_replan_time': 0.2},  # 重规划时间阈值
             {'fsm/thresh_no_replan_meter': 0.3},  # 重规划距离阈值
             {'fsm/planning_horizon': 7.5},  # 规划视野
-            {'fsm/planning_horizen_time': 3.0},  # 规划时间视野
+            {'fsm/planning_horizen_time': 5.0},  # 规划时间视野
             {'fsm/emergency_time': 1.0},  # 紧急情况处理时间
             {'fsm/realworld_experiment': False},  # 仿真模式
             {'fsm/fail_safe': True},  # 启用安全保护
@@ -103,7 +103,7 @@ def generate_launch_description():
             {'grid_map/map_size_z': map_size_z},  # 地图Z轴大小
             {'grid_map/local_update_range_x': 10.0},  # 局部更新范围X
             {'grid_map/local_update_range_y': 15.0},  # 局部更新范围Y
-            {'grid_map/local_update_range_z': 5.0},  # 局部更新范围Z
+            {'grid_map/local_update_range_z': 8.0},  # 局部更新范围Z
             {'grid_map/obstacles_inflation': 0.6},  # 障碍物膨胀半径
             {'grid_map/local_map_margin': 5},  # 局部地图边界
             {'grid_map/ground_height': -0.01},  # 地面高度

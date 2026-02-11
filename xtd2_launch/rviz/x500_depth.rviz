@@ -8,6 +8,7 @@ Panels:
         - /TF1/Frames1
         - /TF1/Tree1
         - /PointCloud2_depth1/Topic1
+        - /Marker_ego_traj1
       Splitter Ratio: 0.6323529481887817
     Tree Height: 824
   - Class: rviz_common/Selection
@@ -237,7 +238,7 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 7.489999771118164
+        Max Value: 5.690000057220459
         Min Value: 0.09000000357627869
         Value: true
       Axis: Z
@@ -322,7 +323,7 @@ Visualization Manager:
       Axes Length: 1
       Axes Radius: 0.10000000149011612
       Class: rviz_default_plugins/Pose
-      Color: 255; 25; 0
+      Color: 222; 221; 218
       Enabled: true
       Head Length: 0.30000001192092896
       Head Radius: 0.10000000149011612
@@ -384,25 +385,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 11.806835174560547
+      Distance: 17.272729873657227
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.5897719860076904
-        Y: 1.3537824153900146
-        Z: 1.1400129795074463
+        X: 1.4386645555496216
+        Y: 1.1576788425445557
+        Z: 3.4512336254119873
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8047960996627808
+      Pitch: 0.8447967767715454
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 2.696575164794922
+      Yaw: 1.556469440460205
     Saved: ~
 Window Geometry:
   Displays:
