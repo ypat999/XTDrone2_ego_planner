@@ -1,15 +1,28 @@
 #!/usr/bin/env python3
 
+import platform
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import TransformStamped
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
 import math
+from rclpy.parameter import Parameter
 
 class RobotStatePublisher(Node):
     def __init__(self):
+        # 检查主机名，设置默认namespace
+        hostname = platform.node()
+        if hostname == 'ywj-B250-D3A':
+            default_namespace = '/x500_depth_0/'
+        else:
+            default_namespace = '/'
+            
         super().__init__('robot_state_publisher_custom')
+        
+        # 获取namespace参数
+        self.declare_parameter('namespace', default_namespace)
+        self.namespace = self.get_parameter('namespace').get_parameter_value().string_value
         
         # 发布joint states
         self.joint_state_pub = self.create_publisher(JointState, 'joint_states', 10)
@@ -17,7 +30,7 @@ class RobotStatePublisher(Node):
         # 订阅odometry话题
         self.odom_subscription = self.create_subscription(
             Odometry,
-            '/x500_depth_0/odometry',
+            [self.namespace, 'odometry'],
             self.odom_callback,
             10)
         

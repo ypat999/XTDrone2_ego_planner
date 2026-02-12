@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import platform
 import rclpy
 from rclpy.node import Node
 from rclpy.parameter import Parameter
@@ -17,12 +18,24 @@ from collections import deque
 class TfPublisher(Node):
 
     def __init__(self):
+        # 检查主机名，设置默认namespace
+        hostname = platform.node()
+        if hostname == 'ywj-B250-D3A':
+            default_namespace = '/x500_depth_0/'
+        else:
+            default_namespace = '/'
+            
         super().__init__(
             'tf_publisher',
             parameter_overrides=[
-                Parameter('use_sim_time', Parameter.Type.BOOL, True)
+                Parameter('use_sim_time', Parameter.Type.BOOL, True),
+                Parameter('namespace', Parameter.Type.STRING, default_namespace)
             ]
         )
+        
+        # 获取namespace参数
+        self.declare_parameter('namespace', default_namespace)
+        self.namespace = self.get_parameter('namespace').get_parameter_value().string_value
 
         # 动态 TF（odom 真值）
         self.tf_broadcaster = TransformBroadcaster(self)
@@ -39,21 +52,21 @@ class TfPublisher(Node):
         
         self.px4_visual_pub = self.create_publisher(
             VehicleOdometry,
-            '/x500_depth_0/fmu/in/vehicle_visual_odometry',
+            self.namespace + 'fmu/in/vehicle_visual_odometry',
             qos_profile
         )
 
         # 补偿后的轨迹发布器
         self.compensated_traj_pub = self.create_publisher(
             Pose,
-            '/xtdrone2/x500_depth_0/cmd_pose_local_ned',
+            '/xtdrone2' + self.namespace + 'cmd_pose_local_ned',
             50
         )
 
         # 订阅 Gazebo 发布的 odometry（真值）
         self.create_subscription(
             Odometry,
-            '/x500_depth_0/odometry',
+            self.namespace + 'odometry',
             self.odom_callback,
             10
         )
@@ -61,7 +74,7 @@ class TfPublisher(Node):
         # 订阅 PX4 odometry
         self.create_subscription(
             VehicleOdometry,
-            '/x500_depth_0/fmu/out/vehicle_odometry',
+            self.namespace + 'fmu/out/vehicle_odometry',
             self.px4_odom_callback,
             QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, depth=1)
         )
@@ -77,7 +90,7 @@ class TfPublisher(Node):
         # 创建相机位姿发布器
         self.camera_pose_publisher = self.create_publisher(
             PoseStamped,
-            '/x500_depth_0/StereoOV7251/pose',
+            self.namespace.lstrip('/') + 'StereoOV7251/pose',
             10
         )
 
@@ -259,8 +272,8 @@ class TfPublisher(Node):
         # 发布 odom -> base_footprint TF
         t = TransformStamped()
         t.header.stamp = msg.header.stamp
-        t.header.frame_id = 'x500_depth_0/odom'
-        t.child_frame_id = 'x500_depth_0/base_footprint'
+        t.header.frame_id = self.namespace.lstrip('/') + 'odom'
+        t.child_frame_id = self.namespace.lstrip('/') + 'base_footprint'
 
         t.transform.translation.x = msg.pose.pose.position.x
         t.transform.translation.y = msg.pose.pose.position.y
@@ -372,7 +385,7 @@ class TfPublisher(Node):
         """从odom推算相机位姿并发布"""
         camera_pose = PoseStamped()
         camera_pose.header.stamp = odom_msg.header.stamp
-        camera_pose.header.frame_id = 'x500_depth_0/odom'
+        camera_pose.header.frame_id = self.namespace.lstrip('/') + 'odom'
         
         # 相机相对于base_footprint的固定偏移
         camera_offset_x = 0.12  # 前方偏移
@@ -410,14 +423,14 @@ class TfPublisher(Node):
         # 发布相机TF
         camera_tf = TransformStamped()
         camera_tf.header.stamp = odom_msg.header.stamp
-        camera_tf.header.frame_id = 'x500_depth_0/base_footprint'
-        camera_tf.child_frame_id = 'x500_depth_0/OakD-Lite/base_link/StereoOV7251'
+        camera_tf.header.frame_id = self.namespace.lstrip('/') + 'base_footprint'
+        camera_tf.child_frame_id = self.namespace.lstrip('/') + 'OakD-Lite/base_link/StereoOV7251'
         
         camera_tf.transform.translation.x = camera_offset_x
         camera_tf.transform.translation.y = camera_offset_y
         camera_tf.transform.translation.z = camera_offset_z
         
-        # 相机相对于 base_footprint 绕 Y 轴旋转 90°
+        # 相机相对于 base_footprint 
         camera_tf.transform.rotation.w = 1.0
         camera_tf.transform.rotation.x = 0.0
         camera_tf.transform.rotation.y = 0.0
@@ -429,7 +442,7 @@ class TfPublisher(Node):
         """发布静态TF变换"""
         now = self.get_clock().now().to_msg() 
         while now.sec == 0:  # 等待 /clock 开始发布
-            rclpy.spin_once(self, timeout_sec=0.1)
+            rclpy.spin_once(self, timeout_sec=1.0)
             now = self.get_clock().now().to_msg()
             self.get_logger().info(f'now:{now}')
 
@@ -451,27 +464,35 @@ class TfPublisher(Node):
         t.transform.rotation.w = 1.0
         tfs.append(t)
 
-        # odom -> x500_depth_0/odom
+        # odom -> namespace/odom
         t = TransformStamped()
         t.header.stamp = now
         t.header.frame_id = 'odom'
-        t.child_frame_id = 'x500_depth_0/odom'
+        t.child_frame_id = self.namespace.lstrip('/') + 'odom'
         t.transform.rotation.w = 1.0
         tfs.append(t)
+
+        # # namespace/odom -< namespace/base_footprint
+        # t = TransformStamped()
+        # t.header.stamp = now
+        # t.header.frame_id = self.namespace.lstrip('/') + 'odom'
+        # t.child_frame_id = self.namespace.lstrip('/') + 'base_footprint'
+        # t.transform.rotation.w = 1.0
+        # tfs.append(t)
 
         # base_footprint -> base_link
         t = TransformStamped()
         t.header.stamp = now
-        t.header.frame_id = 'x500_depth_0/base_footprint'
-        t.child_frame_id = 'x500_depth_0/base_link'
+        t.header.frame_id = self.namespace.lstrip('/') + 'base_footprint'
+        t.child_frame_id = self.namespace.lstrip('/') + 'base_link'
         t.transform.rotation.w = 1.0
         tfs.append(t)
 
         # base_link -> OakD-Lite base
         t = TransformStamped()
         t.header.stamp = now
-        t.header.frame_id = 'x500_depth_0/base_link'
-        t.child_frame_id = 'x500_depth_0/OakD-Lite/base_link'
+        t.header.frame_id = self.namespace.lstrip('/') + 'base_link'
+        t.child_frame_id = self.namespace.lstrip('/') + 'OakD-Lite/base_link'
         t.transform.translation.x = 0.12
         t.transform.translation.y = 0.03
         t.transform.translation.z = 0.242
@@ -481,8 +502,8 @@ class TfPublisher(Node):
         # OakD-Lite -> StereoOV7251（点云）
         t = TransformStamped()
         t.header.stamp = now
-        t.header.frame_id = 'x500_depth_0/OakD-Lite/base_link'
-        t.child_frame_id = 'x500_depth_0/OakD-Lite/base_link/StereoOV7251' #'x500_depth_0/StereoOV7251'
+        t.header.frame_id = self.namespace.lstrip('/') + 'OakD-Lite/base_link'
+        t.child_frame_id = self.namespace.lstrip('/') + 'OakD-Lite/base_link/StereoOV7251'
         t.transform.translation.x = 0.01233
         t.transform.translation.y = -0.03
         t.transform.translation.z = 0.01878
@@ -495,8 +516,8 @@ class TfPublisher(Node):
         # OakD-Lite -> IMX214（RGB）
         t = TransformStamped()
         t.header.stamp = now
-        t.header.frame_id = 'x500_depth_0/OakD-Lite/base_link'
-        t.child_frame_id = 'x500_depth_0/IMX214'
+        t.header.frame_id = self.namespace.lstrip('/') + 'OakD-Lite/base_link'
+        t.child_frame_id = self.namespace.lstrip('/') + 'IMX214'
         t.transform.translation.x = 0.01233
         t.transform.translation.y = -0.03
         t.transform.translation.z = 0.01878
@@ -506,8 +527,8 @@ class TfPublisher(Node):
         # StereoOV7251 -> StereoOV7251
         t = TransformStamped()
         t.header.stamp = now
-        t.header.frame_id = 'x500_depth_0/OakD-Lite/base_link/StereoOV7251'
-        t.child_frame_id = 'x500_depth_0/StereoOV7251'
+        t.header.frame_id = self.namespace.lstrip('/') + 'OakD-Lite/base_link/StereoOV7251'
+        t.child_frame_id = self.namespace.lstrip('/') + 'StereoOV7251'
         t.transform.translation.x = 0.0
         t.transform.translation.y = 0.0
         t.transform.translation.z = 0.0

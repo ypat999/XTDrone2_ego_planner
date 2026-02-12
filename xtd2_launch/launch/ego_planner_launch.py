@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
 
+import platform
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
 from launch_ros.actions import Node
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 
+# 检查主机名，设置默认namespace
+hostname = platform.node()
+if hostname == 'ywj-B250-D3A':
+    default_namespace = '/x500_depth_0/'
+else:
+    default_namespace = '/'
+
 
 def generate_launch_description():
     # 配置参数 - 针对Gazebo仿真环境
-    namespace = LaunchConfiguration('namespace', default='x500_depth_0')
+    namespace = LaunchConfiguration('namespace', default=default_namespace)
     drone_id = LaunchConfiguration('drone_id', default=0)
 
     map_size_x = LaunchConfiguration('map_size_x', default=200.0)
@@ -19,8 +27,13 @@ def generate_launch_description():
     max_vel = LaunchConfiguration('max_vel', default=3.0)
     max_acc = LaunchConfiguration('max_acc', default=0.5)
     
-    # 启用仿真时间
-    use_sim_time = LaunchConfiguration('use_sim_time', default='true')
+    # 根据主机名决定是否使用仿真时间
+    if hostname == 'ywj-B250-D3A':
+        default_use_sim_time = 'true'
+    else:
+        default_use_sim_time = 'false'
+    
+    use_sim_time = LaunchConfiguration('use_sim_time', default=default_use_sim_time)
     
     # 路径点参数 - 根据Gazebo环境调整
     point_num = LaunchConfiguration('point_num', default=4)
@@ -49,15 +62,15 @@ def generate_launch_description():
         output='screen',
         # 重新映射话题以匹配Gazebo环境
         remappings=[
-            ('odom_world', ['/', namespace, '/odometry']),  # 使用Gazebo发布的里程计数据
-            ('grid_map/cloud', ['/', namespace, '/StereoOV7251/pointcloud']),  # 使用无人机的深度相机点云
-            # ('grid_map/depth', ['/', namespace, '/StereoOV7251/depth']),  # 使用无人机的深度相机深度图像
-            ('grid_map/odom', ['/', namespace, '/odometry']),  # 里程计数据用于地图构建
-            ('grid_map/pose', ['/', namespace, '/StereoOV7251/pose']),  # 位姿数据用于地图构建
+            ('odom_world', [namespace, 'odometry']),  # 使用Gazebo发布的里程计数据
+            ('grid_map/cloud', [namespace, 'StereoOV7251/pointcloud']),  # 使用无人机的深度相机点云
+            # ('grid_map/depth', [namespace, 'StereoOV7251/depth']),  # 使用无人机的深度相机深度图像
+            ('grid_map/odom', [namespace, 'odometry']),  # 里程计数据用于地图构建
+            ('grid_map/pose', [namespace, 'StereoOV7251/pose']),  # 位姿数据用于地图构建
             # ('grid_map/occupancy_inflate', ['drone_', drone_id, '_grid/grid_map/occupancy_inflate']),
 
-            ('planning/bspline', ['/', namespace, '/planning/bspline']),
-            ('planning/data_display', ['/', namespace, '/planning/data_display']),
+            ('planning/bspline', [namespace, 'planning/bspline']),
+            ('planning/data_display', [namespace, 'planning/data_display']),
             ('planning/broadcast_bspline_from_planner', '/broadcast_bspline'),
             ('planning/broadcast_bspline_to_planner', '/broadcast_bspline'),
 
@@ -146,7 +159,7 @@ def generate_launch_description():
             {'manager/control_points_distance': 0.5},  # 控制点距离
             {'manager/feasibility_tolerance': 0.05},  # 可行性容差
             {'manager/planning_horizon': 7.5},  # 规划视野
-            {'manager/use_distinctive_trajs': True},  # 使用不同的轨迹
+            {'manager/use_distinctive_trajs': False},  # 使用不同的轨迹
             {'manager/drone_id': drone_id},  # 无人机ID
 
 
@@ -187,9 +200,9 @@ def generate_launch_description():
         remappings=[
             # ('position_cmd', 'position_cmd'),
             # ('traj_start_trigger', 'traj_start_trigger'),
-            # ('odom', ['/', namespace, '/odometry']),
-            ('/xtdrone2/planning/cmd_pose_local_ned', '/xtdrone2/x500_depth_0/cmd_pose_local_ned'),
-            ('planning/bspline', '/x500_depth_0/planning/bspline')
+            # ('odom', [namespace, 'odometry']),
+            ('/xtdrone2/planning/cmd_pose_local_ned', ['/xtdrone2', namespace, 'cmd_pose_local_ned']),
+            ('planning/bspline', [namespace, 'planning/bspline'])
         ]
     )
 
@@ -215,7 +228,7 @@ def generate_launch_description():
     # 创建启动描述
     ld = LaunchDescription([
         # 声明参数
-        DeclareLaunchArgument('namespace', default_value='x500_depth_0'),
+        DeclareLaunchArgument('namespace', default_value=default_namespace),
         DeclareLaunchArgument('drone_id', default_value='0'),
 
         interactive_marker_node,

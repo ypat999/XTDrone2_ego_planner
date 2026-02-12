@@ -37,7 +37,9 @@ class MultirotorCommunication(Node):
 
         self.namespace = namespace if namespace else f'{model}_{id}'
 
-        super().__init__(f'{self.namespace}_communication')
+        # 生成有效的节点名称（只包含字母数字和下划线）
+        node_name = self.namespace.strip('/') + '_communication'
+        super().__init__(node_name)
 
         self.OFFBOARD_STATE = "DISABLED"
         self.cmd = None
@@ -47,28 +49,37 @@ class MultirotorCommunication(Node):
         self.init_vehicle_global_position = None
 
         # XTDrone2 Interface
-        self.create_subscription(Pose, f'/xtdrone2/{self.namespace}/cmd_pose_local_ned', self.cmd_pose_local_ned_callback, 10)  # geometry_msgs/Pose
-        self.create_subscription(Pose, f'/xtdrone2/{self.namespace}/cmd_pose_local_flu', self.cmd_pose_local_flu_callback, 10)  # geometry_msgs/Pose
-        self.create_subscription(Twist, f'/xtdrone2/{self.namespace}/cmd_vel_ned', self.cmd_vel_ned_callback, 10)  # geometry_msgs/Twist
-        self.create_subscription(Twist, f'/xtdrone2/{self.namespace}/cmd_vel_flu', self.cmd_vel_flu_callback, 10)  # geometry_msgs/Twist
-        self.create_subscription(Twist, f'/xtdrone2/{self.namespace}/cmd_accel_ned', self.cmd_accel_ned_callback, 10)  # geometry_msgs/Twist
-        self.create_subscription(Twist, f'/xtdrone2/{self.namespace}/cmd_accel_flu', self.cmd_accel_flu_callback, 10)  # geometry_msgs/Twist
-        self.create_subscription(Twist, f'/xtdrone2/{self.namespace}/cmd_attitude_flu', self.cmd_attitude_flu_callback, 10)  # geometry_msgs/Pose
-        self.cmd_server = self.create_service(XTD2Cmd, f'/xtdrone2/{self.namespace}/cmd', self.cmd_callback)
+        # 移除namespace前后的斜杠，避免重复
+        clean_namespace = self.namespace.strip('/')
+        if clean_namespace:
+            xtdrone2_topic_prefix = f'/xtdrone2/{clean_namespace}/'
+            dds_topic_prefix = f'/{clean_namespace}/'
+        else:
+            xtdrone2_topic_prefix = '/xtdrone2/'
+            dds_topic_prefix = '/'
+        
+        self.create_subscription(Pose, xtdrone2_topic_prefix + 'cmd_pose_local_ned', self.cmd_pose_local_ned_callback, 10)  # geometry_msgs/Pose
+        self.create_subscription(Pose, xtdrone2_topic_prefix + 'cmd_pose_local_flu', self.cmd_pose_local_flu_callback, 10)  # geometry_msgs/Pose
+        self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_vel_ned', self.cmd_vel_ned_callback, 10)  # geometry_msgs/Twist
+        self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_vel_flu', self.cmd_vel_flu_callback, 10)  # geometry_msgs/Twist
+        self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_accel_ned', self.cmd_accel_ned_callback, 10)  # geometry_msgs/Twist
+        self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_accel_flu', self.cmd_accel_flu_callback, 10)  # geometry_msgs/Twist
+        self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_attitude_flu', self.cmd_attitude_flu_callback, 10)  # geometry_msgs/Pose
+        self.cmd_server = self.create_service(XTD2Cmd, xtdrone2_topic_prefix + 'cmd', self.cmd_callback)
 
         # DDS Interface
-        self.create_subscription(VehicleLocalPosition, f'/{self.namespace}/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, QoSProfile(depth=10, reliability=qos_profile_sensor_data.reliability))
-        self.create_subscription(VehicleGlobalPosition, f'/{self.namespace}/fmu/out/vehicle_global_position', self.vehicle_global_position_callback, QoSProfile(depth=10, reliability=qos_profile_sensor_data.reliability))
-        self.vehicle_command_publisher = self.create_publisher(VehicleCommand, f'/{self.namespace}/fmu/in/vehicle_command', 10)
-        self.offboard_control_mode_pub = self.create_publisher(OffboardControlMode, f'/{self.namespace}/fmu/in/offboard_control_mode', 10)
-        self.dds_trajectory_setpoint_pub = self.create_publisher(TrajectorySetpoint, f'/{self.namespace}/fmu/in/trajectory_setpoint', 10)
-        self.dds_vehicle_attitude_setpoint_pub = self.create_publisher(VehicleAttitudeSetpoint, f'/{self.namespace}/fmu/in/vehicle_attitude_setpoint', 10)
+        self.create_subscription(VehicleLocalPosition, dds_topic_prefix + 'fmu/out/vehicle_local_position', self.vehicle_local_position_callback, QoSProfile(depth=10, reliability=qos_profile_sensor_data.reliability))
+        self.create_subscription(VehicleGlobalPosition, dds_topic_prefix + 'fmu/out/vehicle_global_position', self.vehicle_global_position_callback, QoSProfile(depth=10, reliability=qos_profile_sensor_data.reliability))
+        self.vehicle_command_publisher = self.create_publisher(VehicleCommand, dds_topic_prefix + 'fmu/in/vehicle_command', 10)
+        self.offboard_control_mode_pub = self.create_publisher(OffboardControlMode, dds_topic_prefix + 'fmu/in/offboard_control_mode', 10)
+        self.dds_trajectory_setpoint_pub = self.create_publisher(TrajectorySetpoint, dds_topic_prefix + 'fmu/in/trajectory_setpoint', 10)
+        self.dds_vehicle_attitude_setpoint_pub = self.create_publisher(VehicleAttitudeSetpoint, dds_topic_prefix + 'fmu/in/vehicle_attitude_setpoint', 10)
 
         self.timer_ = self.create_timer(0.05, self.timer_callback)
 
         # Debug publisher for vehicle state
         if self.debug:
-            self.vehicle_state_publisher = self.create_publisher(XTD2VehicleState, f'/xtdrone2/{self.namespace}/debug/vehicle_state', 10)
+            self.vehicle_state_publisher = self.create_publisher(XTD2VehicleState, xtdrone2_topic_prefix + 'debug/vehicle_state', 10)
             self.debug_timer = self.create_timer(0.1, self.publish_vehicle_state)  # 10Hz
 
         self.get_logger().info(f'{self.namespace} communication node started')

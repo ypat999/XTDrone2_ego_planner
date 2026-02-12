@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 
+import platform
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction, IncludeLaunchDescription
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from ament_index_python.packages import get_package_share_directory
 import os
+
+# 检查主机名，设置默认namespace
+hostname = platform.node()
+if hostname == 'ywj-B250-D3A':
+    default_namespace = '/x500_depth_0/'
+else:
+    default_namespace = '/'
 
 def generate_launch_description():
     
@@ -27,7 +36,7 @@ def generate_launch_description():
     # 声明参数
     namespace_arg = DeclareLaunchArgument(
         'namespace',
-        default_value='x500_depth_0',
+        default_value=default_namespace,
         description='ROS namespace for the robot'
     )
     
@@ -41,7 +50,7 @@ def generate_launch_description():
         parameters=[{
             'robot_description': open(urdf_file_path, 'r').read(),
             'use_sim_time': True,
-            'frame_prefix': LaunchConfiguration('namespace') + '/'
+            'frame_prefix': LaunchConfiguration('namespace').strip('/') + '/'
         }]
     )
     

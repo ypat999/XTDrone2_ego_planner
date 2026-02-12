@@ -30,7 +30,8 @@ def main():
     mav_sys_id = args.id + 1
 
     if args.namespace:
-        ns = args.namespace
+        # 清理命名空间，确保前后没有斜杠
+        ns = args.namespace.strip('/')
     else:
         if args.model.startswith("gz_"):
             ns = f"{args.model[3:]}_{args.id}"

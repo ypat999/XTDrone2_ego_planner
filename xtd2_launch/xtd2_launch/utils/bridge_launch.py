@@ -19,10 +19,12 @@ def main():
 
     # 通过YAML模板设定每个vehicle的桥接设置
     yaml_template = os.path.join(FindPackageShare("xtd2_launch").find('xtd2_launch'), 'launch', 'launch_config', 'ros_gz_bridge.yaml')
-    yaml_tmp_output = os.path.join(FindPackageShare("xtd2_launch").find('xtd2_launch'), 'launch', 'launch_config', f'tmp_ros_gz_bridge_{args.ros_ns}.yaml')
+    # 处理ros_ns中的斜杠，确保生成有效的文件名
+    safe_ros_ns = args.ros_ns.strip('/')
+    yaml_tmp_output = os.path.join(FindPackageShare("xtd2_launch").find('xtd2_launch'), 'launch', 'launch_config', f'tmp_ros_gz_bridge_{safe_ros_ns}.yaml')
     with open(yaml_template, 'r') as file:
         yaml_template_content = file.read()
-    template = Template(yaml_template_content).safe_substitute({'gz_ns': args.gz_ns, 'ros_ns': args.ros_ns, 'worldname': args.worldname})
+    template = Template(yaml_template_content).safe_substitute({'gz_ns': safe_ros_ns, 'ros_ns': safe_ros_ns, 'worldname': args.worldname})
     with open(yaml_tmp_output, 'w') as file:
         yaml.safe_dump(yaml.safe_load(template), file)
 

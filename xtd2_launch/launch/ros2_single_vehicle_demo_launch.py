@@ -1,9 +1,17 @@
+import platform
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription, TimerAction
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, TextSubstitution
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+
+# 检查主机名，设置默认namespace
+hostname = platform.node()
+if hostname == 'ywj-B250-D3A':
+    default_namespace = '/x500_depth_0/'
+else:
+    default_namespace = '/'
 
 
 def generate_launch_description():
@@ -15,7 +23,7 @@ def generate_launch_description():
                     description='Name of the world to launch (without .sdf)')
     model_name_arg = DeclareLaunchArgument('model_name', default_value='gz_x500_depth', description='Name of the model to spawn')
     id_arg = DeclareLaunchArgument('id', default_value='0', description='ID of the model to spawn')
-    name_space_arg = DeclareLaunchArgument('namespace', default_value='x500_depth_0', description='ROS namespace for the model')
+    name_space_arg = DeclareLaunchArgument('namespace', default_value=default_namespace, description='ROS namespace for the model')
 
     
     #####################
@@ -59,7 +67,7 @@ def generate_launch_description():
                 'world_name': LaunchConfiguration('world_name'),
                 'model': 'gz_x500_depth',
                 'id': '0',
-                'namespace': 'x500_depth_0',
+                'namespace': LaunchConfiguration('namespace'),
             }.items()
         )
 
@@ -107,18 +115,22 @@ def generate_launch_description():
         output='screen'
     )
 
+    # 根据主机名决定启动哪些组件
     # Add all nodes to the launch description
     ld = LaunchDescription([
         world_name_arg,
         model_name_arg,
         id_arg,
         name_space_arg,
-        world_launch,
-        xrce_dds_process,
-        TimerAction(period=10.0, actions=[spawn]),
-        TimerAction(period=15.0, actions=[tf_publisher]),  # 延迟启动，确保其他节点先启动
-        TimerAction(period=15.0, actions=[ego_planner_launch]),  # EGO Planner延迟启动，确保PX4和Gazebo完全就绪
-        TimerAction(period=10.0, actions=[rviz_node])  # RViz延迟启动，确保所有TF和话题数据就绪
+        xrce_dds_process,  # 无论是模拟还是真机都需要启动XRCE-DDS Agent
+        TimerAction(period=5.0, actions=[tf_publisher]),  # 延迟启动，确保其他节点先启动
+        TimerAction(period=10.0, actions=[ego_planner_launch]),  # EGO Planner延迟启动
     ])
+    
+    # 当主机为ywj-B250-D3A时，启动整套px4模拟
+    if hostname == 'ywj-B250-D3A':
+        ld.add_action(world_launch)  # 启动Gazebo模拟环境
+        ld.add_action(TimerAction(period=10.0, actions=[spawn]))  # 启动模型、PX4 SITL和ROS-Gazebo桥接
+        ld.add_action(TimerAction(period=10.0, actions=[rviz_node]))  # 启动RViz可视化
 
     return ld
