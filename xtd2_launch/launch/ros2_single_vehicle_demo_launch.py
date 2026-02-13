@@ -122,13 +122,13 @@ def generate_launch_description():
         model_name_arg,
         id_arg,
         name_space_arg,
-        xrce_dds_process,  # 无论是模拟还是真机都需要启动XRCE-DDS Agent
         TimerAction(period=5.0, actions=[tf_publisher]),  # 延迟启动，确保其他节点先启动
         TimerAction(period=10.0, actions=[ego_planner_launch]),  # EGO Planner延迟启动
     ])
     
     # 当主机为ywj-B250-D3A时，启动整套px4模拟
     if hostname == 'ywj-B250-D3A':
+        ld.add_action(xrce_dds_process)  # 启动XRCE-DDS Agent
         ld.add_action(world_launch)  # 启动Gazebo模拟环境
         ld.add_action(TimerAction(period=10.0, actions=[spawn]))  # 启动模型、PX4 SITL和ROS-Gazebo桥接
         ld.add_action(TimerAction(period=10.0, actions=[rviz_node]))  # 启动RViz可视化
