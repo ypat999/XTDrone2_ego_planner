@@ -11,8 +11,10 @@ from launch_ros.substitutions import FindPackageShare
 hostname = platform.node()
 if hostname == 'ywj-B250-D3A':
     default_namespace = '/x500_depth_0/'
+    
 else:
     default_namespace = '/'
+    
 
 
 def generate_launch_description():
@@ -30,8 +32,14 @@ def generate_launch_description():
     # 根据主机名决定是否使用仿真时间
     if hostname == 'ywj-B250-D3A':
         default_use_sim_time = 'true'
+        odom_world_topic = '/x500_depth_0/odometry'
+        grid_map_cloud_topic = '/x500_depth_0/StereoOV7251/pointcloud'
+        grid_map_pose_topic = '/x500_depth_0/StereoOV7251/pose'
     else:
         default_use_sim_time = 'false'
+        odom_world_topic = namespace + 'lio/odom'
+        grid_map_cloud_topic = namespace + 'lio/cloud_world'
+        grid_map_pose_topic = namespace + 'mid360/pose'
     
     use_sim_time = LaunchConfiguration('use_sim_time', default=default_use_sim_time)
     
@@ -62,11 +70,11 @@ def generate_launch_description():
         output='screen',
         # 重新映射话题以匹配Gazebo环境
         remappings=[
-            ('odom_world', [namespace, 'odometry']),  # 使用Gazebo发布的里程计数据
-            ('grid_map/cloud', [namespace, 'StereoOV7251/pointcloud']),  # 使用无人机的深度相机点云
+            ('odom_world', odom_world_topic),  # 使用Gazebo发布的里程计数据
+            ('grid_map/cloud', grid_map_cloud_topic),  # 使用无人机的深度相机点云
             # ('grid_map/depth', [namespace, 'StereoOV7251/depth']),  # 使用无人机的深度相机深度图像
             ('grid_map/odom', [namespace, 'odometry']),  # 里程计数据用于地图构建
-            ('grid_map/pose', [namespace, 'StereoOV7251/pose']),  # 位姿数据用于地图构建
+            ('grid_map/pose', grid_map_pose_topic),  # 位姿数据用于地图构建
             # ('grid_map/occupancy_inflate', ['drone_', drone_id, '_grid/grid_map/occupancy_inflate']),
 
             ('planning/bspline', [namespace, 'planning/bspline']),
@@ -196,6 +204,7 @@ def generate_launch_description():
             # 基本参数
             {'use_sim_time': use_sim_time},
             {'traj_server/time_forward': 1.0},
+            {'ros_ns': namespace},
         ],
         remappings=[
             # ('position_cmd', 'position_cmd'),

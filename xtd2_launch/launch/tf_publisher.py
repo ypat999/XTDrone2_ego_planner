@@ -22,8 +22,10 @@ class TfPublisher(Node):
         hostname = platform.node()
         if hostname == 'ywj-B250-D3A':
             default_namespace = '/x500_depth_0/'
+            self.is_sim = True
         else:
             default_namespace = '/'
+            self.is_sim = False
             
         super().__init__(
             'tf_publisher',
@@ -88,11 +90,19 @@ class TfPublisher(Node):
         )
 
         # 创建相机位姿发布器
-        self.camera_pose_publisher = self.create_publisher(
-            PoseStamped,
-            self.namespace.lstrip('/') + 'StereoOV7251/pose',
-            10
-        )
+        if self.is_sim:
+            self.camera_pose_publisher = self.create_publisher(
+                PoseStamped,
+                self.namespace + 'StereoOV7251/pose',
+                10
+            ) 
+        else:
+        # 真机环境下创建mid360/pose发布器
+            self.mid360_pose_publisher = self.create_publisher(
+                PoseStamped,
+                self.namespace + 'mid360/pose',
+                10
+            )
 
         # 补偿参数
         self.compensation_lock = threading.Lock()
@@ -294,8 +304,12 @@ class TfPublisher(Node):
         with self.compensation_lock:
             self.gazebo_odom_buffer.append(gazebo_data)
         
-        # 发布相机位姿
-        self.publish_camera_pose(msg)
+        # 模拟环境下发布相机位姿
+        if self.is_sim:
+            self.publish_camera_pose(msg)
+        else: 
+        # 真机环境下发布mid360/pose
+            self.publish_mid360_pose(msg)
         
         # 转发到PX4 visual odometry
         self.publish_px4_visual_odometry(msg)
@@ -438,6 +452,45 @@ class TfPublisher(Node):
         
         self.tf_broadcaster.sendTransform(camera_tf)
 
+    def publish_mid360_pose(self, odom_msg: Odometry):
+        """发布mid360/pose话题"""
+        mid360_pose = PoseStamped()
+        mid360_pose.header.stamp = odom_msg.header.stamp
+        mid360_pose.header.frame_id = 'livox_frame'
+        
+        # mid360相对于base_link的固定偏移
+        mid360_offset_x = -0.1  # 后方偏移
+        mid360_offset_y = 0.0  # 侧向偏移
+        mid360_offset_z = -0.1  # 下方偏移
+        
+        # 计算mid360在世界坐标系中的位置
+        import math
+        
+        # 获取无人机的朝向（四元数）
+        qx = odom_msg.pose.pose.orientation.x
+        qy = odom_msg.pose.pose.orientation.y
+        qz = odom_msg.pose.pose.orientation.z
+        qw = odom_msg.pose.pose.orientation.w
+        
+        # 简化的旋转计算
+        yaw = math.atan2(2.0*(qw*qz + qx*qy), 1.0 - 2.0*(qy*qy + qz*qz))
+        
+        # 旋转mid360偏移
+        rotated_offset_x = mid360_offset_x * math.cos(yaw) - mid360_offset_y * math.sin(yaw)
+        rotated_offset_y = mid360_offset_x * math.sin(yaw) + mid360_offset_y * math.cos(yaw)
+        rotated_offset_z = mid360_offset_z
+        
+        # 计算mid360在世界坐标系中的位置
+        mid360_pose.pose.position.x = odom_msg.pose.pose.position.x + rotated_offset_x
+        mid360_pose.pose.position.y = odom_msg.pose.pose.position.y + rotated_offset_y
+        mid360_pose.pose.position.z = odom_msg.pose.pose.position.z + rotated_offset_z
+        
+        # mid360朝向与无人机朝向一致
+        mid360_pose.pose.orientation = odom_msg.pose.pose.orientation
+        
+        # 发布mid360位姿
+        self.mid360_pose_publisher.publish(mid360_pose)
+
     def publish_static_transforms(self):
         """发布静态TF变换"""
         now = self.get_clock().now().to_msg() 
@@ -488,52 +541,70 @@ class TfPublisher(Node):
         t.transform.rotation.w = 1.0
         tfs.append(t)
 
-        # base_link -> OakD-Lite base
-        t = TransformStamped()
-        t.header.stamp = now
-        t.header.frame_id = self.namespace.lstrip('/') + 'base_link'
-        t.child_frame_id = self.namespace.lstrip('/') + 'OakD-Lite/base_link'
-        t.transform.translation.x = 0.12
-        t.transform.translation.y = 0.03
-        t.transform.translation.z = 0.242
-        t.transform.rotation.w = 1.0
-        tfs.append(t)
+        
 
-        # OakD-Lite -> StereoOV7251（点云）
-        t = TransformStamped()
-        t.header.stamp = now
-        t.header.frame_id = self.namespace.lstrip('/') + 'OakD-Lite/base_link'
-        t.child_frame_id = self.namespace.lstrip('/') + 'OakD-Lite/base_link/StereoOV7251'
-        t.transform.translation.x = 0.01233
-        t.transform.translation.y = -0.03
-        t.transform.translation.z = 0.01878
-        t.transform.rotation.x = 0.707
-        t.transform.rotation.y = 0.0
-        t.transform.rotation.z = 0.707
-        t.transform.rotation.w = 0.0
-        tfs.append(t)
+        if self.is_sim:
+            # base_link -> OakD-Lite base
+            t = TransformStamped()
+            t.header.stamp = now
+            t.header.frame_id = self.namespace.lstrip('/') + 'base_link'
+            t.child_frame_id = self.namespace.lstrip('/') + 'OakD-Lite/base_link'
+            t.transform.translation.x = 0.12
+            t.transform.translation.y = 0.03
+            t.transform.translation.z = 0.242
+            t.transform.rotation.w = 1.0
+            tfs.append(t)
+    
+            # OakD-Lite -> StereoOV7251（点云）
+            t = TransformStamped()
+            t.header.stamp = now
+            t.header.frame_id = self.namespace.lstrip('/') + 'OakD-Lite/base_link'
+            t.child_frame_id = self.namespace.lstrip('/') + 'OakD-Lite/base_link/StereoOV7251'
+            t.transform.translation.x = 0.01233
+            t.transform.translation.y = -0.03
+            t.transform.translation.z = 0.01878
+            t.transform.rotation.x = 0.707
+            t.transform.rotation.y = 0.0
+            t.transform.rotation.z = 0.707
+            t.transform.rotation.w = 0.0
+            tfs.append(t)
+    
+            # OakD-Lite -> IMX214（RGB）
+            t = TransformStamped()
+            t.header.stamp = now
+            t.header.frame_id = self.namespace.lstrip('/') + 'OakD-Lite/base_link'
+            t.child_frame_id = self.namespace.lstrip('/') + 'IMX214'
+            t.transform.translation.x = 0.01233
+            t.transform.translation.y = -0.03
+            t.transform.translation.z = 0.01878
+            t.transform.rotation.w = 1.0
+            tfs.append(t)
+    
+            # StereoOV7251 -> StereoOV7251
+            t = TransformStamped()
+            t.header.stamp = now
+            t.header.frame_id = self.namespace.lstrip('/') + 'OakD-Lite/base_link/StereoOV7251'
+            t.child_frame_id = self.namespace.lstrip('/') + 'StereoOV7251'
+            t.transform.translation.x = 0.0
+            t.transform.translation.y = 0.0
+            t.transform.translation.z = 0.0
+            t.transform.rotation.w = 1.0
+            tfs.append(t)
 
-        # OakD-Lite -> IMX214（RGB）
-        t = TransformStamped()
-        t.header.stamp = now
-        t.header.frame_id = self.namespace.lstrip('/') + 'OakD-Lite/base_link'
-        t.child_frame_id = self.namespace.lstrip('/') + 'IMX214'
-        t.transform.translation.x = 0.01233
-        t.transform.translation.y = -0.03
-        t.transform.translation.z = 0.01878
-        t.transform.rotation.w = 1.0
-        tfs.append(t)
-
-        # StereoOV7251 -> StereoOV7251
-        t = TransformStamped()
-        t.header.stamp = now
-        t.header.frame_id = self.namespace.lstrip('/') + 'OakD-Lite/base_link/StereoOV7251'
-        t.child_frame_id = self.namespace.lstrip('/') + 'StereoOV7251'
-        t.transform.translation.x = 0.0
-        t.transform.translation.y = 0.0
-        t.transform.translation.z = 0.0
-        t.transform.rotation.w = 1.0
-        tfs.append(t)
+        # 真机环境下添加mid360到base_link的TF变换
+        else:
+            t = TransformStamped()
+            t.header.stamp = now
+            t.header.frame_id = 'livox_frame'
+            t.child_frame_id = self.namespace.lstrip('/') + 'base_link'
+            t.transform.translation.x = -0.1
+            t.transform.translation.y = 0.0
+            t.transform.translation.z = -0.1
+            t.transform.rotation.x = 0.0
+            t.transform.rotation.y = -0.87266
+            t.transform.rotation.z = 0.0
+            t.transform.rotation.w = 1.0
+            tfs.append(t)
 
         self.static_tf_broadcaster.sendTransform(tfs)
 
