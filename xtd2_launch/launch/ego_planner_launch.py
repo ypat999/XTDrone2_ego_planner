@@ -4,7 +4,7 @@ import platform
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
 from launch_ros.actions import Node
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, TextSubstitution
 from launch_ros.substitutions import FindPackageShare
 
 # 检查主机名，设置默认namespace
@@ -37,9 +37,9 @@ def generate_launch_description():
         grid_map_pose_topic = '/x500_depth_0/StereoOV7251/pose'
     else:
         default_use_sim_time = 'false'
-        odom_world_topic = namespace + 'lio/odom'
-        grid_map_cloud_topic = namespace + 'lio/cloud_world'
-        grid_map_pose_topic = namespace + 'mid360/pose'
+        odom_world_topic = [namespace, TextSubstitution(text='lio/odom')]
+        grid_map_cloud_topic = [namespace, TextSubstitution(text='lio/cloud_world')]
+        grid_map_pose_topic = [namespace, TextSubstitution(text='mid360/pose')]
     
     use_sim_time = LaunchConfiguration('use_sim_time', default=default_use_sim_time)
     
@@ -73,7 +73,7 @@ def generate_launch_description():
             ('odom_world', odom_world_topic),  # 使用Gazebo发布的里程计数据
             ('grid_map/cloud', grid_map_cloud_topic),  # 使用无人机的深度相机点云
             # ('grid_map/depth', [namespace, 'StereoOV7251/depth']),  # 使用无人机的深度相机深度图像
-            ('grid_map/odom', [namespace, 'odometry']),  # 里程计数据用于地图构建
+            ('grid_map/odom', odom_world_topic),  # 里程计数据用于地图构建
             ('grid_map/pose', grid_map_pose_topic),  # 位姿数据用于地图构建
             # ('grid_map/occupancy_inflate', ['drone_', drone_id, '_grid/grid_map/occupancy_inflate']),
 
@@ -94,9 +94,9 @@ def generate_launch_description():
             {'fsm/thresh_replan_time': 0.2},  # 重规划时间阈值
             {'fsm/thresh_no_replan_meter': 0.3},  # 重规划距离阈值
             {'fsm/planning_horizon': 7.5},  # 规划视野
-            {'fsm/planning_horizen_time': 5.0},  # 规划时间视野
+            {'fsm/planning_horizen_time': 2.0},  # 规划时间视野  5.0
             {'fsm/emergency_time': 1.0},  # 紧急情况处理时间
-            {'fsm/realworld_experiment': False},  # 仿真模式
+            {'fsm/realworld_experiment': True},  # 仿真模式  False
             {'fsm/fail_safe': True},  # 启用安全保护
 
             # 路径点参数
@@ -118,15 +118,15 @@ def generate_launch_description():
             {'fsm/waypoint4_z': point4_z},
             
             # 网格地图参数 - 针对Gazebo环境
-            {'grid_map/resolution': 0.2},  # 地图分辨率
+            {'grid_map/resolution': 0.2},  # 地图分辨率   0.2
             {'grid_map/map_size_x': map_size_x},  # 地图X轴大小
             {'grid_map/map_size_y': map_size_y},  # 地图Y轴大小
             {'grid_map/map_size_z': map_size_z},  # 地图Z轴大小
-            {'grid_map/local_update_range_x': 10.0},  # 局部更新范围X
-            {'grid_map/local_update_range_y': 15.0},  # 局部更新范围Y
-            {'grid_map/local_update_range_z': 8.0},  # 局部更新范围Z
-            {'grid_map/obstacles_inflation': 0.6},  # 障碍物膨胀半径
-            {'grid_map/local_map_margin': 5},  # 局部地图边界
+            {'grid_map/local_update_range_x': 10.0},  # 局部更新范围X  10.0
+            {'grid_map/local_update_range_y': 15.0},  # 局部更新范围Y  15.0
+            {'grid_map/local_update_range_z': 6.0},  # 局部更新范围Z   8.0  
+            {'grid_map/obstacles_inflation': 0.3},  # 障碍物膨胀半径 0.6
+            {'grid_map/local_map_margin': 2},  # 局部地图边界
             {'grid_map/ground_height': -0.01},  # 地面高度
 
             # depth filter - 深度滤波器参数
@@ -216,7 +216,7 @@ def generate_launch_description():
     )
 
     interactive_marker_node = ExecuteProcess(
-        cmd=["python3", "/home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_launch/launch/goal_pose_interactive_marker.py"],
+        cmd=["ros2", "run", "xtd2_launch", "goal_pose_marker"],
         output='screen',
         name='interactive_marker_node',
         shell=False

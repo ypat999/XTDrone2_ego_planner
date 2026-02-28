@@ -10,8 +10,12 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 hostname = platform.node()
 if hostname == 'ywj-B250-D3A':
     default_namespace = '/x500_depth_0/'
+    use_sim_time = True
+    use_sim_time_str = 'true'
 else:
     default_namespace = '/'
+    use_sim_time = False
+    use_sim_time_str = 'false'  
 
 
 def generate_launch_description():
@@ -75,7 +79,7 @@ def generate_launch_description():
     # TF Publisher Node #
     ####################
     tf_publisher = ExecuteProcess(
-        cmd=["python3", "/home/ywj/git/xtd2_ws/XTDrone2_ego_planner/xtd2_launch/launch/tf_publisher.py"],
+        cmd=["ros2", "run", "xtd2_launch", "tf_publisher"],
         output='screen',
         name='tf_publisher',
         shell=False
@@ -95,7 +99,7 @@ def generate_launch_description():
         launch_arguments={
             'namespace': LaunchConfiguration('namespace'),
             'drone_id': LaunchConfiguration('id'),
-            'use_sim_time': 'true',
+            'use_sim_time': use_sim_time_str,
         }.items()
     )
 
@@ -111,7 +115,7 @@ def generate_launch_description():
             'rviz',
             'x500_depth.rviz'
         ])],
-        parameters=[{'use_sim_time': True}],
+        parameters=[{'use_sim_time': use_sim_time}],
         output='screen'
     )
 

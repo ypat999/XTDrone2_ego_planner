@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 
+import platform
 from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from ament_index_python.packages import get_package_share_directory
 import os
+
+# 检查主机名，设置默认use_sim_time
+hostname = platform.node()
+if hostname == 'ywj-B250-D3A':
+    default_use_sim_time = True
+else:
+    default_use_sim_time = False
 
 def generate_launch_description():
     
@@ -32,7 +40,7 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'robot_description': open(urdf_file_path, 'r').read(),
-            'use_sim_time': True,
+            'use_sim_time': default_use_sim_time,
             'frame_prefix': LaunchConfiguration('namespace') + '/'
         }]
     )

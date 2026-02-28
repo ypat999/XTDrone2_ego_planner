@@ -1,0 +1,20 @@
+[Unit]
+Description=fastlio Service
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=cat
+Group=cat
+WorkingDirectory=/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/
+# Environment="ROS_DOMAIN_ID=27"
+ExecStart=/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/scripts/run_fast_lio.sh
+ExecStop=/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/scripts/stop_all_navs.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

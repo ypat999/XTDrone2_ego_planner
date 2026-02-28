@@ -7,7 +7,7 @@ package_name = 'xtd2_launch'
 setup(
     name=package_name,
     version='0.0.0',
-    packages=find_packages(exclude=['test']),
+    packages=find_packages(exclude=['test', 'launch', 'launch.*']),
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
@@ -28,9 +28,9 @@ setup(
             'gazebo_launch = xtd2_launch.utils.gazebo_launch:main',
             'px4_launch = xtd2_launch.utils.px4_launch:main',
             'bridge_launch = xtd2_launch.utils.bridge_launch:main',
-            'tf_publisher = launch.tf_publisher:main',
-            'tf_publisher_robot_state = launch.tf_publisher_robot_state:main',
-            'goal_pose_marker = launch.interactive_markers:main',
+            'tf_publisher = xtd2_launch.utils.tf_publisher:main',
+            'tf_publisher_robot_state = xtd2_launch.utils.tf_publisher_robot_state:main',
+            'goal_pose_marker = xtd2_launch.utils.goal_pose_interactive_marker:main',
         ],
     },
 )

@@ -26,11 +26,11 @@ class TfPublisher(Node):
         else:
             default_namespace = '/'
             self.is_sim = False
-            
+        
         super().__init__(
             'tf_publisher',
             parameter_overrides=[
-                Parameter('use_sim_time', Parameter.Type.BOOL, True),
+                Parameter('use_sim_time', Parameter.Type.BOOL, self.is_sim),
                 Parameter('namespace', Parameter.Type.STRING, default_namespace)
             ]
         )
@@ -517,13 +517,14 @@ class TfPublisher(Node):
         t.transform.rotation.w = 1.0
         tfs.append(t)
 
-        # odom -> namespace/odom
-        t = TransformStamped()
-        t.header.stamp = now
-        t.header.frame_id = 'odom'
-        t.child_frame_id = self.namespace.lstrip('/') + 'odom'
-        t.transform.rotation.w = 1.0
-        tfs.append(t)
+        if self.namespace != '/':
+            # odom -> namespace/odom
+            t = TransformStamped()
+            t.header.stamp = now
+            t.header.frame_id = 'odom'
+            t.child_frame_id = self.namespace.lstrip('/') + 'odom'
+            t.transform.rotation.w = 1.0
+            tfs.append(t)
 
         # # namespace/odom -< namespace/base_footprint
         # t = TransformStamped()
