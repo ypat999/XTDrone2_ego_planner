@@ -287,6 +287,171 @@ echo /xtdrone2/x500_depth_0/cmd_pose_local_ned
 
 ## 近期重要更新记录
 
+### 2026-02-28 - 系统配置优化与TF修复
+**提交**: 多个提交
+
+#### 主要更新内容
+
+##### 1. Launch模块导入问题修复
+- **问题**: `setup.py` 中的 `find_packages()` 将 `launch` 目录识别为 Python 包，导致与 ROS2 的 `launch` 模块冲突
+- **解决**: 在 `setup.py` 中排除 `launch` 包：
+  ```python
+  packages=find_packages(exclude=['test', 'launch', 'launch.*'])
+  ```
+- **影响文件**: `xtd2_launch/setup.py`
+- **结果**: 消除了构建时创建的 `launch` 符号链接冲突
+
+##### 2. LaunchConfiguration类型错误修复
+- **问题**: `ego_planner_launch.py` 中直接将 `LaunchConfiguration` 对象与字符串相加
+  ```python
+  # 错误写法
+  odom_world_topic = namespace + 'lio/odom'
+  
+  # 正确写法
+  odom_world_topic = [namespace, TextSubstitution(text='lio/odom')]
+  ```
+- **解决**: 使用 `TextSubstitution` 和列表形式进行字符串拼接
+- **影响文件**: `xtd2_launch/launch/ego_planner_launch.py`
+- **结果**: 消除了类型不匹配错误
+
+##### 3. use_sim_time动态配置
+- **问题**: 所有 launch 文件中硬编码 `use_sim_time=True`，无法在真实环境中使用
+- **解决**: 根据主机名自动切换仿真/真实环境配置：
+  ```python
+  hostname = platform.node()
+  if hostname == 'ywj-B250-D3A':
+      default_use_sim_time = True   # 仿真环境
+  else:
+      default_use_sim_time = False  # 真实环境
+  ```
+- **影响文件**:
+  - `xtd2_launch/xtd2_launch/utils/tf_publisher.py` (第33行)
+  - `xtd2_launch/launch/ego_planner_launch.py` (已支持)
+  - `xtd2_launch/launch/launch_robot_state_publisher.py` (新增)
+  - `xtd2_launch/launch/launch_rviz_demo.py` (新增)
+- **结果**: 系统现在支持根据主机名自动使用仿真时间或系统时间
+
+##### 4. TF变换重复错误修复
+- **问题**: 真实环境（namespace为空）时，`odom -> odom` 变换重复，导致 TF 错误：
+  ```
+  TF_SELF_TRANSFORM: Ignoring transform from authority "Authority undetectable" 
+  with frame_id and child_frame_id "odom" because they are the same
+  ```
+- **解决**: 在 `tf_publisher.py` 中添加条件判断，只在有命名空间时发布 `odom -> namespace/odom` 变换：
+  ```python
+  # map -> odom (总是发布)
+  t.header.frame_id = 'map'
+  t.child_frame_id = 'odom'
+  
+  # odom -> namespace/odom (只在有命名空间时发布)
+  if self.namespace and self.namespace != '/':
+      t.header.frame_id = 'odom'
+      t.child_frame_id = self.namespace.lstrip('/') + 'odom'
+  ```
+- **影响文件**: `xtd2_launch/xtd2_launch/utils/tf_publisher.py`
+- **结果**: 消除了 TF 变换冲突错误
+
+##### 5. Git仓库地址更新
+- **问题**: `ego-planner-swarm` 子模块的 git 仓库地址不正确
+- **解决**: 更新为正确的仓库地址：
+  ```bash
+  git remote set-url origin https://github.com/ypat999/ego-planner-swarm.git
+  ```
+- **影响目录**: `xtd2_third_party_pkgs/motion_planning/ego-planner-swarm`
+- **结果**: 现在可以从正确的仓库获取最新代码
+
+##### 6. 系统服务配置
+- **新增**: 为 `ros2_single_vehicle_demo_launch.py` 创建了 systemd 服务配置
+- **文件**:
+  - `xtd2_launch/scripts/ros2_single_vehicle_demo.service` - systemd 服务配置
+  - `xtd2_launch/scripts/start_single_vehicle_demo.sh` - 启动脚本
+  - `xtd2_launch/scripts/stop_single_vehicle_demo.sh` - 停止脚本
+- **功能**:
+  - 自动启动：系统启动后自动运行
+  - 自动重启：崩溃后 10 秒自动重启
+  - 日志记录：输出到 systemd journal 和日志文件
+  - 进程管理：优雅停止所有相关节点
+
+#### 常用指令更新
+
+##### 系统服务管理
+```bash
+# 安装服务
+sudo cp /home/cat/git/xtd2_ws/XTDrone2_ego_planner/xtd2_launch/scripts/ros2_single_vehicle_demo.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable ros2_single_vehicle_demo.service
+
+# 启动/停止服务
+sudo systemctl start ros2_single_vehicle_demo.service
+sudo systemctl stop ros2_single_vehicle_demo.service
+sudo systemctl restart ros2_single_vehicle_demo.service
+
+# 查看服务状态和日志
+sudo systemctl status ros2_single_vehicle_demo.service
+sudo journalctl -u ros2_single_vehicle_demo -f
+```
+
+##### 手动启动脚本
+```bash
+# 启动单机演示
+/home/cat/git/xtd2_ws/XTDrone2_ego_planner/xtd2_launch/scripts/start_single_vehicle_demo.sh
+
+# 停止单机演示
+/home/cat/git/xtd2_ws/XTDrone2_ego_planner/xtd2_launch/scripts/stop_single_vehicle_demo.sh
+```
+
+##### 环境切换
+```bash
+# 仿真环境（主机名为 ywj-B250-D3A）
+# use_sim_time 自动设置为 True
+
+# 真实环境（其他主机名）
+# use_sim_time 自动设置为 False
+
+# 查看当前主机名
+hostname
+
+# 查看当前 use_sim_time 配置
+ros2 param get /use_sim_time
+```
+
+##### Git 子模块管理
+```bash
+# 更新 ego-planner-swarm 子模块
+cd /home/cat/git/xtd2_ws/XTDrone2_ego_planner/xtd2_third_party_pkgs/motion_planning/ego-planner-swarm
+git fetch origin
+git pull origin main
+
+# 查看子模块状态
+git submodule status
+
+# 查看远程仓库地址
+git remote -v
+```
+
+##### 构建和清理
+```bash
+# 重新构建 xtd2_launch 包
+cd /home/cat/git/xtd2_ws
+colcon build --packages-select xtd2_launch
+
+# 清除后台残余进程
+/home/cat/git/xtd2_ws/XTDrone2_ego_planner/clear_background.sh
+
+# 查看运行中的 ROS2 节点
+ros2 node list
+
+# 查看运行中的话题
+ros2 topic list
+```
+
+#### 技术改进总结
+- ✅ **模块化设计**: 改进了包结构，避免命名冲突
+- ✅ **动态配置**: 支持根据环境自动切换配置
+- ✅ **错误处理**: 增强了 TF 和坐标系的错误处理
+- ✅ **系统集成**: 完善了系统服务管理
+- ✅ **版本管理**: 更新了子模块仓库配置
+
 ### 2026-01-22 - EGO Planner完整集成和优化
 **提交**: [最新提交]
 
