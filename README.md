@@ -89,7 +89,7 @@ PX4_UXRCE_DDS_NS=x500_depth_0 PX4_GZ_WORLD=tugbot_warehouse PX4_SYS_AUTOSTART=40
 
 详细内容参见[XTDrone2安装教程](https://www.yuque.com/xtdrone/xtdrone2/tutorial)
 
-## 导航 / Path Planning
+## 导航163256 / Path Planning
 
 ### EGO Planner 路径规划系统
 

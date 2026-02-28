@@ -17,8 +17,8 @@ else:
 def generate_launch_description():
     world_name_arg = DeclareLaunchArgument('world_name', 
                     # default_value='aruco', 
-                    # default_value='tugbot_warehouse',
-                    default_value='ego',
+                    default_value='tugbot_warehouse',
+                    # default_value='ego',
 
                     description='Name of the world to launch (without .sdf)')
     model_name_arg = DeclareLaunchArgument('model_name', default_value='gz_x500_depth', description='Name of the model to spawn')

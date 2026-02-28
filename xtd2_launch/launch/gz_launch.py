@@ -46,6 +46,6 @@ def generate_launch_description():
         SetEnvironmentVariable('DISPLAY', ':0'),
         LogInfo(msg=[TextSubstitution(text='Gazebo simulation resources path: '), gz_model_path]),
         ExecuteProcess(
-            cmd=['gz', 'sim', '-r', PathJoinSubstitution([pkg_xtdrone2_gz_sim, 'worlds', LaunchConfiguration('world_file')])],
+            cmd=['gz', 'sim' , '--force-version', '7', '-r', PathJoinSubstitution([pkg_xtdrone2_gz_sim, 'worlds', LaunchConfiguration('world_file')])],
         ),
     ])
