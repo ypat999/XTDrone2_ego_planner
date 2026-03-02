@@ -26,7 +26,7 @@ def generate_launch_description():
     map_size_y = LaunchConfiguration('map_size_y', default=200.0)
     map_size_z = LaunchConfiguration('map_size_z', default=40.0)
 
-    max_vel = LaunchConfiguration('max_vel', default=3.0)
+    max_vel = LaunchConfiguration('max_vel', default=0.5)
     max_acc = LaunchConfiguration('max_acc', default=0.5)
     
     # 根据主机名决定是否使用仿真时间

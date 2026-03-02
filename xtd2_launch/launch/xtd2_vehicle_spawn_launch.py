@@ -81,8 +81,8 @@ def generate_launch_description():
         roll_arg,
         pitch_arg,
         yaw_arg,
-        px4_launch,
-        bridge_launch,
+        # px4_launch,
+        # bridge_launch,
         xtd2_launch,
     ])
 
