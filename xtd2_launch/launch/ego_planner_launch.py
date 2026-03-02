@@ -26,7 +26,7 @@ def generate_launch_description():
     map_size_y = LaunchConfiguration('map_size_y', default=200.0)
     map_size_z = LaunchConfiguration('map_size_z', default=40.0)
 
-    max_vel = LaunchConfiguration('max_vel', default=3.0)
+    max_vel = LaunchConfiguration('max_vel', default=0.5)
     max_acc = LaunchConfiguration('max_acc', default=0.5)
     
     # 根据主机名决定是否使用仿真时间
@@ -94,7 +94,7 @@ def generate_launch_description():
             {'fsm/thresh_replan_time': 0.2},  # 重规划时间阈值
             {'fsm/thresh_no_replan_meter': 0.3},  # 重规划距离阈值
             {'fsm/planning_horizon': 7.5},  # 规划视野
-            {'fsm/planning_horizen_time': 2.0},  # 规划时间视野  5.0
+            {'fsm/planning_horizen_time': 5.0},  # 规划时间视野  5.0
             {'fsm/emergency_time': 1.0},  # 紧急情况处理时间
             {'fsm/realworld_experiment': True},  # 仿真模式  False
             {'fsm/fail_safe': True},  # 启用安全保护
@@ -124,8 +124,8 @@ def generate_launch_description():
             {'grid_map/map_size_z': map_size_z},  # 地图Z轴大小
             {'grid_map/local_update_range_x': 10.0},  # 局部更新范围X  10.0
             {'grid_map/local_update_range_y': 15.0},  # 局部更新范围Y  15.0
-            {'grid_map/local_update_range_z': 6.0},  # 局部更新范围Z   8.0  
-            {'grid_map/obstacles_inflation': 0.3},  # 障碍物膨胀半径 0.6
+            {'grid_map/local_update_range_z': 8.0},  # 局部更新范围Z   8.0  
+            {'grid_map/obstacles_inflation': 0.5},  # 障碍物膨胀半径 0.6
             {'grid_map/local_map_margin': 2},  # 局部地图边界
             {'grid_map/ground_height': -0.01},  # 地面高度
 

@@ -74,6 +74,21 @@ def generate_launch_description():
                 'namespace': LaunchConfiguration('namespace'),
             }.items()
         )
+    
+    # XTDrone2 Communication
+    xtd2_communication = Node(
+        package='xtd2_communication',
+        executable='multirotor_communication',
+        output='screen',
+        emulate_tty=True,
+        shell=True,
+        arguments=[
+            "--model", LaunchConfiguration('model_name'),
+            "--id", LaunchConfiguration('id'),
+            "--namespace", LaunchConfiguration('namespace'),
+            "--debug", "true"
+        ]
+    )
 
     ####################
     # TF Publisher Node #
@@ -127,6 +142,7 @@ def generate_launch_description():
         id_arg,
         name_space_arg,
         TimerAction(period=5.0, actions=[tf_publisher]),  # 延迟启动，确保其他节点先启动
+        xtd2_communication,
         TimerAction(period=10.0, actions=[ego_planner_launch]),  # EGO Planner延迟启动
     ])
     

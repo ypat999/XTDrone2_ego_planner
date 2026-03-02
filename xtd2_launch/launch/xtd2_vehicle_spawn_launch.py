@@ -55,20 +55,7 @@ def generate_launch_description():
         ]
     )
 
-    # XTDrone2 Communication
-    xtd2_launch = Node(
-        package='xtd2_communication',
-        executable='multirotor_communication',
-        output='screen',
-        emulate_tty=True,
-        shell=True,
-        arguments=[
-            "--model", LaunchConfiguration('model'),
-            "--id", LaunchConfiguration('id'),
-            "--namespace", LaunchConfiguration('namespace'),
-            "--debug", "true"
-        ]
-    )
+    
 
     ld = LaunchDescription([
         world_name_arg,
@@ -83,7 +70,6 @@ def generate_launch_description():
         yaw_arg,
         px4_launch,
         bridge_launch,
-        xtd2_launch,
     ])
 
     return ld

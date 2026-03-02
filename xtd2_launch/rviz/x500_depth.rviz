@@ -8,6 +8,7 @@ Panels:
         - /TF1/Frames1
         - /TF1/Tree1
         - /PointCloud2_depth1/Topic1
+        - /PointCloud2_inflate1
         - /Marker_ego_traj1
       Splitter Ratio: 0.6323529481887817
     Tree Height: 824
@@ -238,7 +239,7 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 5.690000057220459
+        Max Value: 12.6899995803833
         Min Value: 0.09000000357627869
         Value: true
       Axis: Z
@@ -258,7 +259,7 @@ Visualization Manager:
       Selectable: true
       Size (Pixels): 3
       Size (m): 0.20000000298023224
-      Style: Flat Squares
+      Style: Boxes
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -301,7 +302,7 @@ Visualization Manager:
       Enabled: true
       Name: Marker_ego_traj
       Namespaces:
-        {}
+        "": true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -392,18 +393,18 @@ Visualization Manager:
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 1.4386645555496216
-        Y: 1.1576788425445557
-        Z: 3.4512336254119873
+        X: 2.222984552383423
+        Y: 7.024251461029053
+        Z: 4.4009552001953125
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8447967767715454
+      Pitch: 0.31479698419570923
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.556469440460205
+      Yaw: 3.5696544647216797
     Saved: ~
 Window Geometry:
   Displays:

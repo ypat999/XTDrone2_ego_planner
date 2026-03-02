@@ -88,31 +88,28 @@ class MultirotorCommunication(Node):
         if self.OFFBOARD_STATE == "DISABLED":
             return
         
-        # Publish Offboard Control Mode
+        # Publish Offboard Control Mode (heartbeat)
         msg = OffboardControlMode()
         
-        # Publish Command
-        if not self.cmd: 
-            return
-        
-        self.cmd.timestamp = self.get_clock_microseconds()
+        # Set control mode flags based on current OFFBOARD_STATE
         if self.OFFBOARD_STATE in ["POSE_LOCAL_NED", "POSE_LOCAL_FLU"]:
             msg.position = True
-            self.dds_trajectory_setpoint_pub.publish(self.cmd)
-
         elif self.OFFBOARD_STATE in ["VEL_NED", "VEL_FLU"]:
             msg.velocity = True
-            self.dds_trajectory_setpoint_pub.publish(self.cmd)
-
         elif self.OFFBOARD_STATE in ["ACCEL_NED", "ACCEL_FLU"]:
             msg.acceleration = True
-            self.dds_trajectory_setpoint_pub.publish(self.cmd)
-        
         elif self.OFFBOARD_STATE == "ATTITUDE_FLU":
             msg.attitude = True
-            self.dds_vehicle_attitude_setpoint_pub.publish(self.cmd)
         
+        # Publish control command if available
+        if self.cmd:
+            self.cmd.timestamp = self.get_clock_microseconds()
+            if self.OFFBOARD_STATE in ["POSE_LOCAL_NED", "POSE_LOCAL_FLU", "VEL_NED", "VEL_FLU", "ACCEL_NED", "ACCEL_FLU"]:
+                self.dds_trajectory_setpoint_pub.publish(self.cmd)
+            elif self.OFFBOARD_STATE == "ATTITUDE_FLU":
+                self.dds_vehicle_attitude_setpoint_pub.publish(self.cmd)
         
+        # Always publish the offboard control mode (heartbeat)
         msg.timestamp = self.get_clock_microseconds()  
         self.offboard_control_mode_pub.publish(msg)
     
