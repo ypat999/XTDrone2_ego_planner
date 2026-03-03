@@ -62,6 +62,9 @@ class MultirotorCommunication(Node):
         else:
             xtdrone2_topic_prefix = '/xtdrone2/'
             dds_topic_prefix = '/'
+
+        print(f"XTDrone2 Topic Prefix: {xtdrone2_topic_prefix}")
+        print(f"DDS Topic Prefix: {dds_topic_prefix}")
         
         self.create_subscription(Pose, xtdrone2_topic_prefix + 'cmd_pose_local_ned', self.cmd_pose_local_ned_callback, 10)  # geometry_msgs/Pose
         self.create_subscription(Pose, xtdrone2_topic_prefix + 'cmd_pose_local_flu', self.cmd_pose_local_flu_callback, 10)  # geometry_msgs/Pose

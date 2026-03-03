@@ -51,9 +51,9 @@ CTRL-C to quit
             model = model[3:]
         self.model = model
         self.id = int(id)
-        self.namespace = namespace if namespace else f'{model}_{id}'
+        self.namespace = namespace if namespace else f'/{model}_{id}/'
 
-        super().__init__(f'{self.namespace}_keyboard_control')
+        super().__init__(f'keyboard_control')
 
         # Parameters
         self.declare_parameter("max_linear_velocity", 20.0)
@@ -66,9 +66,9 @@ CTRL-C to quit
         self.ANGULAR_STEP = self.get_parameter("angular_velocity_step").get_parameter_value().double_value
 
         # XTDrone2 Interface
-        self.cmd_pose_local_ned_publisher = self.create_publisher(Pose, f'/xtdrone2/{self.namespace}/cmd_pose_local_ned', 10)
-        self.cmd_vel_ned_publisher = self.create_publisher(Twist, f'/xtdrone2/{self.namespace}/cmd_vel_flu', 10)
-        self.cmd_client = self.create_client(XTD2Cmd, f'/xtdrone2/{self.namespace}/cmd')
+        self.cmd_pose_local_ned_publisher = self.create_publisher(Pose, f'/xtdrone2{self.namespace}cmd_pose_local_ned', 10)
+        self.cmd_vel_ned_publisher = self.create_publisher(Twist, f'/xtdrone2{self.namespace}cmd_vel_flu', 10)
+        self.cmd_client = self.create_client(XTD2Cmd, f'/xtdrone2{self.namespace}cmd')
 
         # Variables
         self.forward = 0.0
