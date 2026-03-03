@@ -8,7 +8,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 # 检查主机名，设置默认namespace
 hostname = platform.node()
-if hostname == 'ywj-B250-D3A':
+if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
     default_namespace = '/x500_depth_0/'
     use_sim_time = True
     use_sim_time_str = 'true'
@@ -147,8 +147,8 @@ def generate_launch_description():
     ])
     
     
-    # 当主机为ywj-B250-D3A时，启动整套px4模拟
-    if hostname == 'ywj-B250-D3A':
+    # 当主机为ywj-B250-D3A或DESKTOP-ypat时，启动整套px4模拟
+    if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
         
         ld.add_action(world_launch)  # 启动Gazebo模拟环境
         ld.add_action(xrce_dds_process)  # 启动XRCE-DDS Agent

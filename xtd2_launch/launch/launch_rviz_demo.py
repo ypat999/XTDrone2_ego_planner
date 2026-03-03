@@ -12,7 +12,7 @@ import os
 
 # 检查主机名，设置默认namespace
 hostname = platform.node()
-if hostname == 'ywj-B250-D3A':
+if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
     default_namespace = '/x500_depth_0/'
     default_use_sim_time = True
 else:

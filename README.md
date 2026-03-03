@@ -319,7 +319,7 @@ echo /xtdrone2/x500_depth_0/cmd_pose_local_ned
 - **解决**: 根据主机名自动切换仿真/真实环境配置：
   ```python
   hostname = platform.node()
-  if hostname == 'ywj-B250-D3A':
+  if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
       default_use_sim_time = True   # 仿真环境
   else:
       default_use_sim_time = False  # 真实环境

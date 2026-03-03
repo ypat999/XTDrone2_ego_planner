@@ -9,7 +9,7 @@ from launch_ros.substitutions import FindPackageShare
 
 # 检查主机名，设置默认namespace
 hostname = platform.node()
-if hostname == 'ywj-B250-D3A':
+if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
     default_namespace = '/x500_depth_0/'
     
 else:
@@ -30,7 +30,7 @@ def generate_launch_description():
     max_acc = LaunchConfiguration('max_acc', default=0.5)
     
     # 根据主机名决定是否使用仿真时间
-    if hostname == 'ywj-B250-D3A':
+    if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
         default_use_sim_time = 'true'
         odom_world_topic = '/x500_depth_0/odometry'
         grid_map_cloud_topic = '/x500_depth_0/StereoOV7251/pointcloud'
@@ -243,7 +243,7 @@ def generate_launch_description():
         interactive_marker_node,
 
         # 启动ego-planner节点
-        ego_planner_node,
+        # ego_planner_node,
         
         # 延迟启动轨迹服务器
         TimerAction(period=2.0, actions=[traj_server_node]),
