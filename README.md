@@ -42,7 +42,7 @@ sudo apt install ros-humble-ros-gzgarden
 
 #### 1. 基础仿真环境
 ```bash
-# 启动基础仿真（不含路径规划）
+# 完整仿真及真机导航（根据node名称自动判断）
 ros2 launch xtd2_launch ros2_single_vehicle_demo_launch.py
 
 # 启动键盘控制
