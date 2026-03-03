@@ -91,7 +91,7 @@ def generate_launch_description():
             
             # FSM 参数
             {'fsm/flight_type': 1},  # PRESET_TARGET模式2
-            {'fsm/thresh_replan_time': 0.2},  # 重规划时间阈值
+            {'fsm/thresh_replan_time': 1.0},  # 重规划时间阈值  0.2
             {'fsm/thresh_no_replan_meter': 0.3},  # 重规划距离阈值
             {'fsm/planning_horizon': 7.5},  # 规划视野
             {'fsm/planning_horizen_time': 5.0},  # 规划时间视野  5.0
@@ -127,7 +127,7 @@ def generate_launch_description():
             {'grid_map/local_update_range_z': 8.0},  # 局部更新范围Z   8.0  
             {'grid_map/obstacles_inflation': 0.5},  # 障碍物膨胀半径 0.6
             {'grid_map/local_map_margin': 2},  # 局部地图边界
-            {'grid_map/ground_height': -0.01},  # 地面高度
+            {'grid_map/ground_height': 0.01},  # 地面高度
 
             # depth filter - 深度滤波器参数
             {'grid_map/use_depth_filter': False},  # 启用深度滤波
