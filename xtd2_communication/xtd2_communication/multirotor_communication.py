@@ -13,8 +13,8 @@ import rclpy
 from rclpy.node import Node
 
 from std_msgs.msg import String
-from geometry_msgs.msg import Pose, Twist
-from px4_msgs.msg import TrajectorySetpoint, OffboardControlMode, VehicleCommand, VehicleLocalPosition, VehicleGlobalPosition, VehicleAttitudeSetpoint
+from geometry_msgs.msg import Pose, Twist, PoseStamped
+from px4_msgs.msg import TrajectorySetpoint, OffboardControlMode, VehicleCommand, VehicleLocalPosition, VehicleGlobalPosition, VehicleAttitudeSetpoint, VehicleStatus
 from xtd2_msgs.srv import XTD2Cmd
 from xtd2_msgs.msg import XTD2VehicleState
 
@@ -47,6 +47,11 @@ class MultirotorCommunication(Node):
         self.cur_vehicle_global_position = None
         self.init_vehicle_local_position = None
         self.init_vehicle_global_position = None
+        self.vehicle_status = None
+        self.auto_switch_enabled = False
+        self.last_goal_marker_time = None
+        self.was_flying = False  # 记录之前是否在飞行状态
+        self.landed_time = None  # 记录落地时间
 
         # XTDrone2 Interface
         # 移除namespace前后的斜杠，避免重复
@@ -70,10 +75,14 @@ class MultirotorCommunication(Node):
         # DDS Interface
         self.create_subscription(VehicleLocalPosition, dds_topic_prefix + 'fmu/out/vehicle_local_position', self.vehicle_local_position_callback, QoSProfile(depth=10, reliability=qos_profile_sensor_data.reliability))
         self.create_subscription(VehicleGlobalPosition, dds_topic_prefix + 'fmu/out/vehicle_global_position', self.vehicle_global_position_callback, QoSProfile(depth=10, reliability=qos_profile_sensor_data.reliability))
+        self.create_subscription(VehicleStatus, dds_topic_prefix + 'fmu/out/vehicle_status', self.vehicle_status_callback, QoSProfile(depth=10, reliability=qos_profile_sensor_data.reliability))
         self.vehicle_command_publisher = self.create_publisher(VehicleCommand, dds_topic_prefix + 'fmu/in/vehicle_command', 10)
         self.offboard_control_mode_pub = self.create_publisher(OffboardControlMode, dds_topic_prefix + 'fmu/in/offboard_control_mode', 10)
         self.dds_trajectory_setpoint_pub = self.create_publisher(TrajectorySetpoint, dds_topic_prefix + 'fmu/in/trajectory_setpoint', 10)
         self.dds_vehicle_attitude_setpoint_pub = self.create_publisher(VehicleAttitudeSetpoint, dds_topic_prefix + 'fmu/in/vehicle_attitude_setpoint', 10)
+        
+        # Goal marker subscription for automatic switching
+        self.create_subscription(PoseStamped, '/goal_pose_3d', self.goal_marker_callback, 10)
 
         self.timer_ = self.create_timer(0.05, self.timer_callback)
 
@@ -85,6 +94,13 @@ class MultirotorCommunication(Node):
         self.get_logger().info(f'{self.namespace} communication node started')
     
     def timer_callback(self):
+        # 检查自动切换状态
+        if self.auto_switch_enabled:
+            self.check_auto_switch_progress()
+        
+        # 检查无人机落地状态并自动解除arm
+        self.check_landing_and_disarm()
+        
         if self.OFFBOARD_STATE == "DISABLED":
             return
         
@@ -122,6 +138,18 @@ class MultirotorCommunication(Node):
         if self.init_vehicle_global_position is None:
             self.init_vehicle_global_position = msg
         self.cur_vehicle_global_position = msg
+
+    def vehicle_status_callback(self, msg):
+        self.vehicle_status = msg
+
+    def goal_marker_callback(self, msg):
+        """处理目标点标记，触发自动状态切换"""
+        self.last_goal_marker_time = self.get_clock().now()
+        
+        if not self.auto_switch_enabled:
+            self.get_logger().info('收到目标点标记，开始自动状态切换流程')
+            self.auto_switch_enabled = True
+            self.auto_switch_to_egoplanner()
     
     def get_clock_microseconds(self):
         t_ = self.get_clock().now().seconds_nanoseconds()
@@ -389,6 +417,125 @@ class MultirotorCommunication(Node):
             msg.init_alt = float('nan')
 
         self.vehicle_state_publisher.publish(msg)
+
+    def auto_switch_to_egoplanner(self):
+        """自动切换到egoplanner控制模式"""
+        if self.vehicle_status is None or self.cur_vehicle_local_position is None:
+            self.get_logger().warn('无法获取无人机状态，等待数据...')
+            return
+        
+        # 1. 检查是否已起飞（高度大于0.5米）
+        current_altitude = -self.cur_vehicle_local_position.z  # NED坐标系，z向下为负
+        is_flying = current_altitude > 0.5
+        
+        # 2. 检查是否已解锁
+        is_armed = self.vehicle_status.arming_state == 2  # ARMING_STATE_ARMED
+        
+        # 3. 检查是否在offboard模式
+        is_offboard = self.vehicle_status.nav_state == 14  # NAVIGATION_STATE_OFFBOARD
+        
+        self.get_logger().info(f'状态检查: 高度={current_altitude:.2f}m, 已起飞={is_flying}, 已解锁={is_armed}, offboard模式={is_offboard}')
+        
+        # 执行状态切换
+        if not is_armed:
+            self.get_logger().info('无人机未解锁，执行解锁...')
+            self.arm()
+            # 等待解锁完成
+            self.get_logger().info('等待解锁完成...')
+            return
+        
+        if not is_flying:
+            self.get_logger().info('无人机未起飞，执行起飞...')
+            self.takeoff()
+            # 等待起飞完成
+            self.get_logger().info('等待起飞完成...')
+            return
+        
+        if not is_offboard:
+            self.get_logger().info('切换到offboard模式...')
+            self.OFFBOARD_STATE = "ENABLED"
+            self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 6)
+            self.get_logger().info('offboard模式切换完成，准备接收egoplanner控制')
+            return
+        
+        # 所有条件满足，切换到egoplanner控制
+        self.get_logger().info('无人机已准备就绪，可以接收egoplanner控制指令')
+        self.auto_switch_enabled = False  # 重置标志
+
+    def check_auto_switch_progress(self):
+        """检查自动切换进度，确保状态转换完成"""
+        if self.vehicle_status is None or self.cur_vehicle_local_position is None:
+            return
+        
+        current_altitude = -self.cur_vehicle_local_position.z
+        is_armed = self.vehicle_status.arming_state == 2
+        is_offboard = self.vehicle_status.nav_state == 14
+        is_flying = current_altitude > 0.5
+        
+        # 如果所有条件都满足，完成切换
+        if is_armed and is_flying and is_offboard:
+            self.get_logger().info('自动切换完成：无人机已解锁、起飞并进入offboard模式')
+            self.auto_switch_enabled = False
+            return
+        
+        # 如果超过30秒仍未完成切换，重置状态
+        if self.last_goal_marker_time is not None:
+            elapsed_time = (self.get_clock().now() - self.last_goal_marker_time).nanoseconds / 1e9
+            if elapsed_time > 30:
+                self.get_logger().warn('自动切换超时，重置状态')
+                self.auto_switch_enabled = False
+                return
+        
+        # 每5秒重新检查一次状态
+        if hasattr(self, '_last_check_time'):
+            elapsed = (self.get_clock().now() - self._last_check_time).nanoseconds / 1e9
+            if elapsed < 5:
+                return
+        
+        self._last_check_time = self.get_clock().now()
+        self.get_logger().info(f'自动切换进度: 已解锁={is_armed}, 已起飞={is_flying}, offboard模式={is_offboard}')
+        
+        # 重新执行切换逻辑
+        self.auto_switch_to_egoplanner()
+
+    def check_landing_and_disarm(self):
+        """检查无人机是否落地，并在确认落地后自动解除arm"""
+        if self.vehicle_status is None or self.cur_vehicle_local_position is None:
+            return
+        
+        # 获取当前高度（NED坐标系，z向下为负）
+        current_altitude = -self.cur_vehicle_local_position.z
+        is_armed = self.vehicle_status.arming_state == 2
+        
+        # 判断是否在飞行状态（高度大于0.3米）
+        is_flying = current_altitude > 0.3
+        
+        # 检测状态变化：从飞行状态变为落地状态
+        if self.was_flying and not is_flying and is_armed:
+            # 首次检测到落地
+            if self.landed_time is None:
+                self.landed_time = self.get_clock().now()
+                self.get_logger().info(f'检测到无人机落地，高度={current_altitude:.2f}m，等待确认...')
+            else:
+                # 检查落地确认时间（3秒）
+                elapsed_time = (self.get_clock().now() - self.landed_time).nanoseconds / 1e9
+                if elapsed_time >= 3.0:
+                    self.get_logger().info('确认无人机已落地，自动解除arm...')
+                    self.disarm()
+                    self.landed_time = None
+                    self.was_flying = False
+        elif is_flying:
+            # 无人机在飞行状态，重置落地计时器
+            self.landed_time = None
+            self.was_flying = True
+        elif not is_flying and not is_armed:
+            # 无人机已落地且已解除arm，重置状态
+            self.landed_time = None
+            self.was_flying = False
+        
+        # 更新飞行状态记录
+        self.was_flying = is_flying
+
 
 def main():
     rclpy.init(args=sys.argv)
