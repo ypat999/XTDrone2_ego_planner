@@ -243,7 +243,7 @@ def generate_launch_description():
         interactive_marker_node,
 
         # 启动ego-planner节点
-        # ego_planner_node,
+        ego_planner_node,
         
         # 延迟启动轨迹服务器
         TimerAction(period=2.0, actions=[traj_server_node]),
