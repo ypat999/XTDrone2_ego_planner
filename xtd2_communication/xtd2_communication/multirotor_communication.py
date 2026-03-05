@@ -593,12 +593,19 @@ class MultirotorCommunication(Node):
             )
 
             # 从 TF 变换中提取旋转矩阵
+            # transform 是 world(ENU) -> base_footprint(FLU) 的变换
+            # 我们需要 FLU -> ENU 的旋转矩阵，所以取逆
             q = transform.transform.rotation
-            rotation_matrix = CoordinateTransform.create_rotation_matrix_from_quaternion(q.w, q.x, q.y, q.z)
+            # 四元数共轭得到逆旋转 (ENU -> FLU 的逆 = FLU -> ENU)
+            qw_inv, qx_inv, qy_inv, qz_inv = q.w, -q.x, -q.y, -q.z
+            rotation_matrix_flu_to_enu = CoordinateTransform.create_rotation_matrix_from_quaternion(
+                qw_inv, qx_inv, qy_inv, qz_inv)
 
             # 使用工具函数将 FLU 速度转换到 NED
+            # 正确流程: FLU body -> FLU->ENU -> ENU->NED -> NED world
             flu_vel = np.array([msg.linear.x, msg.linear.y, msg.linear.z])
-            ned_vel = CoordinateTransform.flu_to_ned_vector_by_rotation_matrix(flu_vel, rotation_matrix)
+            ned_vel = CoordinateTransform.flu_to_ned_vector_by_rotation_matrix(
+                flu_vel, rotation_matrix_flu_to_enu)
 
             # Construct TrajectorySetpoint message
             cmd = TrajectorySetpoint()
@@ -647,12 +654,19 @@ class MultirotorCommunication(Node):
             )
 
             # 从 TF 变换中提取旋转矩阵
+            # transform 是 world(ENU) -> base_footprint(FLU) 的变换
+            # 我们需要 FLU -> ENU 的旋转矩阵，所以取逆
             q = transform.transform.rotation
-            rotation_matrix = CoordinateTransform.create_rotation_matrix_from_quaternion(q.w, q.x, q.y, q.z)
+            # 四元数共轭得到逆旋转 (ENU -> FLU 的逆 = FLU -> ENU)
+            qw_inv, qx_inv, qy_inv, qz_inv = q.w, -q.x, -q.y, -q.z
+            rotation_matrix_flu_to_enu = CoordinateTransform.create_rotation_matrix_from_quaternion(
+                qw_inv, qx_inv, qy_inv, qz_inv)
 
             # 使用工具函数将 FLU 加速度转换到 NED
+            # 正确流程: FLU body -> FLU->ENU -> ENU->NED -> NED world
             flu_accel = np.array([msg.linear.x, msg.linear.y, msg.linear.z])
-            ned_accel = CoordinateTransform.flu_to_ned_vector_by_rotation_matrix(flu_accel, rotation_matrix)
+            ned_accel = CoordinateTransform.flu_to_ned_vector_by_rotation_matrix(
+                flu_accel, rotation_matrix_flu_to_enu)
 
             # Construct TrajectorySetpoint message
             cmd = TrajectorySetpoint()
