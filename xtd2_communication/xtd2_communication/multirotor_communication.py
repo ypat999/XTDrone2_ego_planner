@@ -626,19 +626,19 @@ class MultirotorCommunication(Node):
         except Exception as tf_error:
             self.get_logger().warning(f'TF transform failed in cmd_pose_local_flu: {str(tf_error)}, using current heading')
             # TF 变换失败时，使用当前航向角（备用方案）
-            theta = self.cur_vehicle_local_position.heading if self.cur_vehicle_local_position else 0.0
+            # theta = self.cur_vehicle_local_position.heading if self.cur_vehicle_local_position else 0.0
             
-            # Transfer position from FLU to NED, msg.position.xyz is flu, respectively
-            p_n = msg.position.x * math.cos(theta) + msg.position.y * math.sin(theta)
-            p_e = msg.position.x * math.sin(theta) - msg.position.y * math.cos(theta)
-            p_d = -msg.position.z
+            # # Transfer position from FLU to NED, msg.position.xyz is flu, respectively
+            # p_n = msg.position.x * math.cos(theta) + msg.position.y * math.sin(theta)
+            # p_e = msg.position.x * math.sin(theta) - msg.position.y * math.cos(theta)
+            # p_d = -msg.position.z
             
-            # Construct TrajectorySetpoint message
-            cmd = TrajectorySetpoint()
-            cmd.timestamp = self.get_clock_microseconds()
-            cmd.position = [p_n, p_e, p_d]
-            cmd.yaw = self.init_vehicle_local_position.heading + yaw if self.init_vehicle_local_position else yaw
-            self.cmd = cmd
+            # # Construct TrajectorySetpoint message
+            # cmd = TrajectorySetpoint()
+            # cmd.timestamp = self.get_clock_microseconds()
+            # cmd.position = [p_n, p_e, p_d]
+            # cmd.yaw = self.init_vehicle_local_position.heading + yaw if self.init_vehicle_local_position else yaw
+            # self.cmd = cmd
 
     def cmd_vel_ned_callback(self, msg):
         if self.OFFBOARD_STATE == "DISABLED":
@@ -708,21 +708,21 @@ class MultirotorCommunication(Node):
         except Exception as tf_error:
             self.get_logger().warning(f'TF transform failed in cmd_vel_flu: {str(tf_error)}, using current heading')
             # TF 变换失败时，使用当前航向角（备用方案）
-            theta = self.cur_vehicle_local_position.heading if self.cur_vehicle_local_position else 0.0
+            # theta = self.cur_vehicle_local_position.heading if self.cur_vehicle_local_position else 0.0
             
-            # Transform velocity from FLU to NED, msg.linear.xyz is flu, respectively
-            v_n = msg.linear.x * math.cos(theta) + msg.linear.y * math.sin(theta)
-            v_e = msg.linear.x * math.sin(theta) - msg.linear.y * math.cos(theta)
-            v_d = -msg.linear.z
+            # # Transform velocity from FLU to NED, msg.linear.xyz is flu, respectively
+            # v_n = msg.linear.x * math.cos(theta) + msg.linear.y * math.sin(theta)
+            # v_e = msg.linear.x * math.sin(theta) - msg.linear.y * math.cos(theta)
+            # v_d = -msg.linear.z
             
-            # Construct TrajectorySetpoint message
-            cmd = TrajectorySetpoint()
-            cmd.timestamp = self.get_clock_microseconds()
-            cmd.position = [math.nan, math.nan, math.nan]
-            cmd.velocity = [v_n, v_e, v_d]
-            cmd.yaw = math.nan
-            cmd.yawspeed = -msg.angular.z
-            self.cmd = cmd
+            # # Construct TrajectorySetpoint message
+            # cmd = TrajectorySetpoint()
+            # cmd.timestamp = self.get_clock_microseconds()
+            # cmd.position = [math.nan, math.nan, math.nan]
+            # cmd.velocity = [v_n, v_e, v_d]
+            # cmd.yaw = math.nan
+            # cmd.yawspeed = -msg.angular.z
+            # self.cmd = cmd
         
     def cmd_accel_ned_callback(self, msg):
         if self.OFFBOARD_STATE == "DISABLED":
@@ -786,21 +786,21 @@ class MultirotorCommunication(Node):
         except Exception as tf_error:
             self.get_logger().warning(f'TF transform failed in cmd_accel_flu: {str(tf_error)}, using current heading')
             # TF 变换失败时，使用当前航向角（备用方案）
-            theta = self.cur_vehicle_local_position.heading if self.cur_vehicle_local_position else 0.0
+            # theta = self.cur_vehicle_local_position.heading if self.cur_vehicle_local_position else 0.0
             
-            # Transform acceleration from FLU to NED, msg.linear.xyz is flu, respectively
-            a_n = msg.linear.x * math.cos(theta) + msg.linear.y * math.sin(theta)
-            a_e = msg.linear.x * math.sin(theta) - msg.linear.y * math.cos(theta)
-            a_d = -msg.linear.z
+            # # Transform acceleration from FLU to NED, msg.linear.xyz is flu, respectively
+            # a_n = msg.linear.x * math.cos(theta) + msg.linear.y * math.sin(theta)
+            # a_e = msg.linear.x * math.sin(theta) - msg.linear.y * math.cos(theta)
+            # a_d = -msg.linear.z
             
-            # Construct TrajectorySetpoint message
-            cmd = TrajectorySetpoint()
-            cmd.timestamp = self.get_clock_microseconds()
-            cmd.position = [math.nan, math.nan, math.nan]
-            cmd.velocity = [math.nan, math.nan, math.nan]
-            cmd.acceleration = [a_n, a_e, a_d]
-            # How about yaw
-            self.cmd = cmd
+            # # Construct TrajectorySetpoint message
+            # cmd = TrajectorySetpoint()
+            # cmd.timestamp = self.get_clock_microseconds()
+            # cmd.position = [math.nan, math.nan, math.nan]
+            # cmd.velocity = [math.nan, math.nan, math.nan]
+            # cmd.acceleration = [a_n, a_e, a_d]
+            # # How about yaw
+            # self.cmd = cmd
     
     def cmd_attitude_flu_callback(self, msg):
         if self.OFFBOARD_STATE == "DISABLED":
