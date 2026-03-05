@@ -125,15 +125,6 @@ class CoordinateTransform:
         return [ax, -ay, -az]
 
     @staticmethod
-    def frd_to_flu_angular_velocity(wx: float, wy: float, wz: float) -> list:
-        """FRD角速度 -> FLU角速度"""
-        return [wx, -wy, -wz]
-
-    @staticmethod
-    def flu_to_frd_angular_velocity(wx: float, wy: float, wz: float) -> list:
-        """FLU角速度 -> FRD角速度"""
-        return [wx, -wy, -wz]
-
     @staticmethod
     def frd_to_flu_quaternion(qw: float, qx: float, qy: float, qz: float) -> list:
         """
@@ -218,21 +209,26 @@ class CoordinateTransform:
     @staticmethod
     def body_to_ned_3d_matrix(heading: float) -> np.ndarray:
         """
-        创建从 FLU 到 NED 的 3D 反射矩阵
+        创建从 FLU 到 NED 的 3D 变换矩阵
 
-        重要: FLU (左手系) -> NED (右手系) 需要反射矩阵！
+        这个矩阵用于将 FLU 坐标系下的向量转换到 NED 坐标系。
+        它结合了:
+        1. 航向旋转 (FLU -> ENU 的投影)
+        2. Z轴翻转 (Up -> Down)
 
-        完整变换:
+        矩阵形式:
         [n]   [cos(ψ)   sin(ψ)   0] [f]
         [e] = [sin(ψ)  -cos(ψ)   0] [l]
         [d]   [   0        0    -1] [u]
 
-        验证: det = cos*(-cos)*(-1) + sin*sin*(-1) = cos² - sin² = -1 ✓
+        注意: 这个矩阵的行列式 det = cos²(ψ) - sin²(ψ) = cos(2ψ)
+        不是纯旋转矩阵 (det=+1)，也不是反射矩阵 (det=-1)。
+        它是一个复合变换矩阵，专门用于 FLU <-> NED 的坐标转换。
 
         Args:
-            heading: 航向角 ψ (弧度)
+            heading: 航向角 ψ (弧度)，顺时针为正
         Returns:
-            3x3反射矩阵 (行列式=-1)
+            3x3变换矩阵
         """
         c = math.cos(heading)
         s = math.sin(heading)
@@ -245,14 +241,15 @@ class CoordinateTransform:
     @staticmethod
     def ned_to_body_3d_matrix(heading: float) -> np.ndarray:
         """
-        创建从 NED 到 FLU 的 3D 反射矩阵
+        创建从 NED 到 FLU 的 3D 变换矩阵
 
-        注意: 反射矩阵的逆 = 自身
+        这是 body_to_ned_3d_matrix 的逆矩阵。
+        注意: 由于原矩阵不是正交矩阵，逆矩阵不等于转置。
 
         Args:
             heading: 航向角 ψ (弧度)
         Returns:
-            3x3反射矩阵
+            3x3变换矩阵
         """
         c = math.cos(heading)
         s = math.sin(heading)
@@ -305,41 +302,39 @@ class CoordinateTransform:
         return [flu_vec[0], flu_vec[1], flu_vec[2]]
 
     # =========================================================================
-    # 角速度转换 (不涉及世界坐标，不需要 heading)
+    # 角速度转换 (机体系之间，不需要 heading)
     # =========================================================================
 
     @staticmethod
-    def flu_to_ned_angular_velocity(flu_wx: float, flu_wy: float, flu_wz: float, heading: float) -> list:
+    def flu_to_frd_angular_velocity(flu_wx: float, flu_wy: float, flu_wz: float) -> list:
         """
-        FLU角速度 -> NED角速度（使用完整3D反射矩阵）
+        FLU角速度 -> FRD角速度
 
-        重要: 角速度是矢量，转换到世界坐标系时必须使用与位置相同的旋转矩阵（包含航向角）。
-        例如，机体绕 x 轴的滚转角速度，在世界坐标系中会分解为北向和东向分量，取决于当前的航向。
+        重要: 角速度是机体系量，不需要世界坐标转换！
+        ROS: angular velocity -> body frame (FLU)
+        PX4: angular velocity -> body frame (FRD)
+        只需要坐标轴反射: wx=wx, wy=-wy, wz=-wz
 
         Args:
             flu_wx, flu_wy, flu_wz: FLU坐标系下的角速度
-            heading: 航向角 (弧度)，顺时针为正
         Returns:
-            [w_north, w_east, w_down]: NED坐标系下的角速度
+            [w_forward, w_right, w_down]: FRD坐标系下的角速度
         """
-        R = CoordinateTransform.body_to_ned_3d_matrix(heading)
-        ned_omega = R @ np.array([flu_wx, flu_wy, flu_wz])
-        return [ned_omega[0], ned_omega[1], ned_omega[2]]
+        return [flu_wx, -flu_wy, -flu_wz]
 
     @staticmethod
-    def ned_to_flu_angular_velocity(ned_wx: float, ned_wy: float, ned_wz: float, heading: float) -> list:
+    def frd_to_flu_angular_velocity(frd_wx: float, frd_wy: float, frd_wz: float) -> list:
         """
-        NED角速度 -> FLU角速度（使用完整3D反射矩阵）
+        FRD角速度 -> FLU角速度
+
+        只需要坐标轴反射: wx=wx, wy=-wy, wz=-wz
 
         Args:
-            ned_wx, ned_wy, ned_wz: NED坐标系下的角速度
-            heading: 航向角 (弧度)，顺时针为正
+            frd_wx, frd_wy, frd_wz: FRD坐标系下的角速度
         Returns:
             [w_forward, w_left, w_up]: FLU坐标系下的角速度
         """
-        R = CoordinateTransform.ned_to_body_3d_matrix(heading)
-        flu_omega = R @ np.array([ned_wx, ned_wy, ned_wz])
-        return [flu_omega[0], flu_omega[1], flu_omega[2]]
+        return [frd_wx, -frd_wy, -frd_wz]
 
     # =========================================================================
     # FRD <-> NED 转换 (PX4机体系 <-> PX4世界系)
@@ -367,43 +362,6 @@ class CoordinateTransform:
         flu_vel = CoordinateTransform.ned_to_flu_velocity(vx, vy, vz, heading)
         # FLU -> FRD
         return [flu_vel[0], -flu_vel[1], -flu_vel[2]]
-
-    @staticmethod
-    def frd_to_ned_angular_velocity(frd_wx: float, frd_wy: float, frd_wz: float, heading: float) -> list:
-        """
-        FRD角速度 -> NED角速度（使用完整3D反射矩阵）
-
-        vehicle_odometry.angular_velocity 是 FRD 坐标系！
-        转换流程: FRD -> FLU -> NED
-
-        Args:
-            frd_wx, frd_wy, frd_wz: FRD坐标系下的角速度
-            heading: 航向角 (弧度)，顺时针为正
-        Returns:
-            [w_north, w_east, w_down]: NED坐标系下的角速度
-        """
-        # FRD -> FLU (轴反射)
-        flu_wx, flu_wy, flu_wz = frd_wx, -frd_wy, -frd_wz
-        # FLU -> NED (使用完整反射矩阵)
-        return CoordinateTransform.flu_to_ned_angular_velocity(flu_wx, flu_wy, flu_wz, heading)
-
-    @staticmethod
-    def ned_to_frd_angular_velocity(ned_wx: float, ned_wy: float, ned_wz: float, heading: float) -> list:
-        """
-        NED角速度 -> FRD角速度（使用完整3D反射矩阵）
-
-        转换流程: NED -> FLU -> FRD
-
-        Args:
-            ned_wx, ned_wy, ned_wz: NED坐标系下的角速度
-            heading: 航向角 (弧度)，顺时针为正
-        Returns:
-            [w_forward, w_right, w_down]: FRD坐标系下的角速度
-        """
-        # NED -> FLU (使用完整反射矩阵)
-        flu_omega = CoordinateTransform.ned_to_flu_angular_velocity(ned_wx, ned_wy, ned_wz, heading)
-        # FLU -> FRD (轴反射)
-        return [flu_omega[0], -flu_omega[1], -flu_omega[2]]
 
     # =========================================================================
     # VehicleOdometry 专用转换 (FRD/NED <-> FLU/ENU)
@@ -443,39 +401,52 @@ class CoordinateTransform:
     def frd_ned_to_flu_enu_quaternion(frd_qw: float, frd_qx: float, frd_qy: float, frd_qz: float) -> list:
         """
         vehicle_odometry 姿态四元数: FRD/NED -> FLU/ENU
-        
-        vehicle_odometry.q 表示 FRD-relative-to-NED
-        需要同时转换:
-        1. FRD -> FLU (机体系轴反射: diag(1,-1,-1))
-        2. NED -> ENU (世界系转换: [[0,1,0],[1,0,0],[0,0,-1]])
-        
-        注意: 对于轴反射矩阵 T，使用 T @ R @ T (不是 T.T)
+
+        PX4 quaternion: world=NED, body=FRD
+        ROS quaternion: world=ENU, body=FLU
+
+        需要变换: R_flu_enu = R_ned_to_enu * R_frd_ned * R_frd_to_flu
+
+        其中:
+        - R_ned_to_enu = [[0,1,0], [1,0,0], [0,0,-1]] (NED->ENU)
+        - R_frd_to_flu = [[1,0,0], [0,-1,0], [0,0,-1]] (FRD->FLU, 轴反射)
         """
-        # 1. FRD -> FLU (机体系轴反射)
-        T_body = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+        # 转换矩阵
+        R_ned_to_enu = np.array([[0, 1, 0], [1, 0, 0], [0, 0, -1]])
+        R_frd_to_flu = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+
+        # PX4 quaternion: FRD-relative-to-NED
         R_frd_ned = CoordinateTransform._quat_to_rot(frd_qw, frd_qx, frd_qy, frd_qz)
-        R_flu_ned = T_body @ R_frd_ned @ T_body  # 轴反射用 T，不是 T.T
-        
-        # 2. NED -> ENU (世界系转换，这是旋转矩阵，用相似变换)
-        T_world = np.array([[0, 1, 0], [1, 0, 0], [0, 0, -1]])
-        R_flu_enu = T_world @ R_flu_ned @ T_world.T
-        
+
+        # 正确变换: R_flu_enu = R_ned_to_enu * R_frd_ned * R_frd_to_flu
+        R_flu_enu = R_ned_to_enu @ R_frd_ned @ R_frd_to_flu
+
         return CoordinateTransform._rot_to_quat(R_flu_enu)
 
     @staticmethod
     def flu_enu_to_frd_ned_quaternion(flu_qw: float, flu_qx: float, flu_qy: float, flu_qz: float) -> list:
         """
         姿态四元数: FLU/ENU -> FRD/NED
+
+        ROS quaternion: world=ENU, body=FLU
+        PX4 quaternion: world=NED, body=FRD
+
+        需要变换: R_frd_ned = R_enu_to_ned * R_flu_enu * R_flu_to_frd
+
+        其中:
+        - R_enu_to_ned = [[0,1,0], [1,0,0], [0,0,-1]] (ENU->NED)
+        - R_flu_to_frd = [[1,0,0], [0,-1,0], [0,0,-1]] (FLU->FRD, 轴反射)
         """
-        # 1. ENU -> NED (世界系转换)
-        T_world = np.array([[0, 1, 0], [1, 0, 0], [0, 0, -1]])
+        # 转换矩阵
+        R_enu_to_ned = np.array([[0, 1, 0], [1, 0, 0], [0, 0, -1]])
+        R_flu_to_frd = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+
+        # ROS quaternion: FLU-relative-to-ENU
         R_flu_enu = CoordinateTransform._quat_to_rot(flu_qw, flu_qx, flu_qy, flu_qz)
-        R_flu_ned = T_world.T @ R_flu_enu @ T_world
-        
-        # 2. FLU -> FRD (机体系轴反射)
-        T_body = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
-        R_frd_ned = T_body @ R_flu_ned @ T_body  # 轴反射用 T，不是 T.T
-        
+
+        # 正确变换: R_frd_ned = R_enu_to_ned * R_flu_enu * R_flu_to_frd
+        R_frd_ned = R_enu_to_ned @ R_flu_enu @ R_flu_to_frd
+
         return CoordinateTransform._rot_to_quat(R_frd_ned)
 
     @staticmethod
@@ -598,7 +569,21 @@ class CoordinateTransform:
 
     @staticmethod
     def heading_from_quaternion(qw: float, qx: float, qy: float, qz: float) -> float:
-        """从四元数提取航向角 (yaw)"""
+        """
+        从 NED 四元数提取航向角 (heading)
+
+        重要: 输入四元数必须是 NED 坐标系 (FRD-relative-to-NED)
+
+        - NED quaternion: heading = yaw (North, CW)
+        - ENU quaternion: yaw = East, CCW (结果会偏差 90° 且方向相反)
+
+        Args:
+            qw, qx, qy, qz: NED 坐标系下的四元数 (w-first)
+        Returns:
+            heading: 航向角 (弧度)，顺时针为正，0 = North
+
+        警告: 如果传入 ROS ENU 四元数，结果会错误 (误差约 90° + 方向相反)
+        """
         return math.atan2(2 * (qw * qz + qx * qy), 1 - 2 * (qy * qy + qz * qz))
 
     @staticmethod
@@ -733,32 +718,36 @@ class CoordinateTransform:
 
     @staticmethod
     def _rot_to_quat(R: np.ndarray) -> list:
-        """旋转矩阵转四元数 (Shepperd方法)"""
+        """旋转矩阵转四元数 (Shepperd方法，带浮点安全保护)"""
         tr = np.trace(R)
         if tr > 0:
-            S = np.sqrt(tr + 1.0) * 2
+            S = np.sqrt(max(0.0, tr + 1.0)) * 2
             w = 0.25 * S
             x = (R[2,1] - R[1,2]) / S
             y = (R[0,2] - R[2,0]) / S
             z = (R[1,0] - R[0,1]) / S
         elif (R[0,0] > R[1,1]) and (R[0,0] > R[2,2]):
-            S = np.sqrt(1.0 + R[0,0] - R[1,1] - R[2,2]) * 2
+            S = np.sqrt(max(0.0, 1.0 + R[0,0] - R[1,1] - R[2,2])) * 2
             w = (R[2,1] - R[1,2]) / S
             x = 0.25 * S
             y = (R[0,1] + R[1,0]) / S
             z = (R[0,2] + R[2,0]) / S
         elif R[1,1] > R[2,2]:
-            S = np.sqrt(1.0 + R[1,1] - R[0,0] - R[2,2]) * 2
+            S = np.sqrt(max(0.0, 1.0 + R[1,1] - R[0,0] - R[2,2])) * 2
             w = (R[0,2] - R[2,0]) / S
             x = (R[0,1] + R[1,0]) / S
             y = 0.25 * S
             z = (R[1,2] + R[2,1]) / S
         else:
-            S = np.sqrt(1.0 + R[2,2] - R[0,0] - R[1,1]) * 2
+            S = np.sqrt(max(0.0, 1.0 + R[2,2] - R[0,0] - R[1,1])) * 2
             w = (R[1,0] - R[0,1]) / S
             x = (R[0,2] + R[2,0]) / S
             y = (R[1,2] + R[2,1]) / S
             z = 0.25 * S
+        # 归一化四元数，防止数值漂移
+        norm = math.sqrt(w*w + x*x + y*y + z*z)
+        if norm > 1e-10:
+            w, x, y, z = w/norm, x/norm, y/norm, z/norm
         return [float(w), float(x), float(y), float(z)]
 
     # =========================================================================

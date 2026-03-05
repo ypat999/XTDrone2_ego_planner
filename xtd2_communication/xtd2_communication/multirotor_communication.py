@@ -402,13 +402,20 @@ class MultirotorCommunication(Node):
                 flu_qz = msg.pose.pose.orientation.z
                 px4_msg.q = CoordinateTransform.flu_enu_to_frd_ned_quaternion(flu_qw, flu_qx, flu_qy, flu_qz)
 
-            # 速度转换：FLU -> FRD (vehicle_odometry.velocity 是 FRD 坐标系！)
+            # 速度转换：FLU -> FRD
+            # 重要说明: Super-LIO 输出的 velocity 是 world frame (ENU)
+            # 但 ROS Odometry 规范 twist.linear 应该是 body frame
+            # 这里假设 Super-LIO 遵循规范，输出的是 body frame (FLU)
+            # vehicle_odometry.velocity 必须是 FRD body frame
             flu_vx = msg.twist.twist.linear.x
             flu_vy = msg.twist.twist.linear.y
             flu_vz = msg.twist.twist.linear.z
             px4_msg.velocity = CoordinateTransform.flu_to_frd_velocity(flu_vx, flu_vy, flu_vz)
 
-            # 角速度转换：FLU -> FRD (vehicle_odometry.angular_velocity 是 FRD 坐标系！)
+            # 角速度转换：FLU -> FRD
+            # ROS: angular velocity -> body frame (FLU)
+            # PX4: angular velocity -> body frame (FRD)
+            # 只需要坐标轴反射: wx=wx, wy=-wy, wz=-wz
             flu_wx = msg.twist.twist.angular.x
             flu_wy = msg.twist.twist.angular.y
             flu_wz = msg.twist.twist.angular.z
