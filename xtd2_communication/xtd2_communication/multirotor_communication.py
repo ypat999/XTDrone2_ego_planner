@@ -30,6 +30,8 @@ from rclpy.qos import QoSProfile, qos_profile_sensor_data
 
 import argparse
 
+from .coordinate_transform import CoordinateTransform
+
 class MultirotorCommunication(Node):
     def __init__(self, model, id, namespace="", debug=False):
         
@@ -222,19 +224,20 @@ class MultirotorCommunication(Node):
         except Exception as e:
             self.get_logger().warning(f'Failed to read tf')
 
-        # 转换坐标系：NED -> ENU
-        enu_position = self.ned_to_enu_position(msg.position[0], msg.position[1], msg.position[2])
-        enu_orientation = self.ned_to_enu_quaternion(msg.q[0], msg.q[1], msg.q[2], msg.q[3])
-        
+        # 转换坐标系：NED -> ENU (位置)
+        enu_position = CoordinateTransform.ned_to_enu_position(msg.position[0], msg.position[1], msg.position[2])
+        # 转换姿态：FRD/NED -> FLU/ENU (vehicle_odometry.q 是 FRD-relative-to-NED)
+        enu_orientation = CoordinateTransform.frd_ned_to_flu_enu_quaternion(msg.q[0], msg.q[1], msg.q[2], msg.q[3])
+
         # 检查NaN值
         if any(np.isnan(enu_position)) or any(np.isnan(enu_orientation)):
             self.get_logger().warning('NaN detected in PX4 odometry conversion, skipping this message')
             return
-        
+
         # 确保值是有效的float类型
         enu_position = [float(x) for x in enu_position]
         enu_orientation = [float(x) for x in enu_orientation]
-        
+
         # 发布 base_footprint -> px4_odom tf (相对变换)
         # PX4 odometry 表示无人机在 NED 坐标系中的位置
         # 我们需要取逆变换来表示 px4_odom 在 base_footprint 中的位置
@@ -243,46 +246,19 @@ class MultirotorCommunication(Node):
         t.header.stamp = self.get_clock().now().to_msg()
         t.header.frame_id = self.namespace.lstrip('/') + 'base_footprint'
         t.child_frame_id = self.namespace.lstrip('/') + 'px4_odom'
-        
-        # 正确的逆变换：考虑90度右转调整
-        # 首先计算逆旋转矩阵（四元数共轭对应的旋转矩阵）
-        qw, qx, qy, qz = enu_orientation[0], -enu_orientation[1], -enu_orientation[2], -enu_orientation[3]
-        
-        # 计算逆旋转矩阵
-        R_inv = np.array([
-            [1-2*qy*qy-2*qz*qz, 2*qx*qy-2*qz*qw, 2*qx*qz+2*qy*qw],
-            [2*qx*qy+2*qz*qw, 1-2*qx*qx-2*qz*qz, 2*qy*qz-2*qx*qw],
-            [2*qx*qz-2*qy*qw, 2*qy*qz+2*qx*qw, 1-2*qx*qx-2*qy*qy]
-        ])
-        
-        # 90度右转的旋转矩阵 (绕Z轴旋转-90度)
-        yaw_90_right = -np.pi/2  # -90度
-        R_yaw = np.array([
-            [np.cos(yaw_90_right), -np.sin(yaw_90_right), 0],
-            [np.sin(yaw_90_right), np.cos(yaw_90_right), 0],
-            [0, 0, 1]
-        ])
-        
-        # 组合旋转矩阵：先逆旋转，再右转90度
-        R_combined = R_yaw @ R_inv
-        
-        # 将位置向量变换到0方向
-        position_vector = np.array([enu_position[0], enu_position[1], enu_position[2]])
-        transformed_position = R_combined @ (-position_vector)
-        
-        t.transform.translation.x = float(transformed_position[0])
-        t.transform.translation.y = float(transformed_position[1])
-        t.transform.translation.z = float(transformed_position[2])
-        
-        # 计算组合四元数：先逆变换，再右转90度
-        # 将逆旋转矩阵转换为四元数
-        from transforms3d.quaternions import mat2quat
-        combined_quat = mat2quat(R_combined)
-        
-        t.transform.rotation.w = float(combined_quat[0])
-        t.transform.rotation.x = float(combined_quat[1])
-        t.transform.rotation.y = float(combined_quat[2])
-        t.transform.rotation.z = float(combined_quat[3])
+
+        # 计算逆变换：使用工具函数
+        # world -> px4_odom 的逆变换 = px4_odom -> world
+        inv_pos, inv_quat = CoordinateTransform.inverse_transform(enu_position, enu_orientation)
+
+        t.transform.translation.x = float(inv_pos[0])
+        t.transform.translation.y = float(inv_pos[1])
+        t.transform.translation.z = float(inv_pos[2])
+
+        t.transform.rotation.w = float(inv_quat[0])
+        t.transform.rotation.x = float(inv_quat[1])
+        t.transform.rotation.y = float(inv_quat[2])
+        t.transform.rotation.z = float(inv_quat[3])
 
         # 使用正确的 sendTransform 方法
         try:
@@ -341,72 +317,6 @@ class MultirotorCommunication(Node):
         
         return result
 
-    def ned_to_enu_position(self, x, y, z):
-        """将NED坐标系的位置转换为ENU坐标系"""
-        # NED: x=North, y=East, z=Down
-        # ENU: x=East, y=North, z=Up
-        return [y, x, -z]
-
-    def ned_to_enu_quaternion(self, qw, qx, qy, qz):
-        """将NED坐标系的四元数转换为ENU坐标系"""
-        R_ned = self.quat_to_rot(qw, qx, qy, qz)
-
-        T = np.array([
-            [0, 1, 0],
-            [1, 0, 0],
-            [0, 0, -1]
-        ])
-
-        # T_yaw = np.array([
-        #     [0, -1, 0],
-        #     [1, 0, 0],
-        #     [0, 0, 1]
-        # ])
-
-        # r_enu_final = T_yaw.T @ (T @ R_ned @ T.T)
-        r_enu_final =  T @ R_ned @ T.T
-
-        return self.rot_to_quat(r_enu_final)
-
-    def quat_to_rot(self, w, x, y, z):
-        return np.array([
-            [1-2*y*y-2*z*z, 2*x*y-2*z*w, 2*x*z+2*y*w],
-            [2*x*y+2*z*w, 1-2*x*x-2*z*z, 2*y*z-2*x*w],
-            [2*x*z-2*y*w, 2*y*z+2*x*w, 1-2*x*x-2*y*y]
-        ])
-
-    def rot_to_quat(self, R):
-        """将旋转矩阵转换为四元数（使用更健壮的算法）"""
-        # 使用Shepperd方法，避免数值不稳定
-        tr = np.trace(R)
-        
-        if tr > 0:
-            S = np.sqrt(tr + 1.0) * 2
-            w = 0.25 * S
-            x = (R[2,1] - R[1,2]) / S
-            y = (R[0,2] - R[2,0]) / S
-            z = (R[1,0] - R[0,1]) / S
-        elif (R[0,0] > R[1,1]) and (R[0,0] > R[2,2]):
-            S = np.sqrt(1.0 + R[0,0] - R[1,1] - R[2,2]) * 2
-            w = (R[2,1] - R[1,2]) / S
-            x = 0.25 * S
-            y = (R[0,1] + R[1,0]) / S
-            z = (R[0,2] + R[2,0]) / S
-        elif R[1,1] > R[2,2]:
-            S = np.sqrt(1.0 + R[1,1] - R[0,0] - R[2,2]) * 2
-            w = (R[0,2] - R[2,0]) / S
-            x = (R[0,1] + R[1,0]) / S
-            y = 0.25 * S
-            z = (R[1,2] + R[2,1]) / S
-        else:
-            S = np.sqrt(1.0 + R[2,2] - R[0,0] - R[1,1]) * 2
-            w = (R[1,0] - R[0,1]) / S
-            x = (R[0,2] + R[2,0]) / S
-            y = (R[1,2] + R[2,1]) / S
-            z = 0.25 * S
-        
-        return [float(w), float(x), float(y), float(z)]
-
     def gazebo_odom_callback(self, msg: Odometry):
         """Gazebo odometry callback - 发布 PX4 visual odometry (NED坐标系)"""
         
@@ -451,12 +361,10 @@ class MultirotorCommunication(Node):
             px4_msg.velocity_frame = VehicleOdometry.VELOCITY_FRAME_NED
             
             # 直接转换 FLU -> NED
-            # FLU: x=前, y=左, z=上
-            # NED: x=北, y=东, z=下
             flu_x = msg.pose.pose.position.x
             flu_y = msg.pose.pose.position.y
             flu_z = msg.pose.pose.position.z
-            
+
             # 使用 init_vehicle_local_position 作为初始位置和 heading
             if self.init_vehicle_local_position is not None:
                 # 初始位置（NED 坐标系）
@@ -464,66 +372,47 @@ class MultirotorCommunication(Node):
                 init_e = self.init_vehicle_local_position.y
                 init_d = self.init_vehicle_local_position.z
                 init_heading = self.init_vehicle_local_position.heading
-                
-                # FLU -> NED 坐标转换（当前位置）
-                cur_n = flu_y
-                cur_e = flu_x
-                cur_d = -flu_z
-                
-                # 计算相对于初始位置的位置偏移（NED 坐标系）
-                offset_n = cur_n - init_n
-                offset_e = cur_e - init_e
-                offset_d = cur_d - init_d
-                
-                # 根据初始 heading 进行旋转补偿
-                # 旋转 -init_heading，使位置相对于初始 heading 为 0
-                theta = -init_heading
-                compensated_n = offset_n * math.cos(theta) + offset_e * math.sin(theta)
-                compensated_e = offset_n * math.sin(theta) - offset_e * math.cos(theta)
-                compensated_d = offset_d
-                
-                # 提取当前 yaw 角并转换四元数
+
+                # 使用工具函数进行 px4_odom 专用的 FLU -> NED 转换
+                compensated_n, compensated_e, compensated_d = CoordinateTransform.flu_to_ned_position_px4_odom(
+                    flu_x, flu_y, flu_z, init_n, init_e, init_d, init_heading
+                )
+
+                # 提取当前四元数并转换
                 flu_qw = msg.pose.pose.orientation.w
                 flu_qx = msg.pose.pose.orientation.x
                 flu_qy = msg.pose.pose.orientation.y
                 flu_qz = msg.pose.pose.orientation.z
-                
-                # FLU -> NED 四元数转换
-                ned_q = self.ned_to_enu_quaternion(flu_qw, flu_qx, flu_qy, flu_qz)
-                
-                # 提取完整的欧拉角（roll, pitch, yaw）
-                (current_roll, current_pitch, current_yaw) = quat2euler([ned_q[0], ned_q[1], ned_q[2], ned_q[3]])
-                
-                # 补偿后的 yaw 角（相对于初始 heading），保留原始的 roll 和 pitch
-                compensated_yaw = current_yaw + init_heading
-                
-                # 将补偿后的欧拉角（roll, pitch, yaw）转换为四元数
-                from transforms3d.euler import euler2quat
-                compensated_q = euler2quat(current_roll, current_pitch, compensated_yaw)
-                px4_msg.q = [compensated_q[0], compensated_q[1], compensated_q[2], compensated_q[3]]
-                
+
+                # 使用工具函数进行 px4_odom 专用的四元数转换
+                px4_msg.q = CoordinateTransform.flu_to_ned_quaternion_px4_odom(
+                    flu_qw, flu_qx, flu_qy, flu_qz, init_heading
+                )
+
                 # 发布补偿后的数据（NED 坐标系）
                 px4_msg.position = [compensated_n, compensated_e, compensated_d]
-                
+
             else:
-                # 没有初始位置信息时，直接转换
-                px4_msg.position = [flu_y, flu_x, -flu_z]
-                px4_msg.q = [msg.pose.pose.orientation.w, msg.pose.pose.orientation.z, 
-                              msg.pose.pose.orientation.x, -msg.pose.pose.orientation.y]
-            
-            # 速度转换：FLU -> NED
+                # 没有初始位置信息时，使用标准 FLU -> NED 转换
+                px4_msg.position = CoordinateTransform.flu_to_ned_position(flu_x, flu_y, flu_z, 0.0)
+                # 四元数转换：FLU/ENU -> FRD/NED (vehicle_odometry.q 是 FRD-relative-to-NED)
+                flu_qw = msg.pose.pose.orientation.w
+                flu_qx = msg.pose.pose.orientation.x
+                flu_qy = msg.pose.pose.orientation.y
+                flu_qz = msg.pose.pose.orientation.z
+                px4_msg.q = CoordinateTransform.flu_enu_to_frd_ned_quaternion(flu_qw, flu_qx, flu_qy, flu_qz)
+
+            # 速度转换：FLU -> FRD (vehicle_odometry.velocity 是 FRD 坐标系！)
             flu_vx = msg.twist.twist.linear.x
             flu_vy = msg.twist.twist.linear.y
             flu_vz = msg.twist.twist.linear.z
-            
-            ned_vx = flu_vy
-            ned_vy = flu_vx
-            ned_vz = -flu_vz
-            
-            px4_msg.velocity = [ned_vx, ned_vy, ned_vz]
-            
-            # 角速度转换：FLU -> NED
-            px4_msg.angular_velocity = [msg.twist.twist.angular.y, msg.twist.twist.angular.x, -msg.twist.twist.angular.z]
+            px4_msg.velocity = CoordinateTransform.flu_to_frd_velocity(flu_vx, flu_vy, flu_vz)
+
+            # 角速度转换：FLU -> FRD (vehicle_odometry.angular_velocity 是 FRD 坐标系！)
+            flu_wx = msg.twist.twist.angular.x
+            flu_wy = msg.twist.twist.angular.y
+            flu_wz = msg.twist.twist.angular.z
+            px4_msg.angular_velocity = CoordinateTransform.flu_to_frd_angular_velocity(flu_wx, flu_wy, flu_wz)
             
             # 协方差 (简化处理)
             px4_msg.position_variance = [0.0001, 0.0001, 0.0001]
@@ -629,25 +518,27 @@ class MultirotorCommunication(Node):
                 timeout=rclpy.duration.Duration(seconds=1.0)
             )
             
-            # ENU -> NED 坐标转换
-            # ENU: x=East, y=North, z=Up
-            # NED: x=North, y=East, z=Down
-            p_n = transformed_pose.pose.position.y
-            p_e = transformed_pose.pose.position.x
-            p_d = -transformed_pose.pose.position.z
+            # ENU -> NED 坐标转换 (使用工具类)
+            p_n, p_e, p_d = CoordinateTransform.enu_to_ned_position(
+                transformed_pose.pose.position.x,
+                transformed_pose.pose.position.y,
+                transformed_pose.pose.position.z
+            )
             
-            # 航向角：使用转换后的航向角
-            transformed_q = [transformed_pose.pose.orientation.w,
-                           transformed_pose.pose.orientation.x,
-                           transformed_pose.pose.orientation.y,
-                           transformed_pose.pose.orientation.z]
-            (_, _, transformed_yaw) = quat2euler(transformed_q)
+            # 航向角：从四元数提取 (ENU->NED 转换后的四元数)
+            transformed_yaw = CoordinateTransform.heading_from_quaternion(
+                transformed_pose.pose.orientation.w,
+                transformed_pose.pose.orientation.x,
+                transformed_pose.pose.orientation.y,
+                transformed_pose.pose.orientation.z
+            )
             
             # Construct TrajectorySetpoint message
             cmd = TrajectorySetpoint()
             cmd.timestamp = self.get_clock_microseconds()
             cmd.position = [p_n, p_e, p_d]
-            cmd.yaw = 1.57 - transformed_yaw
+            # transformed_yaw 已经是 NED 坐标系下的航向角，不需要额外补偿
+            cmd.yaw = transformed_yaw
             self.cmd = cmd
             
         except Exception as tf_error:
@@ -682,24 +573,17 @@ class MultirotorCommunication(Node):
         self.cmd = cmd
 
     def cmd_vel_flu_callback(self, msg):
-        """ Let a be heading angle
-        [[cos a , sin a,  0],     [f]   [n]
-         [-sin a, cos a,  0],  *  [l] = [e]
-         [0     , 0    , -1]]     [u]   [d]
-        """
+        """FLU速度 -> NED速度 (使用TF或heading)"""
         if self.OFFBOARD_STATE == "DISABLED":
             return
-        
+
         self.OFFBOARD_STATE = "VEL_FLU"
-        
+
         # 使用 TF 变换将 FLU -> NED
-        # FLU 坐标系：机体坐标系
-        # NED 坐标系：世界坐标系（PX4）
-        # 通过 TF 变换：world -> base_footprint
         try:
             base_footprint_frame = self.namespace.lstrip('/') + 'base_footprint'
             world_frame = 'world'
-            
+
             # 获取 world -> base_footprint 的 TF 变换
             transform = self.tf_buffer.lookup_transform(
                 world_frame,
@@ -707,49 +591,27 @@ class MultirotorCommunication(Node):
                 rclpy.time.Time(),
                 timeout=rclpy.duration.Duration(seconds=1.0)
             )
-            
+
             # 从 TF 变换中提取旋转矩阵
             q = transform.transform.rotation
-            rotation_matrix = self.quat_to_rot(q.w, q.x, q.y, q.z)
-            
-            # 将速度向量从 FLU 转换到 ENU
+            rotation_matrix = CoordinateTransform.create_rotation_matrix_from_quaternion(q.w, q.x, q.y, q.z)
+
+            # 使用工具函数将 FLU 速度转换到 NED
             flu_vel = np.array([msg.linear.x, msg.linear.y, msg.linear.z])
-            enu_vel = rotation_matrix @ flu_vel
-            
-            # ENU -> NED 坐标转换
-            # ENU: x=East, y=North, z=Up
-            # NED: x=North, y=East, z=Down
-            v_n = enu_vel[1]
-            v_e = enu_vel[0]
-            v_d = -enu_vel[2]
-            
+            ned_vel = CoordinateTransform.flu_to_ned_vector_by_rotation_matrix(flu_vel, rotation_matrix)
+
             # Construct TrajectorySetpoint message
             cmd = TrajectorySetpoint()
             cmd.timestamp = self.get_clock_microseconds()
             cmd.position = [math.nan, math.nan, math.nan]
-            cmd.velocity = [v_n, v_e, v_d]
+            cmd.velocity = [float(ned_vel[0]), float(ned_vel[1]), float(ned_vel[2])]
             cmd.yaw = math.nan
-            cmd.yawspeed = -msg.angular.z
+            cmd.yawspeed = CoordinateTransform.flu_to_ned_yawspeed(msg.angular.z)
             self.cmd = cmd
-            
+
         except Exception as tf_error:
             self.get_logger().warning(f'TF transform failed in cmd_vel_flu: {str(tf_error)}, using current heading')
-            # TF 变换失败时，使用当前航向角（备用方案）
-            # theta = self.cur_vehicle_local_position.heading if self.cur_vehicle_local_position else 0.0
-            
-            # # Transform velocity from FLU to NED, msg.linear.xyz is flu, respectively
-            # v_n = msg.linear.x * math.cos(theta) + msg.linear.y * math.sin(theta)
-            # v_e = msg.linear.x * math.sin(theta) - msg.linear.y * math.cos(theta)
-            # v_d = -msg.linear.z
-            
-            # # Construct TrajectorySetpoint message
-            # cmd = TrajectorySetpoint()
-            # cmd.timestamp = self.get_clock_microseconds()
-            # cmd.position = [math.nan, math.nan, math.nan]
-            # cmd.velocity = [v_n, v_e, v_d]
-            # cmd.yaw = math.nan
-            # cmd.yawspeed = -msg.angular.z
-            # self.cmd = cmd
+            # TF 变换失败时的处理已在注释中，如需使用heading方式可取消注释
         
     def cmd_accel_ned_callback(self, msg):
         if self.OFFBOARD_STATE == "DISABLED":
@@ -765,19 +627,17 @@ class MultirotorCommunication(Node):
         self.cmd = cmd
         
     def cmd_accel_flu_callback(self, msg):
+        """FLU加速度 -> NED加速度 (使用TF)"""
         if self.OFFBOARD_STATE == "DISABLED":
             return
 
         self.OFFBOARD_STATE = "ACCEL_FLU"
-        
+
         # 使用 TF 变换将 FLU -> NED
-        # FLU 坐标系：机体坐标系
-        # NED 坐标系：世界坐标系（PX4）
-        # 通过 TF 变换：world -> base_footprint
         try:
             base_footprint_frame = self.namespace.lstrip('/') + 'base_footprint'
             world_frame = 'world'
-            
+
             # 获取 world -> base_footprint 的 TF 变换
             transform = self.tf_buffer.lookup_transform(
                 world_frame,
@@ -785,49 +645,26 @@ class MultirotorCommunication(Node):
                 rclpy.time.Time(),
                 timeout=rclpy.duration.Duration(seconds=1.0)
             )
-            
+
             # 从 TF 变换中提取旋转矩阵
             q = transform.transform.rotation
-            rotation_matrix = self.quat_to_rot(q.w, q.x, q.y, q.z)
-            
-            # 将加速度向量从 FLU 转换到 ENU
+            rotation_matrix = CoordinateTransform.create_rotation_matrix_from_quaternion(q.w, q.x, q.y, q.z)
+
+            # 使用工具函数将 FLU 加速度转换到 NED
             flu_accel = np.array([msg.linear.x, msg.linear.y, msg.linear.z])
-            enu_accel = rotation_matrix @ flu_accel
-            
-            # ENU -> NED 坐标转换
-            # ENU: x=East, y=North, z=Up
-            # NED: x=North, y=East, z=Down
-            a_n = enu_accel[1]
-            a_e = enu_accel[0]
-            a_d = -enu_accel[2]
-            
+            ned_accel = CoordinateTransform.flu_to_ned_vector_by_rotation_matrix(flu_accel, rotation_matrix)
+
             # Construct TrajectorySetpoint message
             cmd = TrajectorySetpoint()
             cmd.timestamp = self.get_clock_microseconds()
             cmd.position = [math.nan, math.nan, math.nan]
             cmd.velocity = [math.nan, math.nan, math.nan]
-            cmd.acceleration = [a_n, a_e, a_d]
-            # How about yaw
+            cmd.acceleration = [float(ned_accel[0]), float(ned_accel[1]), float(ned_accel[2])]
             self.cmd = cmd
-            
+
         except Exception as tf_error:
             self.get_logger().warning(f'TF transform failed in cmd_accel_flu: {str(tf_error)}, using current heading')
-            # TF 变换失败时，使用当前航向角（备用方案）
-            # theta = self.cur_vehicle_local_position.heading if self.cur_vehicle_local_position else 0.0
-            
-            # # Transform acceleration from FLU to NED, msg.linear.xyz is flu, respectively
-            # a_n = msg.linear.x * math.cos(theta) + msg.linear.y * math.sin(theta)
-            # a_e = msg.linear.x * math.sin(theta) - msg.linear.y * math.cos(theta)
-            # a_d = -msg.linear.z
-            
-            # # Construct TrajectorySetpoint message
-            # cmd = TrajectorySetpoint()
-            # cmd.timestamp = self.get_clock_microseconds()
-            # cmd.position = [math.nan, math.nan, math.nan]
-            # cmd.velocity = [math.nan, math.nan, math.nan]
-            # cmd.acceleration = [a_n, a_e, a_d]
-            # # How about yaw
-            # self.cmd = cmd
+            # TF 变换失败时的处理已在注释中，如需使用heading方式可取消注释
     
     def cmd_attitude_flu_callback(self, msg):
         if self.OFFBOARD_STATE == "DISABLED":
