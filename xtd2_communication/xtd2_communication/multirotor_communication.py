@@ -50,8 +50,10 @@ class MultirotorCommunication(Node):
         hostname = platform.node()
         if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
             use_sim_time = True
+            odom_topic = self.namespace + 'odometry'
         else:
             use_sim_time = False
+            odom_topic = "/lio/odom"
             
         super().__init__(node_name, parameter_overrides=[
             rclpy.Parameter('use_sim_time', rclpy.Parameter.Type.BOOL, use_sim_time)
@@ -127,7 +129,7 @@ class MultirotorCommunication(Node):
         # Gazebo odometry subscription for PX4 visual odometry
         self.create_subscription(
             Odometry,
-            self.namespace + 'odometry',
+            odom_topic,
             self.gazebo_odom_callback,
             10
         )
@@ -283,30 +285,30 @@ class MultirotorCommunication(Node):
         t.transform.rotation.z = float(combined_quat[3])
 
         # 使用正确的 sendTransform 方法
-        # try:
-        #     self.tf_broadcaster.sendTransform(t)
-        # except Exception as e:
-        #     self.get_logger().error(f'Failed to send TF: {e}')
+        try:
+            self.tf_broadcaster.sendTransform(t)
+        except Exception as e:
+            self.get_logger().error(f'Failed to send TF: {e}')
         
         # 读取 world->base_footprint 的 tf，并发布 world->px4_odom 的静态 tf
         # if not self.static_tf_published:
-        try:
-            # 计算 world->px4_odom 的变换
-            # world->px4_odom = world->base_footprint * base_footprint->px4_odom
-            world_to_px4 = self.multiply_transforms(world_to_base, t)
+        # try:
+        #     # 计算 world->px4_odom 的变换
+        #     # world->px4_odom = world->base_footprint * base_footprint->px4_odom
+        #     world_to_px4 = self.multiply_transforms(world_to_base, t)
             
-            # 设置静态 tf 的属性
-            world_to_px4.header.stamp = self.get_clock().now().to_msg()
-            world_to_px4.header.frame_id = 'world'
-            world_to_px4.child_frame_id = px4_odom_frame
+        #     # 设置静态 tf 的属性
+        #     world_to_px4.header.stamp = self.get_clock().now().to_msg()
+        #     world_to_px4.header.frame_id = 'world'
+        #     world_to_px4.child_frame_id = px4_odom_frame
             
-            # 使用 StaticTransformBroadcaster 发布静态 tf
-            self.static_tf_broadcaster.sendTransform(world_to_px4)
-            self.static_tf_published = True
-            # self.get_logger().info(f'Published static TF: world -> {px4_odom_frame}')
+        #     # 使用 StaticTransformBroadcaster 发布静态 tf
+        #     self.static_tf_broadcaster.sendTransform(world_to_px4)
+        #     self.static_tf_published = True
+        #     # self.get_logger().info(f'Published static TF: world -> {px4_odom_frame}')
             
-        except Exception as e:
-            self.get_logger().warning(f'Failed to publish static TF world->px4_odom: {e}')
+        # except Exception as e:
+        #     self.get_logger().warning(f'Failed to publish static TF world->px4_odom: {e}')
     
     def multiply_transforms(self, t1, t2):
         """组合两个 TF 变换: result = t1 * t2"""
@@ -407,6 +409,32 @@ class MultirotorCommunication(Node):
 
     def gazebo_odom_callback(self, msg: Odometry):
         """Gazebo odometry callback - 发布 PX4 visual odometry (NED坐标系)"""
+        
+        # 检查 odom 消息的 frame_id，如果是 livox_frame，则转换到 base_link 坐标系
+        if msg.header.frame_id == 'livox_frame':
+            try:
+                # 使用 TF 将 odom 从 livox_frame 转换到 base_link
+                # 使用 rclpy.time.Time(0) 获取最新的实时变换，而不是从 buffer 中查找静态变换
+                transform = self.tf_buffer.lookup_transform(
+                    'base_link',
+                    'livox_frame',
+                    rclpy.time.Time(0),
+                    timeout=rclpy.duration.Duration(seconds=1.0)
+                )
+                
+                # 转换位置
+                odom_transformed = tf2_geometry_msgs.do_transform_pose(msg.pose.pose, transform)
+                
+                # 更新消息的位置和姿态
+                msg.pose.pose = odom_transformed
+                msg.header.frame_id = 'base_link'
+                
+                self.get_logger().debug('Transformed odom from livox_frame to base_link')
+                
+            except Exception as e:
+                self.get_logger().warning(f'Failed to transform odom from livox_frame to base_link: {e}')
+                # 如果转换失败，仍然使用原始消息
+        
         self.publish_px4_visual_odometry(msg)
 
     def publish_px4_visual_odometry(self, msg: Odometry):
@@ -463,17 +491,16 @@ class MultirotorCommunication(Node):
                 # FLU -> NED 四元数转换
                 ned_q = self.ned_to_enu_quaternion(flu_qw, flu_qx, flu_qy, flu_qz)
                 
-                # 提取当前 yaw 角
-                (_, _, current_yaw) = quat2euler([ned_q[0], ned_q[1], ned_q[2], ned_q[3]])
+                # 提取完整的欧拉角（roll, pitch, yaw）
+                (current_roll, current_pitch, current_yaw) = quat2euler([ned_q[0], ned_q[1], ned_q[2], ned_q[3]])
                 
-                # 补偿后的 yaw 角（相对于初始 heading）
+                # 补偿后的 yaw 角（相对于初始 heading），保留原始的 roll 和 pitch
                 compensated_yaw = current_yaw + init_heading
                 
-                # 将补偿后的 yaw 角转换为四元数
-                half_yaw = compensated_yaw / 2.0
-                sin_half = math.sin(half_yaw)
-                cos_half = math.cos(half_yaw)
-                px4_msg.q = [cos_half, 0.0, 0.0, sin_half]
+                # 将补偿后的欧拉角（roll, pitch, yaw）转换为四元数
+                from transforms3d.euler import euler2quat
+                compensated_q = euler2quat(current_roll, current_pitch, compensated_yaw)
+                px4_msg.q = [compensated_q[0], compensated_q[1], compensated_q[2], compensated_q[3]]
                 
                 # 发布补偿后的数据（NED 坐标系）
                 px4_msg.position = [compensated_n, compensated_e, compensated_d]

@@ -329,20 +329,20 @@ class TfPublisher(Node):
             t.transform.rotation.w = 1.0
             tfs.append(t)
 
-        # 真机环境下添加mid360到base_link的TF变换
-        else:
-            t = TransformStamped()
-            t.header.stamp = now
-            t.header.frame_id = 'livox_frame'
-            t.child_frame_id = self.namespace.lstrip('/') + 'base_link'
-            t.transform.translation.x = -0.1
-            t.transform.translation.y = 0.0
-            t.transform.translation.z = -0.1
-            t.transform.rotation.x = 0.0
-            t.transform.rotation.y = -0.87266
-            t.transform.rotation.z = 0.0
-            t.transform.rotation.w = 1.0
-            tfs.append(t)
+        # # 真机环境下添加mid360到base_link的TF变换
+        # else:
+        #     t = TransformStamped()
+        #     t.header.stamp = now
+        #     t.header.frame_id = 'livox_frame'
+        #     t.child_frame_id = self.namespace.lstrip('/') + 'base_link'
+        #     t.transform.translation.x = -0.1
+        #     t.transform.translation.y = 0.0
+        #     t.transform.translation.z = -0.1
+        #     t.transform.rotation.x = 0.0
+        #     t.transform.rotation.y = -0.87266
+        #     t.transform.rotation.z = 0.0
+        #     t.transform.rotation.w = 1.0
+        #     tfs.append(t)
 
         self.static_tf_broadcaster.sendTransform(tfs)
 
