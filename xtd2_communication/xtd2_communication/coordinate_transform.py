@@ -262,42 +262,42 @@ class CoordinateTransform:
     @staticmethod
     def flu_to_ned_position(flu_x: float, flu_y: float, flu_z: float, heading: float) -> list:
         """FLU位置 -> NED位置"""
-        R = CoordinateTransform.body_to_ned_3d_matrix(-heading)
+        R = CoordinateTransform.body_to_ned_3d_matrix(heading)
         ned_vec = R @ np.array([flu_x, flu_y, flu_z])
         return [ned_vec[0], ned_vec[1], ned_vec[2]]
 
     @staticmethod
     def ned_to_flu_position(ned_x: float, ned_y: float, ned_z: float, heading: float) -> list:
         """NED位置 -> FLU位置"""
-        R = CoordinateTransform.ned_to_body_3d_matrix(-heading)
+        R = CoordinateTransform.ned_to_body_3d_matrix(heading)
         flu_vec = R @ np.array([ned_x, ned_y, ned_z])
         return [flu_vec[0], flu_vec[1], flu_vec[2]]
 
     @staticmethod
     def flu_to_ned_velocity(flu_vx: float, flu_vy: float, flu_vz: float, heading: float) -> list:
         """FLU速度 -> NED速度"""
-        R = CoordinateTransform.body_to_ned_3d_matrix(-heading)
+        R = CoordinateTransform.body_to_ned_3d_matrix(heading)
         ned_vec = R @ np.array([flu_vx, flu_vy, flu_vz])
         return [ned_vec[0], ned_vec[1], ned_vec[2]]
 
     @staticmethod
     def ned_to_flu_velocity(ned_vx: float, ned_vy: float, ned_vz: float, heading: float) -> list:
         """NED速度 -> FLU速度"""
-        R = CoordinateTransform.ned_to_body_3d_matrix(-heading)
+        R = CoordinateTransform.ned_to_body_3d_matrix(heading)
         flu_vec = R @ np.array([ned_vx, ned_vy, ned_vz])
         return [flu_vec[0], flu_vec[1], flu_vec[2]]
 
     @staticmethod
     def flu_to_ned_acceleration(flu_ax: float, flu_ay: float, flu_az: float, heading: float) -> list:
         """FLU加速度 -> NED加速度"""
-        R = CoordinateTransform.body_to_ned_3d_matrix(-heading)
+        R = CoordinateTransform.body_to_ned_3d_matrix(heading)
         ned_vec = R @ np.array([flu_ax, flu_ay, flu_az])
         return [ned_vec[0], ned_vec[1], ned_vec[2]]
 
     @staticmethod
     def ned_to_flu_acceleration(ned_ax: float, ned_ay: float, ned_az: float, heading: float) -> list:
         """NED加速度 -> FLU加速度"""
-        R = CoordinateTransform.ned_to_body_3d_matrix(-heading)
+        R = CoordinateTransform.ned_to_body_3d_matrix(heading)
         flu_vec = R @ np.array([ned_ax, ned_ay, ned_az])
         return [flu_vec[0], flu_vec[1], flu_vec[2]]
 

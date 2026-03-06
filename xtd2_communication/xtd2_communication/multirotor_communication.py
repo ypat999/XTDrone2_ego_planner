@@ -366,7 +366,7 @@ class MultirotorCommunication(Node):
         #         self.get_logger().warning(f'Failed to transform odom from livox_frame to base_link: {e}')
         #         # 如果转换失败，仍然使用原始消息
         
-        # self.publish_px4_visual_odometry(msg)
+        self.publish_px4_visual_odometry(msg)
 
     def publish_px4_visual_odometry(self, msg: Odometry):
         """转换并发布PX4 visual odometry (NED坐标系) - 直接转换 FLU -> NED，假设PX4 NED原点与ROS2 world位置重合"""
