@@ -246,21 +246,6 @@ class TfPublisher(Node):
 
         tfs = []
 
-        # world -> map
-        t = TransformStamped()
-        t.header.stamp = now
-        t.header.frame_id = 'world'
-        t.child_frame_id = 'map'
-        t.transform.rotation.w = 1.0
-        tfs.append(t)
-
-        # map -> odom
-        t = TransformStamped()
-        t.header.stamp = now
-        t.header.frame_id = 'map'
-        t.child_frame_id = 'odom'
-        t.transform.rotation.w = 1.0
-        tfs.append(t)
 
         if self.namespace != '/':
             # odom -> namespace/odom
@@ -271,17 +256,31 @@ class TfPublisher(Node):
             t.transform.rotation.w = 1.0
             tfs.append(t)
 
-        # base_footprint -> base_link
-        t = TransformStamped()
-        t.header.stamp = now
-        t.header.frame_id = self.namespace.lstrip('/') + 'base_footprint'
-        t.child_frame_id = self.namespace.lstrip('/') + 'base_link'
-        t.transform.rotation.w = 1.0
-        tfs.append(t)
-
-        
-
         if self.is_sim:
+            # world -> map
+            t = TransformStamped()
+            t.header.stamp = now
+            t.header.frame_id = 'world'
+            t.child_frame_id = 'map'
+            t.transform.rotation.w = 1.0
+            tfs.append(t)
+
+            # map -> odom
+            t = TransformStamped()
+            t.header.stamp = now
+            t.header.frame_id = 'map'
+            t.child_frame_id = 'odom'
+            t.transform.rotation.w = 1.0
+            tfs.append(t)
+
+            # base_footprint -> base_link
+            t = TransformStamped()
+            t.header.stamp = now
+            t.header.frame_id = self.namespace.lstrip('/') + 'base_footprint'
+            t.child_frame_id = self.namespace.lstrip('/') + 'base_link'
+            t.transform.rotation.w = 1.0
+            tfs.append(t)
+
             # base_link -> OakD-Lite base
             t = TransformStamped()
             t.header.stamp = now

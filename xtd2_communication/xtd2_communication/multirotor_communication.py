@@ -64,6 +64,7 @@ class MultirotorCommunication(Node):
         self.OFFBOARD_STATE = "DISABLED"
         self.cmd = None
         self.cur_vehicle_local_position = None
+        self.cur_vehicle_odometry = None
         self.cur_vehicle_global_position = None
         self.init_vehicle_local_position = None
         self.init_vehicle_global_position = None
@@ -118,7 +119,6 @@ class MultirotorCommunication(Node):
         
         # Static TF broadcaster for world->px4_odom
         self.static_tf_broadcaster = StaticTransformBroadcaster(self)
-        self.static_tf_published = False  # 标记静态 tf 是否已发布
         
         # TF buffer and listener for coordinate transformations
         # 优化 TF 缓冲区配置，提高实时性
@@ -205,24 +205,16 @@ class MultirotorCommunication(Node):
         self.vehicle_status = msg
 
     def px4_odom_callback(self, msg):
-        """PX4 odometry callback - 发布 base_footprint -> px4_odom tf (相对变换)"""
+        """PX4 odometry callback - 发布 base_link -> px4_odom tf (相对变换)"""
         
         # PX4 odometry 表示无人机在 NED 坐标系中的位置
-        # 我们需要发布 base_footprint -> px4_odom 的相对变换
-        # 这个变换表示 px4_odom 在 base_footprint 坐标系中的位置
+        # 我们需要发布 base_link -> px4_odom 的相对变换
+        # 这个变换表示 px4_odom 在 base_link 坐标系中的位置
+        self.cur_vehicle_odometry = msg
 
-        # 读取 world->base_footprint 的 tf
-        base_footprint_frame = self.namespace.lstrip('/') + 'base_footprint'
+        # 读取 world->base_link 的 tf
+        base_link_frame = self.namespace.lstrip('/') + 'base_link'
         px4_odom_frame = self.namespace.lstrip('/') + 'px4_odom'
-        try:
-            world_to_base = self.tf_buffer.lookup_transform(
-                'world',
-                base_footprint_frame,
-                rclpy.time.Time(),
-                timeout=rclpy.duration.Duration(seconds=1.0)
-            )
-        except Exception as e:
-            self.get_logger().warning(f'Failed to read tf')
 
         # 转换坐标系：NED -> ENU (位置)
         enu_position = CoordinateTransform.ned_to_enu_position(msg.position[0], msg.position[1], msg.position[2])
@@ -238,17 +230,17 @@ class MultirotorCommunication(Node):
         enu_position = [float(x) for x in enu_position]
         enu_orientation = [float(x) for x in enu_orientation]
 
-        # 发布 base_footprint -> px4_odom tf (相对变换)
+        # 发布 base_link -> px4_odom tf (相对变换)
         # PX4 odometry 表示无人机在 NED 坐标系中的位置
-        # 我们需要取逆变换来表示 px4_odom 在 base_footprint 中的位置
+        # 我们需要取逆变换来表示 px4_odom 在 base_link 中的位置
         t = TransformStamped()
         # 使用当前仿真时间戳（确保与 tf_publisher 时间同步）
         t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = self.namespace.lstrip('/') + 'base_footprint'
-        t.child_frame_id = self.namespace.lstrip('/') + 'px4_odom'
+        t.header.frame_id = self.namespace.lstrip('/') + 'base_link'
+        t.child_frame_id = self.namespace.lstrip('/') + 'px4_odom_body'
 
         # 计算逆变换：使用工具函数
-        # world -> px4_odom 的逆变换 = px4_odom -> world
+        # base_link -> px4_odom 的逆变换 = base_link -> world
         inv_pos, inv_quat = CoordinateTransform.inverse_transform(enu_position, enu_orientation)
 
         t.transform.translation.x = float(inv_pos[0])
@@ -261,27 +253,44 @@ class MultirotorCommunication(Node):
         t.transform.rotation.z = float(inv_quat[3])
 
         # 使用正确的 sendTransform 方法
-        # try:
-        #     self.tf_broadcaster.sendTransform(t)
-        # except Exception as e:
-        #     self.get_logger().error(f'Failed to send TF: {e}')
+        try:
+            self.tf_broadcaster.sendTransform(t)
+        except Exception as e:
+            self.get_logger().error(f'Failed to send TF: {e}')
         
-        # 读取 world->base_footprint 的 tf，并发布 world->px4_odom 的静态 tf
-        # if not self.static_tf_published:
+        # 读取 world->e 的 tf，并发布 world->px4_odom 的静态 tf
         try:
             # 计算 world->px4_odom 的变换
-            # world->px4_odom = world->base_footprint * base_footprint->px4_odom
-            world_to_px4 = self.multiply_transforms(world_to_base, t)
+            # world->px4_odom = world->base_link * base_link->px4_odom
+            # 
+
+            try:
+                # world_to_px4 = self.tf_buffer.lookup_transform(
+                #     'world',
+                #     self.namespace.lstrip('/') + 'px4_odom_body',
+                #     rclpy.time.Time(),
+                #     timeout=rclpy.duration.Duration(seconds=2.0)
+                # )
+                world_to_base = self.tf_buffer.lookup_transform(
+                    'world',
+                    base_link_frame,
+                    rclpy.time.Time(),
+                    timeout=rclpy.duration.Duration(seconds=2.0)
+                )
+
+                world_to_px4 = self.multiply_transforms(world_to_base, t)
+                # 设置静态 tf 的属性
+                world_to_px4.header.stamp = self.get_clock().now().to_msg()
+                world_to_px4.header.frame_id = 'world'
+                world_to_px4.child_frame_id = px4_odom_frame
+
+                # 使用 StaticTransformBroadcaster 发布静态 tf
+                self.static_tf_broadcaster.sendTransform(world_to_px4)
+                # self.get_logger().info(f'Published static TF: world -> {px4_odom_frame}')
+            except Exception as e:
+                self.get_logger().warning(f'Failed to read tf for {px4_odom_frame}: {e}')
             
-            # 设置静态 tf 的属性
-            world_to_px4.header.stamp = self.get_clock().now().to_msg()
-            world_to_px4.header.frame_id = 'world'
-            world_to_px4.child_frame_id = px4_odom_frame
             
-            # 使用 StaticTransformBroadcaster 发布静态 tf
-            self.static_tf_broadcaster.sendTransform(world_to_px4)
-            self.static_tf_published = True
-            # self.get_logger().info(f'Published static TF: world -> {px4_odom_frame}')
             
         except Exception as e:
             self.get_logger().warning(f'Failed to publish static TF world->px4_odom: {e}')
@@ -321,46 +330,46 @@ class MultirotorCommunication(Node):
         """Gazebo odometry callback - 发布 PX4 visual odometry (NED坐标系)"""
         
         # 检查 odom 消息的 frame_id，如果是 livox_frame，则转换到 base_link 坐标系
-        if self.hostname != 'ywj-B250-D3A' and self.hostname != 'DESKTOP-ypat':
-            try:
-                # 使用 TF 将 odom 从 livox_frame 转换到 base_link
-                # 使用 rclpy.time.Time(0) 获取最新的实时变换，而不是从 buffer 中查找静态变换
-                transform = self.tf_buffer.lookup_transform(
-                    
-                    'livox_frame',
-                    'base_link',
-                    rclpy.time.Time(0),
-                    timeout=rclpy.duration.Duration(seconds=1.0)
-                )
+        # if self.hostname != 'ywj-B250-D3A' and self.hostname != 'DESKTOP-ypat':
+        #     try:
+        #         # 使用 TF 将 odom 从 livox_frame 转换到 base_link
+        #         # 使用 rclpy.time.Time() 获取最新的实时变换，而不是从 buffer 中查找静态变换
+        #         msg.header.frame_id = 'livox_frame'
+        #         transform = self.tf_buffer.lookup_transform(
+        #             'livox_frame',
+        #             'base_link',
+        #             rclpy.time.Time(),
+        #             timeout=rclpy.duration.Duration(seconds=1.0)
+        #         )
                 
-                # 转换位置
-                odom_transformed = tf2_geometry_msgs.do_transform_pose(msg.pose.pose, transform)
+        #         # 转换位置
+        #         odom_transformed = tf2_geometry_msgs.do_transform_pose(msg.pose.pose, transform)
+        #         msg.header.frame_id = 'world'
 
-                transform = self.tf_buffer.lookup_transform(
-                    
-                    'world',
-                    'base_link',
-                    rclpy.time.Time(0),
-                    timeout=rclpy.duration.Duration(seconds=1.0)
-                )
+        #         transform = self.tf_buffer.lookup_transform(
+        #             'world',
+        #             'base_link',
+        #             rclpy.time.Time(),
+        #             timeout=rclpy.duration.Duration(seconds=1.0)
+        #         )
                 
-                # 转换位置
-                odom_transformed = tf2_geometry_msgs.do_transform_pose(msg.pose.pose, transform)
+        #         # 转换位置
+        #         odom_transformed = tf2_geometry_msgs.do_transform_pose(msg.pose.pose, transform)
                 
-                # 更新消息的位置和姿态
-                msg.pose.pose = odom_transformed
-                msg.header.frame_id = 'base_link'
+        #         # 更新消息的位置和姿态
+        #         msg.pose.pose = odom_transformed
+        #         msg.header.frame_id = 'base_link'
                 
-                self.get_logger().debug('Transformed odom from livox_frame to base_link')
+        #         self.get_logger().debug('Transformed odom from livox_frame to base_link')
                 
-            except Exception as e:
-                self.get_logger().warning(f'Failed to transform odom from livox_frame to base_link: {e}')
-                # 如果转换失败，仍然使用原始消息
+        #     except Exception as e:
+        #         self.get_logger().warning(f'Failed to transform odom from livox_frame to base_link: {e}')
+        #         # 如果转换失败，仍然使用原始消息
         
-        self.publish_px4_visual_odometry(msg)
+        # self.publish_px4_visual_odometry(msg)
 
     def publish_px4_visual_odometry(self, msg: Odometry):
-        """转换并发布PX4 visual odometry (NED坐标系) - 直接转换 FLU -> NED"""
+        """转换并发布PX4 visual odometry (NED坐标系) - 直接转换 FLU -> NED，假设PX4 NED原点与ROS2 world位置重合"""
         try:
             px4_msg = VehicleOdometry()
             
@@ -372,42 +381,20 @@ class MultirotorCommunication(Node):
             px4_msg.pose_frame = VehicleOdometry.POSE_FRAME_NED
             px4_msg.velocity_frame = VehicleOdometry.VELOCITY_FRAME_NED
             
-            # 直接转换 FLU -> NED
+            # 直接转换 FLU -> NED，假设PX4 NED原点与ROS2 world位置重合
             flu_x = msg.pose.pose.position.x
             flu_y = msg.pose.pose.position.y
             flu_z = msg.pose.pose.position.z
-
-            # 使用 init_vehicle_local_position 作为初始位置和 heading
-            if self.init_vehicle_local_position is not None:
-                # 初始位置（NED 坐标系）
-                init_n = self.init_vehicle_local_position.x
-                init_e = self.init_vehicle_local_position.y
-                init_d = self.init_vehicle_local_position.z
-                init_heading = self.init_vehicle_local_position.heading
-
-                # 使用工具函数进行 px4_odom 专用的 FLU -> NED 转换
-                compensated_n, compensated_e, compensated_d = CoordinateTransform.flu_to_ned_position_px4_odom(
-                    flu_x, flu_y, flu_z, init_n, init_e, init_d, init_heading
-                )
-
-                # 提取当前四元数并转换
-                flu_qw = msg.pose.pose.orientation.w
-                flu_qx = msg.pose.pose.orientation.x
-                flu_qy = msg.pose.pose.orientation.y
-                flu_qz = msg.pose.pose.orientation.z
-
-                # 使用工具函数进行 px4_odom 专用的四元数转换
-                px4_msg.q = CoordinateTransform.flu_to_ned_quaternion_px4_odom(
-                    flu_qw, flu_qx, flu_qy, flu_qz, init_heading
-                )
-
-                # 发布补偿后的数据（NED 坐标系）
-                px4_msg.position = [compensated_n, compensated_e, compensated_d]
-
+            
+            # 使用标准 FLU -> NED 转换，不进行px4_odom补偿
+            if self.cur_vehicle_local_position:
+                px4_msg.position = CoordinateTransform.flu_to_ned_position(flu_x, flu_y, flu_z, self.init_vehicle_local_position.heading)
+            
+            # 使用当前PX4 odometry的方向 (已经是 FRD/NED 格式)
+            if self.cur_vehicle_odometry is not None:
+                px4_msg.q = self.cur_vehicle_odometry.q
             else:
-                # 没有初始位置信息时，使用标准 FLU -> NED 转换
-                px4_msg.position = CoordinateTransform.flu_to_ned_position(flu_x, flu_y, flu_z, 0.0)
-                # 四元数转换：FLU/ENU -> FRD/NED (vehicle_odometry.q 是 FRD-relative-to-NED)
+                # 如果没有当前PX4 odometry，使用默认转换
                 flu_qw = msg.pose.pose.orientation.w
                 flu_qx = msg.pose.pose.orientation.x
                 flu_qy = msg.pose.pose.orientation.y
@@ -435,8 +422,8 @@ class MultirotorCommunication(Node):
             
             # 协方差 (简化处理)
             px4_msg.position_variance = [0.0001, 0.0001, 0.0001]
-            px4_msg.orientation_variance = [0.0001, 0.0001, 0.0001]
-            px4_msg.velocity_variance = [0.0001, 0.0001, 0.0001]
+            px4_msg.orientation_variance = [999.0, 999.0, 999.0]
+            px4_msg.velocity_variance = [999.0, 999.0, 999.0]
             
             # 质量指标
             px4_msg.quality = 100
@@ -611,19 +598,19 @@ class MultirotorCommunication(Node):
 
         # 使用 TF 变换将 FLU -> NED
         try:
-            base_footprint_frame = self.namespace.lstrip('/') + 'base_footprint'
+            base_link_frame = self.namespace.lstrip('/') + 'base_link'
             world_frame = 'world'
 
-            # 获取 world -> base_footprint 的 TF 变换
+            # 获取 world -> base_link 的 TF 变换
             transform = self.tf_buffer.lookup_transform(
                 world_frame,
-                base_footprint_frame,
+                base_link_frame,
                 rclpy.time.Time(),
                 timeout=rclpy.duration.Duration(seconds=1.0)
             )
 
             # 从 TF 变换中提取旋转矩阵
-            # transform 是 world(ENU) -> base_footprint(FLU) 的变换
+            # transform 是 world(ENU) -> base_link(FLU) 的变换
             # 我们需要 FLU -> ENU 的旋转矩阵，所以取逆
             q = transform.transform.rotation
             # 四元数共轭得到逆旋转 (ENU -> FLU 的逆 = FLU -> ENU)
@@ -672,19 +659,19 @@ class MultirotorCommunication(Node):
 
         # 使用 TF 变换将 FLU -> NED
         try:
-            base_footprint_frame = self.namespace.lstrip('/') + 'base_footprint'
+            base_link_frame = self.namespace.lstrip('/') + 'base_link'
             world_frame = 'world'
 
-            # 获取 world -> base_footprint 的 TF 变换
+            # 获取 world -> base_link 的 TF 变换
             transform = self.tf_buffer.lookup_transform(
                 world_frame,
-                base_footprint_frame,
+                base_link_frame,
                 rclpy.time.Time(),
                 timeout=rclpy.duration.Duration(seconds=1.0)
             )
 
             # 从 TF 变换中提取旋转矩阵
-            # transform 是 world(ENU) -> base_footprint(FLU) 的变换
+            # transform 是 world(ENU) -> base_link(FLU) 的变换
             # 我们需要 FLU -> ENU 的旋转矩阵，所以取逆
             q = transform.transform.rotation
             # 四元数共轭得到逆旋转 (ENU -> FLU 的逆 = FLU -> ENU)
