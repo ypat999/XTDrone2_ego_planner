@@ -73,7 +73,7 @@ class CoordinateTransform:
         """NED四元数 -> ENU四元数"""
         R_ned = CoordinateTransform._quat_to_rot(qw, qx, qy, qz)
         T = np.array([[0, 1, 0], [1, 0, 0], [0, 0, -1]])
-        R_enu = T @ R_ned @ T.T
+        R_enu = T @ R_ned
         return CoordinateTransform._rot_to_quat(R_enu)
 
     @staticmethod
@@ -81,7 +81,7 @@ class CoordinateTransform:
         """ENU四元数 -> NED四元数"""
         R_enu = CoordinateTransform._quat_to_rot(qw, qx, qy, qz)
         T = np.array([[0, 1, 0], [1, 0, 0], [0, 0, -1]])
-        R_ned = T.T @ R_enu @ T
+        R_ned = T.T @ R_enu
         return CoordinateTransform._rot_to_quat(R_ned)
 
     # =========================================================================

@@ -9,6 +9,7 @@ Panels:
         - /TF1/Tree1
         - /PointCloud2_depth1/Topic1
         - /Marker_ego_traj1
+        - /Pose1
       Splitter Ratio: 0.6323529481887817
     Tree Height: 821
   - Class: rviz_common/Selection
@@ -28,7 +29,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: PointCloud2_inflate
 Visualization Manager:
   Class: ""
   Displays:
@@ -75,8 +76,6 @@ Visualization Manager:
           Value: true
         x500_depth_0/odom:
           Value: true
-        x500_depth_0/px4:
-          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
@@ -87,16 +86,15 @@ Visualization Manager:
           map:
             odom:
               x500_depth_0/odom:
-                x500_depth_0/base_footprint:
-                  x500_depth_0/OakD-Lite/base_link/StereoOV7251:
-                    x500_depth_0/StereoOV7251:
-                      {}
-                  x500_depth_0/base_link:
-                    x500_depth_0/OakD-Lite/base_link:
-                      x500_depth_0/IMX214:
-                        {}
-          x500_depth_0/px4:
-            {}
+                {}
+          x500_depth_0/base_footprint:
+            x500_depth_0/OakD-Lite/base_link/StereoOV7251:
+              x500_depth_0/StereoOV7251:
+                {}
+            x500_depth_0/base_link:
+              x500_depth_0/OakD-Lite/base_link:
+                x500_depth_0/IMX214:
+                  {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -242,8 +240,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 6.090000152587891
-        Min Value: 0.09000000357627869
+        Max Value: 5.710000038146973
+        Min Value: 0.10999999940395355
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -305,7 +303,7 @@ Visualization Manager:
       Enabled: true
       Name: Marker_ego_traj
       Namespaces:
-        {}
+        "": true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -341,7 +339,7 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /xtdrone2/planning/raw_trajectory
+        Value: /xtdrone2/x500_depth_0/cmd_pose_local_flu
       Value: true
   Enabled: true
   Global Options:
@@ -389,25 +387,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 10.654666900634766
+      Distance: 13.211787223815918
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.4542105793952942
-        Y: 0.42648640275001526
-        Z: 1.0980277061462402
+        X: -3.4461028575897217
+        Y: 0.10003473609685898
+        Z: 0.7545270919799805
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.9147961139678955
+      Pitch: 0.514797031879425
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 5.154677391052246
+      Yaw: 4.999677658081055
     Saved: ~
 Window Geometry:
   Displays:

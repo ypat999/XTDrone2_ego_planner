@@ -49,8 +49,8 @@ class MultirotorCommunication(Node):
         
         # 检查主机名，设置 use_sim_time（与 tf_publisher 保持一致）
         import platform
-        hostname = platform.node()
-        if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
+        self.hostname = platform.node()
+        if self.hostname == 'ywj-B250-D3A' or self.hostname == 'DESKTOP-ypat':
             use_sim_time = True
             odom_topic = self.namespace + 'odometry'
         else:
@@ -88,8 +88,8 @@ class MultirotorCommunication(Node):
         print(f"DDS Topic Prefix: {dds_topic_prefix}")
         
         self.create_subscription(Pose, xtdrone2_topic_prefix + 'cmd_pose_local_ned', self.cmd_pose_local_ned_callback, 10)  # geometry_msgs/Pose
-        self.create_subscription(Pose, xtdrone2_topic_prefix + 'cmd_pose_local_flu', self.cmd_pose_local_flu_callback, 10)  # geometry_msgs/Pose
-        self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_vel_ned', self.cmd_vel_ned_callback, 10)  # geometry_msgs/Twist
+        self.create_subscription(PoseStamped, xtdrone2_topic_prefix + 'cmd_pose_local_flu', self.cmd_pose_local_flu_callback, 10)  # geometry_msgs/PoseStamped
+        self.create_subscription(PoseStamped, xtdrone2_topic_prefix + 'cmd_vel_ned', self.cmd_vel_ned_callback, 10)  # geometry_msgs/PoseStamped
         self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_vel_flu', self.cmd_vel_flu_callback, 10)  # geometry_msgs/Twist
         self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_accel_ned', self.cmd_accel_ned_callback, 10)  # geometry_msgs/Twist
         self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_accel_flu', self.cmd_accel_flu_callback, 10)  # geometry_msgs/Twist
@@ -132,7 +132,7 @@ class MultirotorCommunication(Node):
         self.create_subscription(
             Odometry,
             odom_topic,
-            self.gazebo_odom_callback,
+            self.ros2_odom_callback,
             10
         )
 
@@ -261,30 +261,30 @@ class MultirotorCommunication(Node):
         t.transform.rotation.z = float(inv_quat[3])
 
         # 使用正确的 sendTransform 方法
-        try:
-            self.tf_broadcaster.sendTransform(t)
-        except Exception as e:
-            self.get_logger().error(f'Failed to send TF: {e}')
+        # try:
+        #     self.tf_broadcaster.sendTransform(t)
+        # except Exception as e:
+        #     self.get_logger().error(f'Failed to send TF: {e}')
         
         # 读取 world->base_footprint 的 tf，并发布 world->px4_odom 的静态 tf
         # if not self.static_tf_published:
-        # try:
-        #     # 计算 world->px4_odom 的变换
-        #     # world->px4_odom = world->base_footprint * base_footprint->px4_odom
-        #     world_to_px4 = self.multiply_transforms(world_to_base, t)
+        try:
+            # 计算 world->px4_odom 的变换
+            # world->px4_odom = world->base_footprint * base_footprint->px4_odom
+            world_to_px4 = self.multiply_transforms(world_to_base, t)
             
-        #     # 设置静态 tf 的属性
-        #     world_to_px4.header.stamp = self.get_clock().now().to_msg()
-        #     world_to_px4.header.frame_id = 'world'
-        #     world_to_px4.child_frame_id = px4_odom_frame
+            # 设置静态 tf 的属性
+            world_to_px4.header.stamp = self.get_clock().now().to_msg()
+            world_to_px4.header.frame_id = 'world'
+            world_to_px4.child_frame_id = px4_odom_frame
             
-        #     # 使用 StaticTransformBroadcaster 发布静态 tf
-        #     self.static_tf_broadcaster.sendTransform(world_to_px4)
-        #     self.static_tf_published = True
-        #     # self.get_logger().info(f'Published static TF: world -> {px4_odom_frame}')
+            # 使用 StaticTransformBroadcaster 发布静态 tf
+            self.static_tf_broadcaster.sendTransform(world_to_px4)
+            self.static_tf_published = True
+            # self.get_logger().info(f'Published static TF: world -> {px4_odom_frame}')
             
-        # except Exception as e:
-        #     self.get_logger().warning(f'Failed to publish static TF world->px4_odom: {e}')
+        except Exception as e:
+            self.get_logger().warning(f'Failed to publish static TF world->px4_odom: {e}')
     
     def multiply_transforms(self, t1, t2):
         """组合两个 TF 变换: result = t1 * t2"""
@@ -317,17 +317,29 @@ class MultirotorCommunication(Node):
         
         return result
 
-    def gazebo_odom_callback(self, msg: Odometry):
+    def ros2_odom_callback(self, msg: Odometry):
         """Gazebo odometry callback - 发布 PX4 visual odometry (NED坐标系)"""
         
         # 检查 odom 消息的 frame_id，如果是 livox_frame，则转换到 base_link 坐标系
-        if msg.header.frame_id == 'livox_frame':
+        if self.hostname != 'ywj-B250-D3A' and self.hostname != 'DESKTOP-ypat':
             try:
                 # 使用 TF 将 odom 从 livox_frame 转换到 base_link
                 # 使用 rclpy.time.Time(0) 获取最新的实时变换，而不是从 buffer 中查找静态变换
                 transform = self.tf_buffer.lookup_transform(
-                    'base_link',
+                    
                     'livox_frame',
+                    'base_link',
+                    rclpy.time.Time(0),
+                    timeout=rclpy.duration.Duration(seconds=1.0)
+                )
+                
+                # 转换位置
+                odom_transformed = tf2_geometry_msgs.do_transform_pose(msg.pose.pose, transform)
+
+                transform = self.tf_buffer.lookup_transform(
+                    
+                    'world',
+                    'base_link',
                     rclpy.time.Time(0),
                     timeout=rclpy.duration.Duration(seconds=1.0)
                 )
@@ -497,7 +509,7 @@ class MultirotorCommunication(Node):
         
         self.OFFBOARD_STATE = "POSE_LOCAL_FLU"
         # Convert quaternion to euler angles
-        orientation_q = msg.orientation
+        orientation_q = msg.pose.orientation
         orientation_list = [orientation_q.w, orientation_q.x, orientation_q.y, orientation_q.z]
         (roll, pitch, yaw) = quat2euler(orientation_list)
 
@@ -509,14 +521,9 @@ class MultirotorCommunication(Node):
             px4_odom_frame = self.namespace.lstrip('/') + 'px4_odom'
             world_frame = 'world'
             
-            # 创建 PoseStamped 用于 TF 变换
-            pose_stamped = PoseStamped()
+            # 直接使用接收到的 PoseStamped 进行 TF 变换
+            pose_stamped = msg
             pose_stamped.header.stamp = self.get_clock().now().to_msg()
-            pose_stamped.header.frame_id = world_frame
-            pose_stamped.pose.position.x = msg.position.x
-            pose_stamped.pose.position.y = msg.position.y
-            pose_stamped.pose.position.z = msg.position.z
-            pose_stamped.pose.orientation = msg.orientation
             
             # 使用 TF 变换将位姿从  world -> px4_odom
             transformed_pose = self.tf_buffer.transform(
@@ -532,12 +539,17 @@ class MultirotorCommunication(Node):
                 transformed_pose.pose.position.z
             )
             
-            # 航向角：从四元数提取 (ENU->NED 转换后的四元数)
-            transformed_yaw = CoordinateTransform.heading_from_quaternion(
+            # 先将 ENU 四元数转换为 NED 四元数
+            ned_qw, ned_qx, ned_qy, ned_qz = CoordinateTransform.enu_to_ned_quaternion(
                 transformed_pose.pose.orientation.w,
                 transformed_pose.pose.orientation.x,
                 transformed_pose.pose.orientation.y,
                 transformed_pose.pose.orientation.z
+            )
+            
+            # 航向角：从 NED 四元数提取
+            transformed_yaw = CoordinateTransform.heading_from_quaternion(
+                ned_qw, ned_qx, ned_qy, ned_qz
             )
             
             # Construct TrajectorySetpoint message
@@ -569,14 +581,25 @@ class MultirotorCommunication(Node):
         if self.OFFBOARD_STATE == "DISABLED":
             return
         
-        self.OFFBOARD_STATE = "VEL_NED"
+        self.OFFBOARD_STATE = "POSE_LOCAL_NED"
+        
+        # 从 PoseStamped 中提取位置和姿态
+        # 注意：这里虽然函数名是 cmd_vel_ned，但实际处理的是 PoseStamped（位置+姿态）
+        # 可能是历史遗留命名问题
+        
+        # Convert quaternion to euler angles
+        orientation_q = msg.pose.orientation
+        orientation_list = [orientation_q.w, orientation_q.x, orientation_q.y, orientation_q.z]
+        (roll, pitch, yaw) = quat2euler(orientation_list)
+        
         # Construct TrajectorySetpoint message
         cmd = TrajectorySetpoint()
         cmd.timestamp = self.get_clock_microseconds()
-        cmd.position = [math.nan, math.nan, math.nan]
-        cmd.velocity = [msg.linear.x, msg.linear.y, msg.linear.z]
-        cmd.yaw = math.nan
-        cmd.yawspeed = msg.angular.z
+        cmd.position = [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z]
+        cmd.velocity = [math.nan, math.nan, math.nan]
+        cmd.acceleration = [math.nan, math.nan, math.nan]
+        cmd.yaw = yaw
+        cmd.yawspeed = math.nan
         self.cmd = cmd
 
     def cmd_vel_flu_callback(self, msg):
