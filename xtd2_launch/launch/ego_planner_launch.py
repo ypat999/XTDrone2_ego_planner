@@ -33,7 +33,7 @@ def generate_launch_description():
     if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
         default_use_sim_time = 'true'
         odom_world_topic = '/x500_depth_0/odometry'
-        grid_map_cloud_topic = '/x500_depth_0/StereoOV7251/pointcloud'
+        grid_map_cloud_topic = '/livox/lidar'  #'/x500_depth_0/StereoOV7251/pointcloud'
         grid_map_pose_topic = '/x500_depth_0/StereoOV7251/pose'
     else:
         default_use_sim_time = 'false'

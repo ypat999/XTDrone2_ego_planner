@@ -8,8 +8,6 @@ Panels:
         - /TF1/Frames1
         - /TF1/Tree1
         - /PointCloud2_depth1/Topic1
-        - /Marker_ego_traj1
-        - /Pose1
       Splitter Ratio: 0.6323529481887817
     Tree Height: 821
   - Class: rviz_common/Selection
@@ -74,7 +72,13 @@ Visualization Manager:
           Value: true
         x500_depth_0/base_link:
           Value: true
+        x500_depth_0/livox_frame/mid360_lidar:
+          Value: true
         x500_depth_0/odom:
+          Value: true
+        x500_depth_0/px4_odom:
+          Value: true
+        x500_depth_0/px4_odom_body:
           Value: true
       Marker Scale: 1
       Name: TF
@@ -82,18 +86,23 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        world:
-          map:
-            odom:
-              x500_depth_0/odom:
-                {}
-          x500_depth_0/base_footprint:
-            x500_depth_0/OakD-Lite/base_link/StereoOV7251:
-              x500_depth_0/StereoOV7251:
-                {}
-            x500_depth_0/base_link:
-              x500_depth_0/OakD-Lite/base_link:
-                x500_depth_0/IMX214:
+        map:
+          odom:
+            x500_depth_0/odom:
+              world:
+                x500_depth_0/base_footprint:
+                  x500_depth_0/OakD-Lite/base_link/StereoOV7251:
+                    x500_depth_0/StereoOV7251:
+                      {}
+                  x500_depth_0/base_link:
+                    x500_depth_0/OakD-Lite/base_link:
+                      x500_depth_0/IMX214:
+                        {}
+                    x500_depth_0/livox_frame/mid360_lidar:
+                      {}
+                    x500_depth_0/px4_odom_body:
+                      {}
+                x500_depth_0/px4_odom:
                   {}
       Update Interval: 0
       Value: true
@@ -240,7 +249,7 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 5.710000038146973
+        Max Value: 10.3100004196167
         Min Value: 0.10999999940395355
         Value: true
       Axis: Z
@@ -341,6 +350,40 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /xtdrone2/x500_depth_0/cmd_pose_local_flu
       Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz_default_plugins/PointCloud2
+      Color: 255; 255; 255
+      Color Transformer: Intensity
+      Decay Time: 0
+      Enabled: false
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Max Intensity: 0
+      Min Color: 0; 0; 0
+      Min Intensity: 0
+      Name: PointCloud2
+      Position Transformer: XYZ
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.009999999776482582
+      Style: Flat Squares
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /livox/lidar
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: false
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -387,25 +430,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 13.211787223815918
+      Distance: 8.583396911621094
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -3.4461028575897217
-        Y: 0.10003473609685898
-        Z: 0.7545270919799805
+        X: 1.2905590534210205
+        Y: -0.5714401602745056
+        Z: 1.0280046463012695
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.514797031879425
+      Pitch: 0.5447975397109985
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 4.999677658081055
+      Yaw: 0.07149017602205276
     Saved: ~
 Window Geometry:
   Displays:

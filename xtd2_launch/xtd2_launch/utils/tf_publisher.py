@@ -256,15 +256,21 @@ class TfPublisher(Node):
             t.transform.rotation.w = 1.0
             tfs.append(t)
 
-        if self.is_sim:
-            # world -> map
             t = TransformStamped()
             t.header.stamp = now
-            t.header.frame_id = 'world'
-            t.child_frame_id = 'map'
+            t.header.frame_id = self.namespace.lstrip('/') + 'odom'
+            t.child_frame_id = 'world'
+            t.transform.rotation.w = 1.0
+            tfs.append(t)
+        else:
+            t = TransformStamped()
+            t.header.stamp = now
+            t.header.frame_id = 'odom'
+            t.child_frame_id = 'world'
             t.transform.rotation.w = 1.0
             tfs.append(t)
 
+        if self.is_sim:
             # map -> odom
             t = TransformStamped()
             t.header.stamp = now
@@ -272,6 +278,7 @@ class TfPublisher(Node):
             t.child_frame_id = 'odom'
             t.transform.rotation.w = 1.0
             tfs.append(t)
+
 
             # base_footprint -> base_link
             t = TransformStamped()
@@ -326,6 +333,20 @@ class TfPublisher(Node):
             t.transform.translation.y = 0.0
             t.transform.translation.z = 0.0
             t.transform.rotation.w = 1.0
+            tfs.append(t)
+
+            # x500_depth_0/livox_frame/mid360_lidar
+            t = TransformStamped()
+            t.header.stamp = now
+            t.header.frame_id = self.namespace.lstrip('/') + 'base_link'
+            t.child_frame_id = self.namespace.lstrip('/') + 'livox_frame/mid360_lidar'
+            t.transform.translation.x = 0.1  # 0.1 0 0.30 0 -0.5236 3.1415926
+            t.transform.translation.y = 0.0
+            t.transform.translation.z = 0.3
+            t.transform.rotation.x = 0.2588196
+            t.transform.rotation.y = 0.0002061
+            t.transform.rotation.z = 0.9659254
+            t.transform.rotation.w = 0.0007692
             tfs.append(t)
 
         # # 真机环境下添加mid360到base_link的TF变换
