@@ -1,20 +1,20 @@
 /**:
     ros__parameters:
       registration_method: "NDT_OMP"   #"GICP_OMP" 
-      score_threshold: 0.5
-      ndt_resolution: 1.0
-      ndt_step_size: 0.1
-      ndt_num_threads: 2
-      ndt_max_iterations: 32
-      transform_epsilon: 0.001
+      score_threshold: 0.1              # Lower threshold for better accuracy
+      ndt_resolution: 0.1               # Higher resolution for better accuracy
+      ndt_step_size: 0.05               # Smaller step size for finer convergence
+      ndt_num_threads: 4                 # More threads for faster processing
+      ndt_max_iterations: 128             # More iterations for better convergence
+      transform_epsilon: 0.0001         # Smaller epsilon for finer convergence
 
-      voxel_leaf_size: 0.2
-      scan_max_range: 5.0
-      scan_min_range: 0.1
+      voxel_leaf_size: 0.1               # Smaller voxel size for better detail
+      scan_max_range: 40.0               # Extended range for better matching
+      scan_min_range: 0.3
       scan_period: 0.05
       use_pcd_map: true
-      map_path: "/home/ztl/slam_data/3d_map/3dmap.pcd" #"/home/ywj/pcd/test.pcd"
-      set_initial_pose: true
+      map_path: "/home/cat/slam_data/3d_map/3dmap.pcd" #"/home/ywj/pcd/test.pcd"
+      set_initial_pose: false
       initial_pose_x: 20.0
       initial_pose_y: 20.0
       initial_pose_z: 1.0
@@ -22,12 +22,19 @@
       initial_pose_qy: 0.0
       initial_pose_qz: 0.0
       initial_pose_qw: 1.0
-      use_odom: false
+      use_odom: true
       use_imu: false
       enable_debug: true
       enable_map_odom_tf: true
       global_frame_id: map
       odom_frame_id: odom
-      base_frame_id: base_link
+      base_frame_id: base_footprint
       enable_timer_publishing: false
       pose_publish_frequency: 1.0
+      
+      # New parameters for improved localization
+      displacement_threshold: 0.5        # Only update when displacement > 0.3m（位移触发阈值）
+      search_radius: 2.0                 # Search radius around initial point（搜索半径）
+      search_grid_size: 5                # Grid points per dimension for search（搜索网格密度）
+      enable_displacement_check: true    # Enable displacement-based triggering（启用位移检查）
+      enable_search_optimization: true   # Enable search for optimal localization（启用搜索优化）

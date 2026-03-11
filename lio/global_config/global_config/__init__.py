@@ -35,28 +35,28 @@ config_by_machine = {
     'RK3588': {
         # RK3588主机配置 - LIO-SAM
         'ONLINE_LIDAR': True,
-        'LIO_SAM_BASE_CODE_PATH': '/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/LIO-SAM_MID360_ROS2_DOG/',
+        'LIO_SAM_BASE_CODE_PATH': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/LIO-SAM_MID360_ROS2_DOG/',
         'DEFAULT_BAG_PATH': '/home/cat/slam_data/livox_record_tilt_test_crop/',
         'DEFAULT_RELIABILITY_OVERRIDE': '/home/cat/slam_data/reliability_override.yaml',
         'LIO_SAM_DEFAULT_LOAM_SAVE_DIR': '/home/cat/slam_data/loam/',
         
         # RK3588主机配置 - Nav2
-        'NAV2_BASE_CODE_PATH': '/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/nav2_dog_slam/',
+        'NAV2_BASE_CODE_PATH': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/nav2_dog_slam/',
         'NAV2_DEFAULT_MAP_FILE': "/home/cat/slam_data/grid_map/map.yaml",
-        'NAV2_DEFAULT_WEB_SCRIPT_PATH': '/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/nav2_dog_slam/web/run_web.sh',
-        'NAV2_DEFAULT_BT_XML_PATH': '/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/nav2_dog_slam/config/navigate_to_pose_w_replanning_and_recovery.xml',
-        'NAV2_DEFAULT_PARAMS_FILE': '/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/nav2_dog_slam/config/nav2_params.yaml',
+        'NAV2_DEFAULT_WEB_SCRIPT_PATH': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/nav2_dog_slam/web/run_web.sh',
+        'NAV2_DEFAULT_BT_XML_PATH': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/nav2_dog_slam/config/navigate_to_pose_w_replanning_and_recovery.xml',
+        'NAV2_DEFAULT_PARAMS_FILE': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/nav2_dog_slam/config/nav2_params.yaml',
         
         # RK3588主机配置 - FAST-LIO
-        'FAST_LIO_BASE_CODE_PATH': '/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/FAST_LIO_ROS2_edit/',
+        'FAST_LIO_BASE_CODE_PATH': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/FAST_LIO_ROS2_edit/',
         'FAST_LIO_LIDAR_TYPE': 1,  # 其他主机lidar_type为1
         'FAST_LIO_MAP_FILE_PATH': '/home/cat/slam_data/pcd/test.pcd',  # 添加的地图文件路径
         'DEFAULT_RELIABILITY_OVERRIDE': '/home/cat/slam_data/reliability_override.yaml',
         'DEFAULT_USE_SIM_TIME': False,
         
         # RK3588主机配置 - Livox MID360
-        'LIVOX_MID360_CONFIG': '/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config_tilt.json',
-        'LIVOX_MID360_CONFIG_NO_TILT': '/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config.json',
+        'LIVOX_MID360_CONFIG': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config_tilt.json',
+        'LIVOX_MID360_CONFIG_NO_TILT': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config.json',
     },
     'jqr001': {
         # jqr001主机配置 - LIO-SAM
@@ -142,28 +142,28 @@ config_by_machine = {
 default_config = {
     # LIO-SAM 默认配置
     'ONLINE_LIDAR': True,
-    'LIO_SAM_BASE_CODE_PATH': '/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/LIO-SAM_MID360_ROS2_DOG/',
+    'LIO_SAM_BASE_CODE_PATH': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/LIO-SAM_MID360_ROS2_DOG/',
     'DEFAULT_BAG_PATH': '/home/cat/slam_data/livox_record_new/',
     'DEFAULT_RELIABILITY_OVERRIDE': '/home/cat/slam_data/reliability_override.yaml',
     'LIO_SAM_DEFAULT_LOAM_SAVE_DIR': '/home/cat/slam_data/loam/',
     
     # Nav2 默认配置
-    'NAV2_BASE_CODE_PATH': '/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/nav2_dog_slam/',
+    'NAV2_BASE_CODE_PATH': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/nav2_dog_slam/',
     'NAV2_DEFAULT_MAP_FILE': "/home/cat/slam_data/grid_map/map.yaml",
-    'NAV2_DEFAULT_WEB_SCRIPT_PATH': '/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/nav2_dog_slam/web/run_web.sh',
+    'NAV2_DEFAULT_WEB_SCRIPT_PATH': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/nav2_dog_slam/web/run_web.sh',
     'NAV2_DEFAULT_BT_XML_PATH': '/opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml',
-    'NAV2_DEFAULT_PARAMS_FILE': '/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/nav2_dog_slam/config/nav2_params.yaml',
+    'NAV2_DEFAULT_PARAMS_FILE': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/nav2_dog_slam/config/nav2_params.yaml',
     
     # FAST-LIO 默认配置
-    'FAST_LIO_BASE_CODE_PATH': '/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/FAST_LIO_ROS2_edit/',
+    'FAST_LIO_BASE_CODE_PATH': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/FAST_LIO_ROS2_edit/',
     'FAST_LIO_LIDAR_TYPE': 1,  # 默认lidar_type为1
     'FAST_LIO_MAP_FILE_PATH': '/home/cat/slam_data/pcd/test.pcd',  # 默认地图文件路径
     'DEFAULT_RELIABILITY_OVERRIDE': '/home/cat/slam_data/reliability_override.yaml',
     'DEFAULT_USE_SIM_TIME': True,
     
     # Livox MID360 默认配置
-    'LIVOX_MID360_CONFIG': '/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config.json',
-    'LIVOX_MID360_CONFIG_NO_TILT': '/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config.json',
+    'LIVOX_MID360_CONFIG': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config.json',
+    'LIVOX_MID360_CONFIG_NO_TILT': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config.json',
 }
 
 # 根据当前主机名选择配置

@@ -14,6 +14,7 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
@@ -64,6 +65,7 @@ public:
   // void gnssReceived();
 
   tf2_ros::TransformBroadcaster broadcaster_;
+  tf2_ros::StaticTransformBroadcaster static_broadcaster_;
   rclcpp::Clock clock_;
   tf2_ros::Buffer tfbuffer_;
   tf2_ros::TransformListener tflistener_;
@@ -119,7 +121,7 @@ public:
   double initial_pose_qw_;
 
   bool use_odom_{false};
-  double last_odom_received_time_;
+  double last_odom_received_time_{0.0};
   bool use_imu_{false};
   bool enable_debug_{false};
   bool enable_map_odom_tf_{false};
@@ -135,4 +137,29 @@ public:
 
   rclcpp::TimerBase::SharedPtr pose_publish_timer_;
   void timerPublishPose();
+
+  // New parameters for improved localization
+  double displacement_threshold_{0.3};  // meters
+  double search_radius_{3.0};           // meters
+  int search_grid_size_{5};             // grid points per dimension
+  bool enable_displacement_check_{true};
+  bool enable_search_optimization_{true};
+  double last_localization_x_{0.0};
+  double last_localization_y_{0.0};
+  double last_localization_z_{0.0};
+  bool first_localization_done_{false};  // Track if first localization is done
+  
+  // Helper methods
+  double calculateDisplacement(const geometry_msgs::msg::Pose& current_pose);
+  bool shouldUpdateLocalization(const geometry_msgs::msg::Pose& current_pose);
+  
+  struct SearchResult {
+    Eigen::Matrix4f transformation;
+    bool has_converged;
+    double fitness_score;
+  };
+  
+  SearchResult searchOptimalTransformation(
+    const pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud_ptr,
+    const Eigen::Matrix4f& initial_guess);
 };

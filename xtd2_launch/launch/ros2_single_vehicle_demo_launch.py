@@ -189,7 +189,9 @@ exit 1
         ld.add_action(xrce_dds_process)  # 启动XRCE-DDS Agent
         ld.add_action(TimerAction(period=15.0, actions=[spawn]))  # 启动模型、PX4 SITL和ROS-Gazebo桥接
         ld.add_action(TimerAction(period=10.0, actions=[rviz_node]))  # 启动RViz可视化
-        ld.add_action(wait_for_px4_odom)  # 等待px4_odom_topic发布
+    
+    
+    ld.add_action(wait_for_px4_odom)  # 等待px4_odom_topic发布
     
 
     # Super LIO (真实飞机环境下启动)

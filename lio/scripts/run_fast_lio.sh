@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "===== ROS2 统一导航启动脚本 ====="
-WORKSPACE_DIR="/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2"
+WORKSPACE_DIR="/home/cat/git/xtd2_ws"
 
 # 设置导航模式
 export MANUAL_BUILD_MAP=False
@@ -28,5 +28,5 @@ source $WORKSPACE_DIR/install/setup.bash
 
 # echo "启动fast_lio..."
 # ros2 launch fast_lio mapping.launch.py
-echo "启动fast_lio中,pcd保存在/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/Super-LIO/src/super_lio/map/map.pcd"
+echo "启动fast_lio中,pcd保存在/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/Super-LIO/src/super_lio/map/map.pcd"
 ros2 launch super_lio Livox_mid360.py

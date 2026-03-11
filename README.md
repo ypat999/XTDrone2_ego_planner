@@ -6,6 +6,15 @@ XTDrone2是基于PX4、ROS2与Gazebo Ignition的无人机通用仿真平台。
 
 在[XTDrone](https://gitee.com/robin_shaun/XTDrone)的基础上，XTDrone2更新采用了更模块化和轻量化的仿真器Gazebo Ignition；同时由于ROS1版本不再更新维护，XTDrone2将全部基于ROS2进行开发；同时PX4的版本也采用了更新更稳定的1.15版本。
 
+### 最新特性
+
+- **三维定位系统**: 新增基于LiDAR的实时三维定位，支持NDT_OMP配准算法
+- **MID360雷达集成**: 仿真飞机集成MID360激光雷达，提升感知能力
+- **智能坐标转换**: 改进的TF2坐标转换系统，支持自适应初始朝向
+- **PX4启动检测**: 自动检测PX4仿真器启动状态，提升系统稳定性
+- **实机适配优化**: 增强对真实无人机平台的支持
+- **多机协同**: 支持多无人机协同路径规划
+
 限于开源项目团队人力有限并且为爱发电，过程中难免会存在许多问题，很感激您能够向我们反馈您遇到的BUG或解决方案；过程中遇到的BUG请通过仓库的issue向我们提出，您遇到的问题也可以尝试在issue中先寻求答案。
 
 ## 构建项目 / Build Project
@@ -15,6 +24,12 @@ XTDrone2是基于PX4、ROS2与Gazebo Ignition的无人机通用仿真平台。
 cd ~/git/xtd2_ws && source install/setup.bash
 colcon build --symlink-install --parallel-workers 8 --packages-skip livox_ros_driver2 basic super_lio
 source install/setup.bash
+```
+
+**注意**: 新增的三维定位系统需要安装额外的依赖：
+```bash
+# 安装ndt_omp_ros2依赖
+sudo apt install ros-humble-pcl-ros ros-humble-tf2-geometry-msgs
 ```
 
 ### 环境配置
@@ -49,7 +64,16 @@ ros2 launch xtd2_launch ros2_single_vehicle_demo_launch.py
 ros2 run xtd2_control multirotor_keyboard_control --model gz_x500_depth --id 0
 ```
 
-#### 2. 路径规划系统
+#### 2. 三维定位系统
+```bash
+# 启动LiDAR三维定位（支持MID360雷达）
+ros2 launch lidar_localization_ros2 lidar_localization.launch.py
+
+# 启动RViz可视化定位结果
+rviz2 -d $(ros2 pkg prefix lidar_localization_ros2)/share/lidar_localization_ros2/rviz/localization.rviz
+```
+
+#### 3. 路径规划系统
 ```bash
 # 单独启动EGO Planner路径规划
 ros2 launch xtd2_launch ego_planner_launch.py
@@ -73,6 +97,29 @@ ros2 run xtd2_control multirotor_keyboard_control --model gz_x500_depth --id 0
 rviz2
 ```
 
+## 高级功能 / Advanced Features
+
+### 坐标转换系统
+
+XTDrone2改进了坐标转换系统，支持：
+- **自适应初始朝向**: 自动适应无人机的初始朝向
+- **TF2动态补偿**: 实时补偿PX4坐标系转换
+- **多坐标系支持**: 支持世界坐标系、机体坐标系、传感器坐标系
+
+### 实机适配
+
+系统已优化对真实无人机平台的支持：
+- **自动主机检测**: 根据主机名自动配置命名空间
+- **仿真/实机切换**: 自动识别仿真环境和真实环境
+- **传感器配置**: 支持真实LiDAR和IMU传感器集成
+
+### PX4启动检测
+
+新增PX4启动检测功能：
+- **自动状态检测**: 检测PX4仿真器启动状态
+- **智能重启**: 支持系统重启时的智能组件管理
+- **故障恢复**: 自动处理组件启动失败情况
+
 ## 飞机单独模拟 / Individual Vehicle Simulation
 
 ### 简单启动
@@ -89,12 +136,37 @@ PX4_UXRCE_DDS_NS=x500_depth_0 PX4_GZ_WORLD=tugbot_warehouse PX4_SYS_AUTOSTART=40
 
 详细内容参见[XTDrone2安装教程](https://www.yuque.com/xtdrone/xtdrone2/tutorial)
 
-## 导航163256 / Path Planning
+## 近期更新 / Recent Updates
 
-### EGO Planner 路径规划系统
+### 三维定位系统 (3D LiDAR Localization)
 
-XTDrone2现在集成了增强版的EGO Planner路径规划系统，支持：
+XTDrone2新增了基于LiDAR的三维定位系统，支持：
+- **NDT_OMP配准算法**: 高性能点云配准与定位
+- **多传感器融合**: 支持IMU和里程计数据融合
+- **实时路径跟踪**: 提供精确的无人机位姿估计
+- **PCD地图支持**: 支持预加载点云地图
+
+启动命令：
+```bash
+ros2 launch lidar_localization_ros2 lidar_localization.launch.py
+```
+
+### 仿真环境增强
+
+- **MID360 LiDAR集成**: 仿真飞机现在集成了MID360激光雷达
+- **PX4启动检测**: 自动检测PX4仿真器启动状态
+- **坐标转换优化**: 改进的TF2坐标转换系统，支持自适应初始朝向
+- **实机适配**: 优化了真实无人机平台的适配配置
+
+### 路径规划系统 / Path Planning
+
+#### EGO Planner 路径规划系统
+
+XTDrone2集成了增强版的EGO Planner路径规划系统，支持：
 - **TF2坐标转换**: 自动处理相机到世界坐标系的转换
+- **多机协同**: 支持多无人机协同路径规划
+- **动态避障**: 实时动态障碍物避让
+- **轨迹优化**: 平滑的轨迹生成与优化
 - **增强点云处理**: 改进的错误处理和内存优化
 - **多无人机支持**: 集群路径规划和协调
 - **实时障碍物避让**: 动态环境下的路径重规划

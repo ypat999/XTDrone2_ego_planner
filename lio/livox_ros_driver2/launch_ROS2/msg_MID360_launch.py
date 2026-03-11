@@ -18,7 +18,7 @@ cmdline_bd_code = 'livox0000000001'
 
 from launch.substitutions import LaunchConfiguration
 # 使用全局配置路径
-default_user_config_path = "/home/cat/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config.json"
+default_user_config_path = "/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config.json"
 user_config_path = LaunchConfiguration('user_config_path', default=default_user_config_path)
 ################### user configure parameters for ros2 end #####################
 
