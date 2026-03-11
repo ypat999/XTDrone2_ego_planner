@@ -37,8 +37,6 @@ PCLLocalization::PCLLocalization(const rclcpp::NodeOptions & options)
   declare_parameter("use_odom", false);
   declare_parameter("use_imu", false);
   declare_parameter("enable_debug", false);
-  declare_parameter("enable_timer_publishing", false);
-  declare_parameter("pose_publish_frequency", 10.0);
 
   // New parameters for improved localization
   declare_parameter("displacement_threshold", 0.3);  // meters
@@ -169,10 +167,6 @@ CallbackReturn PCLLocalization::on_cleanup(const rclcpp_lifecycle::State &)
   cloud_sub_.reset();
   imu_sub_.reset();
 
-  if (enable_timer_publishing_){
-    pose_publish_timer_.reset();
-  }
-
   RCLCPP_INFO(get_logger(), "Cleaning Up end");
   return CallbackReturn::SUCCESS;
 }
@@ -222,8 +216,6 @@ void PCLLocalization::initializeParameters()
   get_parameter("use_odom", use_odom_);
   get_parameter("use_imu", use_imu_);
   get_parameter("enable_debug", enable_debug_);
-  get_parameter("enable_timer_publishing", enable_timer_publishing_);
-  get_parameter("pose_publish_frequency", pose_publish_frequency_);
 
   // New parameters for improved localization
   get_parameter("displacement_threshold", displacement_threshold_);
@@ -251,8 +243,6 @@ void PCLLocalization::initializeParameters()
   RCLCPP_INFO(get_logger(),"use_odom: %d", use_odom_);
   RCLCPP_INFO(get_logger(),"use_imu: %d", use_imu_);
   RCLCPP_INFO(get_logger(),"enable_debug: %d", enable_debug_);
-  RCLCPP_INFO(get_logger(),"enable_timer_publishing: %d", enable_timer_publishing_);
-  RCLCPP_INFO(get_logger(),"pose_publish_frequency: %lf", pose_publish_frequency_);
   RCLCPP_INFO(get_logger(),"displacement_threshold: %lf", displacement_threshold_);
   RCLCPP_INFO(get_logger(),"search_radius: %lf", search_radius_);
   RCLCPP_INFO(get_logger(),"search_grid_size: %d", search_grid_size_);
@@ -295,13 +285,6 @@ void PCLLocalization::initializePubSub()
   imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
     "imu", rclcpp::QoS(rclcpp::KeepLast(100)).best_effort(),
     std::bind(&PCLLocalization::imuReceived, this, std::placeholders::_1));
-
-  if (enable_timer_publishing_) {
-    auto period = std::chrono::duration<double>(1.0 / pose_publish_frequency_);
-    pose_publish_timer_ = create_wall_timer(
-      std::chrono::duration_cast<std::chrono::nanoseconds>(period),
-      std::bind(&PCLLocalization::timerPublishPose, this));
-  }
 
   RCLCPP_INFO(get_logger(), "initializePubSub end");
 }
@@ -520,29 +503,7 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
   pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_ptr(new pcl::PointCloud<pcl::PointXYZI>);
   pcl::fromROSMsg(*msg, *cloud_ptr);
 
-  // If your cloud is not robot-centric, convert to base_frame.
-  if (msg->header.frame_id != base_frame_id_) {
-    RCLCPP_DEBUG(
-        this->get_logger(), "Transforming point cloud from %s to %s",
-        msg->header.frame_id.c_str(), base_frame_id_.c_str());
-    geometry_msgs::msg::TransformStamped base_to_lidar_stamped;
-    try {
-      base_to_lidar_stamped = tfbuffer_.lookupTransform(
-          base_frame_id_, msg->header.frame_id, msg->header.stamp,
-          rclcpp::Duration::from_seconds(0.1));
-    } catch (const tf2::TransformException & ex) {
-      RCLCPP_ERROR(
-          this->get_logger(), "Could not transform %s to %s: %s",
-          msg->header.frame_id.c_str(), base_frame_id_.c_str(), ex.what());
-      return;
-    }
-
-    Eigen::Matrix4f initial_transformation =
-      tf2::transformToEigen(base_to_lidar_stamped.transform).matrix().cast<float>();
-    pcl::PointCloud<pcl::PointXYZI>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZI>());
-    pcl::transformPointCloud(*cloud_ptr, *transformed_cloud, initial_transformation);
-    cloud_ptr = transformed_cloud;
-  }
+  std::string cloud_frame = msg->header.frame_id;
 
   if (use_imu_) {
     double received_time = msg->header.stamp.sec +
@@ -606,51 +567,47 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
   corrent_pose_with_cov_stamped_ptr_->pose.pose.position.z = static_cast<double>(final_transformation(2, 3));
   corrent_pose_with_cov_stamped_ptr_->pose.pose.orientation = quat_msg;
     
-  // publish here if timer is not enabled
+  pose_pub_->publish(*corrent_pose_with_cov_stamped_ptr_);
 
-  if (!enable_timer_publishing_){
-    pose_pub_->publish(*corrent_pose_with_cov_stamped_ptr_);
+  geometry_msgs::msg::TransformStamped map_to_cloud_stamped;
+  map_to_cloud_stamped.header.stamp = msg->header.stamp;
+  map_to_cloud_stamped.header.frame_id = global_frame_id_;
+  map_to_cloud_stamped.child_frame_id = cloud_frame;
+  map_to_cloud_stamped.transform.translation.x = static_cast<double>(final_transformation(0, 3));
+  map_to_cloud_stamped.transform.translation.y = static_cast<double>(final_transformation(1, 3));
+  map_to_cloud_stamped.transform.translation.z = static_cast<double>(final_transformation(2, 3));
+  map_to_cloud_stamped.transform.rotation = quat_msg;
 
-    geometry_msgs::msg::TransformStamped map_to_base_link_stamped;
-    map_to_base_link_stamped.header.stamp = msg->header.stamp;
-    map_to_base_link_stamped.header.frame_id = global_frame_id_;
-    map_to_base_link_stamped.child_frame_id = base_frame_id_;
-    map_to_base_link_stamped.transform.translation.x = static_cast<double>(final_transformation(0, 3));
-    map_to_base_link_stamped.transform.translation.y = static_cast<double>(final_transformation(1, 3));
-    map_to_base_link_stamped.transform.translation.z = static_cast<double>(final_transformation(2, 3));
-    map_to_base_link_stamped.transform.rotation = quat_msg;
+  tf2::Transform map_to_cloud_tf;
+  tf2::fromMsg(map_to_cloud_stamped.transform, map_to_cloud_tf);
 
-    tf2::Transform map_to_base_link_tf;
-    tf2::fromMsg(map_to_base_link_stamped.transform, map_to_base_link_tf);
-
-    geometry_msgs::msg::TransformStamped odom_to_base_link_msg;
-    try {
-      odom_to_base_link_msg = tfbuffer_.lookupTransform(
-        odom_frame_id_, base_frame_id_, msg->header.stamp, rclcpp::Duration::from_seconds(1.0));
-    } catch (tf2::TransformException & ex) {
-      RCLCPP_WARN(
-        this->get_logger(), "Could not get transform %s to %s: %s",
-        base_frame_id_.c_str(), odom_frame_id_.c_str(), ex.what());
-      return;
-    }
-    tf2::Transform odom_to_base_link_tf;
-    tf2::fromMsg(odom_to_base_link_msg.transform, odom_to_base_link_tf);
-
-    tf2::Transform map_to_odom_tf = map_to_base_link_tf * odom_to_base_link_tf.inverse();
-    geometry_msgs::msg::TransformStamped map_to_odom_stamped;
-    map_to_odom_stamped.header.stamp = msg->header.stamp;
-    map_to_odom_stamped.header.frame_id = global_frame_id_;
-    map_to_odom_stamped.child_frame_id = odom_frame_id_;
-    map_to_odom_stamped.transform = tf2::toMsg(map_to_odom_tf);
-    static_broadcaster_.sendTransform(map_to_odom_stamped);
-
-    geometry_msgs::msg::PoseStamped::SharedPtr pose_stamped_ptr(new geometry_msgs::msg::PoseStamped);
-    pose_stamped_ptr->header.stamp = msg->header.stamp;
-    pose_stamped_ptr->header.frame_id = global_frame_id_;
-    pose_stamped_ptr->pose = corrent_pose_with_cov_stamped_ptr_->pose.pose;
-    path_ptr_->poses.push_back(*pose_stamped_ptr);
-    path_pub_->publish(*path_ptr_);
+  geometry_msgs::msg::TransformStamped odom_to_cloud_msg;
+  try {
+    odom_to_cloud_msg = tfbuffer_.lookupTransform(
+      odom_frame_id_, cloud_frame, msg->header.stamp, rclcpp::Duration::from_seconds(1.0));
+  } catch (tf2::TransformException & ex) {
+    RCLCPP_WARN(
+      this->get_logger(), "Could not get transform %s to %s: %s",
+      cloud_frame.c_str(), odom_frame_id_.c_str(), ex.what());
+    return;
   }
+  tf2::Transform odom_to_cloud_tf;
+  tf2::fromMsg(odom_to_cloud_msg.transform, odom_to_cloud_tf);
+
+  tf2::Transform map_to_odom_tf = map_to_cloud_tf * odom_to_cloud_tf.inverse();
+  geometry_msgs::msg::TransformStamped map_to_odom_stamped;
+  map_to_odom_stamped.header.stamp = msg->header.stamp;
+  map_to_odom_stamped.header.frame_id = global_frame_id_;
+  map_to_odom_stamped.child_frame_id = odom_frame_id_;
+  map_to_odom_stamped.transform = tf2::toMsg(map_to_odom_tf);
+  static_broadcaster_.sendTransform(map_to_odom_stamped);
+
+  geometry_msgs::msg::PoseStamped::SharedPtr pose_stamped_ptr(new geometry_msgs::msg::PoseStamped);
+  pose_stamped_ptr->header.stamp = msg->header.stamp;
+  pose_stamped_ptr->header.frame_id = global_frame_id_;
+  pose_stamped_ptr->pose = corrent_pose_with_cov_stamped_ptr_->pose.pose;
+  path_ptr_->poses.push_back(*pose_stamped_ptr);
+  path_pub_->publish(*path_ptr_);
 
   last_scan_ptr_ = msg;
 
@@ -676,62 +633,6 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
     double delta_angle = abs(atan2(sin(init_angle - angle), cos(init_angle - angle)));
     std::cout << "delta_angle:" << delta_angle * 180 / M_PI << "[deg]" << std::endl;
     std::cout << "-----------------------------------------------------" << std::endl;
-  }
-}
-
-void PCLLocalization::timerPublishPose()
-{
-  if (!corrent_pose_with_cov_stamped_ptr_) {return;}
-  geometry_msgs::msg::PoseWithCovarianceStamped pose_copy = *corrent_pose_with_cov_stamped_ptr_;
-  pose_copy.header.stamp = now();
-
-  geometry_msgs::msg::PoseStamped stamped;
-  stamped.header = pose_copy.header;
-  stamped.header.frame_id = global_frame_id_;
-  stamped.pose = pose_copy.pose.pose;
-  path_ptr_->poses.push_back(stamped);
-
-  nav_msgs::msg::Path path_copy = *path_ptr_;
-
-  pose_pub_->publish(pose_copy);
-  path_pub_->publish(path_copy);
-
-  geometry_msgs::msg::TransformStamped map_to_base_link_stamped;
-  map_to_base_link_stamped.header.stamp = pose_copy.header.stamp;
-  map_to_base_link_stamped.header.frame_id = global_frame_id_;
-  map_to_base_link_stamped.child_frame_id = base_frame_id_;
-  map_to_base_link_stamped.transform.translation.x = pose_copy.pose.pose.position.x;
-  map_to_base_link_stamped.transform.translation.y = pose_copy.pose.pose.position.y;
-  map_to_base_link_stamped.transform.translation.z = pose_copy.pose.pose.position.z;
-  map_to_base_link_stamped.transform.rotation = pose_copy.pose.pose.orientation;
-
-  if (!enable_map_odom_tf_) {
-    broadcaster_.sendTransform(map_to_base_link_stamped);
-  } else {
-    tf2::Transform map_to_base_link_tf;
-    tf2::fromMsg(map_to_base_link_stamped.transform, map_to_base_link_tf);
-
-    geometry_msgs::msg::TransformStamped odom_to_base_link_msg;
-    try {
-      odom_to_base_link_msg = tfbuffer_.lookupTransform(
-        odom_frame_id_, base_frame_id_, pose_copy.header.stamp, rclcpp::Duration::from_seconds(0.1));
-    } catch (tf2::TransformException & ex) {
-      RCLCPP_WARN(
-        this->get_logger(), "Could not get transform %s to %s: %s",
-        base_frame_id_.c_str(), odom_frame_id_.c_str(), ex.what());
-      return;
-    }
-    tf2::Transform odom_to_base_link_tf;
-    tf2::fromMsg(odom_to_base_link_msg.transform, odom_to_base_link_tf);
-
-    tf2::Transform map_to_odom_tf = map_to_base_link_tf * odom_to_base_link_tf.inverse();
-    geometry_msgs::msg::TransformStamped map_to_odom_stamped;
-    map_to_odom_stamped.header.stamp = pose_copy.header.stamp;
-    map_to_odom_stamped.header.frame_id = global_frame_id_;
-    map_to_odom_stamped.child_frame_id = odom_frame_id_;
-    map_to_odom_stamped.transform = tf2::toMsg(map_to_odom_tf);
-    
-    static_broadcaster_.sendTransform(map_to_odom_stamped);
   }
 }
 
