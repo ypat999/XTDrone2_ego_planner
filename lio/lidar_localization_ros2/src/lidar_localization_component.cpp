@@ -37,6 +37,8 @@ PCLLocalization::PCLLocalization(const rclcpp::NodeOptions & options)
   declare_parameter("use_odom", false);
   declare_parameter("use_imu", false);
   declare_parameter("enable_debug", false);
+  declare_parameter("enable_timer_publishing", false);
+  declare_parameter("pose_publish_frequency", 10.0);
 
   // New parameters for improved localization
   declare_parameter("displacement_threshold", 0.3);  // meters
@@ -216,6 +218,8 @@ void PCLLocalization::initializeParameters()
   get_parameter("use_odom", use_odom_);
   get_parameter("use_imu", use_imu_);
   get_parameter("enable_debug", enable_debug_);
+  get_parameter("enable_timer_publishing", enable_timer_publishing);
+  get_parameter("pose_publish_frequency", pose_publish_frequency_);
 
   // New parameters for improved localization
   get_parameter("displacement_threshold", displacement_threshold_);
@@ -243,6 +247,8 @@ void PCLLocalization::initializeParameters()
   RCLCPP_INFO(get_logger(),"use_odom: %d", use_odom_);
   RCLCPP_INFO(get_logger(),"use_imu: %d", use_imu_);
   RCLCPP_INFO(get_logger(),"enable_debug: %d", enable_debug_);
+  RCLCPP_INFO(get_logger(),"enable_timer_publishing: %d", enable_timer_publishing);
+  RCLCPP_INFO(get_logger(),"pose_publish_frequency: %lf", pose_publish_frequency_);
   RCLCPP_INFO(get_logger(),"displacement_threshold: %lf", displacement_threshold_);
   RCLCPP_INFO(get_logger(),"search_radius: %lf", search_radius_);
   RCLCPP_INFO(get_logger(),"search_grid_size: %d", search_grid_size_);
@@ -356,7 +362,10 @@ void PCLLocalization::initialPoseReceived(const geometry_msgs::msg::PoseWithCova
   pose_pub_->publish(*corrent_pose_with_cov_stamped_ptr_);
 
   if(last_scan_ptr_) {
-    cloudReceived(last_scan_ptr_);
+    // Create a copy of the last scan with updated timestamp to avoid TF extrapolation errors
+    auto updated_scan = std::make_shared<sensor_msgs::msg::PointCloud2>(*last_scan_ptr_);
+    updated_scan->header.stamp = msg->header.stamp; // Use current timestamp
+    cloudReceived(updated_scan);
   }
 
   RCLCPP_INFO(get_logger(), "initialPoseReceived end");
@@ -537,6 +546,19 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
     return;
   }
 
+  // Query and save odom->base_frame transform BEFORE registration to avoid motion during computation
+  // Always use base_frame_id regardless of the actual point cloud frame_id
+  geometry_msgs::msg::TransformStamped odom_to_base_msg;
+  try {
+    odom_to_base_msg = tfbuffer_.lookupTransform(
+      odom_frame_id_, base_frame_id_, msg->header.stamp, rclcpp::Duration::from_seconds(1.0));
+  } catch (tf2::TransformException & ex) {
+    RCLCPP_WARN(
+      this->get_logger(), "Could not get transform %s to %s: %s",
+      odom_frame_id_.c_str(), base_frame_id_.c_str(), ex.what());
+    return;
+  }
+
   pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud(new pcl::PointCloud<pcl::PointXYZI>);
   rclcpp::Clock system_clock;
   rclcpp::Time time_align_start = system_clock.now();
@@ -554,7 +576,8 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
     return;
   }
   if (fitness_score > score_threshold_) {
-    RCLCPP_WARN(get_logger(), "The fitness score is over %lf.", score_threshold_);
+    RCLCPP_WARN(get_logger(), "The fitness score is over %lf. Rejecting transformation.", score_threshold_);
+    return;
   }
   Eigen::Matrix3d rot_mat = final_transformation.block<3, 3>(0, 0).cast<double>();
   Eigen::Quaterniond quat_eig(rot_mat);
@@ -567,47 +590,110 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
   corrent_pose_with_cov_stamped_ptr_->pose.pose.position.z = static_cast<double>(final_transformation(2, 3));
   corrent_pose_with_cov_stamped_ptr_->pose.pose.orientation = quat_msg;
     
-  pose_pub_->publish(*corrent_pose_with_cov_stamped_ptr_);
+  // publish here if timer is not enabled
 
-  geometry_msgs::msg::TransformStamped map_to_cloud_stamped;
-  map_to_cloud_stamped.header.stamp = msg->header.stamp;
-  map_to_cloud_stamped.header.frame_id = global_frame_id_;
-  map_to_cloud_stamped.child_frame_id = cloud_frame;
-  map_to_cloud_stamped.transform.translation.x = static_cast<double>(final_transformation(0, 3));
-  map_to_cloud_stamped.transform.translation.y = static_cast<double>(final_transformation(1, 3));
-  map_to_cloud_stamped.transform.translation.z = static_cast<double>(final_transformation(2, 3));
-  map_to_cloud_stamped.transform.rotation = quat_msg;
+  if (!enable_timer_publishing){
+    pose_pub_->publish(*corrent_pose_with_cov_stamped_ptr_);
 
-  tf2::Transform map_to_cloud_tf;
-  tf2::fromMsg(map_to_cloud_stamped.transform, map_to_cloud_tf);
+    // Create map_to_base_frame transform (this is the actual registration result)
+    geometry_msgs::msg::TransformStamped map_to_base_stamped;
+    map_to_base_stamped.header.stamp = msg->header.stamp;
+    map_to_base_stamped.header.frame_id = global_frame_id_;
+    map_to_base_stamped.child_frame_id = base_frame_id_;
+    map_to_base_stamped.transform.translation.x = static_cast<double>(final_transformation(0, 3));
+    map_to_base_stamped.transform.translation.y = static_cast<double>(final_transformation(1, 3));
+    map_to_base_stamped.transform.translation.z = static_cast<double>(final_transformation(2, 3));
+    map_to_base_stamped.transform.rotation = quat_msg;
 
-  geometry_msgs::msg::TransformStamped odom_to_cloud_msg;
-  try {
-    odom_to_cloud_msg = tfbuffer_.lookupTransform(
-      odom_frame_id_, cloud_frame, msg->header.stamp, rclcpp::Duration::from_seconds(1.0));
-  } catch (tf2::TransformException & ex) {
-    RCLCPP_WARN(
-      this->get_logger(), "Could not get transform %s to %s: %s",
-      cloud_frame.c_str(), odom_frame_id_.c_str(), ex.what());
-    return;
+    tf2::Transform map_to_base_tf;
+    tf2::fromMsg(map_to_base_stamped.transform, map_to_base_tf);
+
+    tf2::Transform odom_to_base_tf;
+    tf2::fromMsg(odom_to_base_msg.transform, odom_to_base_tf);
+
+    // Debug: Log the individual transformations
+    if (enable_debug_) {
+      tf2::Vector3 map_to_base_trans = map_to_base_tf.getOrigin();
+      tf2::Quaternion map_to_base_rot = map_to_base_tf.getRotation();
+      tf2::Vector3 odom_to_base_trans = odom_to_base_tf.getOrigin();
+      tf2::Quaternion odom_to_base_rot = odom_to_base_tf.getRotation();
+      
+      double map_to_base_roll, map_to_base_pitch, map_to_base_yaw;
+      tf2::Matrix3x3(map_to_base_rot).getRPY(map_to_base_roll, map_to_base_pitch, map_to_base_yaw);
+      
+      double odom_to_base_roll, odom_to_base_pitch, odom_to_base_yaw;
+      tf2::Matrix3x3(odom_to_base_rot).getRPY(odom_to_base_roll, odom_to_base_pitch, odom_to_base_yaw);
+      
+      RCLCPP_INFO(get_logger(), "map_to_base: trans=(%.3f, %.3f, %.3f), rot=(%.3f, %.3f, %.3f) deg", 
+                 map_to_base_trans.x(), map_to_base_trans.y(), map_to_base_trans.z(),
+                 map_to_base_roll * 180.0 / M_PI, map_to_base_pitch * 180.0 / M_PI, map_to_base_yaw * 180.0 / M_PI);
+      
+      RCLCPP_INFO(get_logger(), "odom_to_base: trans=(%.3f, %.3f, %.3f), rot=(%.3f, %.3f, %.3f) deg", 
+                 odom_to_base_trans.x(), odom_to_base_trans.y(), odom_to_base_trans.z(),
+                 odom_to_base_roll * 180.0 / M_PI, odom_to_base_pitch * 180.0 / M_PI, odom_to_base_yaw * 180.0 / M_PI);
+    }
+
+    // Calculate map_to_odom transformation: 
+    // The correct chain should be: map_to_odom = map_to_base * base_to_odom
+    // where base_to_odom = (odom_to_base)^-1
+    // 
+    // This ensures that regardless of the point cloud's actual frame_id,
+    // we always use base_frame_id as the reference for TF compensation
+    // 
+    // The mathematical relationship is:
+    // map_to_odom = map_to_base * (odom_to_base)^-1
+    
+    tf2::Transform map_to_odom_tf = map_to_base_tf * odom_to_base_tf.inverse();
+    
+    // Debug: Log the final transformation and verify the chain
+    if (enable_debug_) {
+      tf2::Vector3 map_to_odom_trans = map_to_odom_tf.getOrigin();
+      tf2::Quaternion map_to_odom_rot = map_to_odom_tf.getRotation();
+      
+      double map_to_odom_roll, map_to_odom_pitch, map_to_odom_yaw;
+      tf2::Matrix3x3(map_to_odom_rot).getRPY(map_to_odom_roll, map_to_odom_pitch, map_to_odom_yaw);
+      
+      RCLCPP_INFO(get_logger(), "map_to_odom: trans=(%.3f, %.3f, %.3f), rot=(%.3f, %.3f, %.3f) deg", 
+                 map_to_odom_trans.x(), map_to_odom_trans.y(), map_to_odom_trans.z(),
+                 map_to_odom_roll * 180.0 / M_PI, map_to_odom_pitch * 180.0 / M_PI, map_to_odom_yaw * 180.0 / M_PI);
+      
+      // Verify: The expected result should have minimal X/Y rotation since:
+      // map_to_base has (0, 0, -177) deg
+      // odom_to_base has (-1, 32, 0) deg  
+      // odom_to_base.inverse() should have (1, -32, 0) deg to cancel the tilt
+      // So map_to_odom should have approximately (1, -32, -177) deg
+      
+      RCLCPP_INFO(get_logger(), "Expected: rot≈(1.0, -32.4, -177.2) deg, Actual: rot=(%.3f, %.3f, %.3f) deg", 
+                 map_to_odom_roll * 180.0 / M_PI, map_to_odom_pitch * 180.0 / M_PI, map_to_odom_yaw * 180.0 / M_PI);
+    }
+    
+    // Validate the transformation to ensure it's reasonable
+    double translation_norm = sqrt(pow(map_to_odom_tf.getOrigin().x(), 2) + 
+                                  pow(map_to_odom_tf.getOrigin().y(), 2) + 
+                                  pow(map_to_odom_tf.getOrigin().z(), 2));
+    
+    if (translation_norm > 100.0) { // Arbitrary large threshold for validation
+      RCLCPP_WARN(get_logger(), "Map to odom transformation seems unreasonable (norm: %.3f). Skipping TF publication.", translation_norm);
+    } else {
+      geometry_msgs::msg::TransformStamped map_to_odom_stamped;
+      map_to_odom_stamped.header.stamp = msg->header.stamp;
+      map_to_odom_stamped.header.frame_id = global_frame_id_;
+      map_to_odom_stamped.child_frame_id = odom_frame_id_;
+      map_to_odom_stamped.transform = tf2::toMsg(map_to_odom_tf);
+      static_broadcaster_.sendTransform(map_to_odom_stamped);
+      
+      if (enable_debug_) {
+        RCLCPP_INFO(get_logger(), "Published map to odom TF");
+      }
+    }
+
+    geometry_msgs::msg::PoseStamped::SharedPtr pose_stamped_ptr(new geometry_msgs::msg::PoseStamped);
+    pose_stamped_ptr->header.stamp = msg->header.stamp;
+    pose_stamped_ptr->header.frame_id = global_frame_id_;
+    pose_stamped_ptr->pose = corrent_pose_with_cov_stamped_ptr_->pose.pose;
+    path_ptr_->poses.push_back(*pose_stamped_ptr);
+    path_pub_->publish(*path_ptr_);
   }
-  tf2::Transform odom_to_cloud_tf;
-  tf2::fromMsg(odom_to_cloud_msg.transform, odom_to_cloud_tf);
-
-  tf2::Transform map_to_odom_tf = map_to_cloud_tf * odom_to_cloud_tf.inverse();
-  geometry_msgs::msg::TransformStamped map_to_odom_stamped;
-  map_to_odom_stamped.header.stamp = msg->header.stamp;
-  map_to_odom_stamped.header.frame_id = global_frame_id_;
-  map_to_odom_stamped.child_frame_id = odom_frame_id_;
-  map_to_odom_stamped.transform = tf2::toMsg(map_to_odom_tf);
-  static_broadcaster_.sendTransform(map_to_odom_stamped);
-
-  geometry_msgs::msg::PoseStamped::SharedPtr pose_stamped_ptr(new geometry_msgs::msg::PoseStamped);
-  pose_stamped_ptr->header.stamp = msg->header.stamp;
-  pose_stamped_ptr->header.frame_id = global_frame_id_;
-  pose_stamped_ptr->pose = corrent_pose_with_cov_stamped_ptr_->pose.pose;
-  path_ptr_->poses.push_back(*pose_stamped_ptr);
-  path_pub_->publish(*path_ptr_);
 
   last_scan_ptr_ = msg;
 
@@ -707,7 +793,7 @@ PCLLocalization::SearchResult PCLLocalization::searchOptimalTransformation(
   bool best_has_converged = false;
   
   // Calculate step size for z-axis search only
-  double step_size = (2.0 * search_radius_) / (search_grid_size_ - 1);
+  double step_size = (search_radius_ * 2) / (search_grid_size_ - 1);
   
   // Perform z-axis search only (since initial pose is 2D input, only need to search upward)
   for (int k = 0; k < search_grid_size_; ++k) {
@@ -754,6 +840,10 @@ PCLLocalization::SearchResult PCLLocalization::searchOptimalTransformation(
     
     if (test_registration->hasConverged()) {
       double fitness_score = test_registration->getFitnessScore();
+      if (enable_debug_) {
+        RCLCPP_INFO(get_logger(), "x: %.3f, y: %.3f, z: %.3f, fitness: %.3f",
+          test_guess(0,3), test_guess(1,3), test_guess(2,3), fitness_score);
+      }
       
       if (fitness_score < best_fitness_score) {
         best_fitness_score = fitness_score;

@@ -125,6 +125,8 @@ public:
   bool use_imu_{false};
   bool enable_debug_{false};
   bool enable_map_odom_tf_{false};
+  bool enable_timer_publishing{false};
+  double pose_publish_frequency_{1.0};
 
   int ndt_num_threads_;
   int ndt_max_iterations_;
