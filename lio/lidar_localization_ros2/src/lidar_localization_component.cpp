@@ -593,7 +593,8 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
     return;
   }
   if (fitness_score > score_threshold_) {
-    RCLCPP_WARN(get_logger(), "The fitness score is over %lf.", score_threshold_);
+    RCLCPP_WARN(get_logger(), "The fitness score is over %lf. Rejecting transformation.", score_threshold_);
+    return;
   }
   Eigen::Matrix3d rot_mat = final_transformation.block<3, 3>(0, 0).cast<double>();
   Eigen::Quaterniond quat_eig(rot_mat);
