@@ -8,6 +8,7 @@ Panels:
         - /TF1
         - /TF1/Frames1
         - /TF1/Tree1
+        - /PointCloud2_lio1
         - /PointCloud2_inflate1/Topic1
         - /InteractiveMarkers1
         - /PointCloud2_map1
@@ -31,7 +32,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: PointCloud2_lio
+    SyncSource: PointCloud2_map
 Visualization Manager:
   Class: ""
   Displays:
@@ -318,25 +319,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 31.092466354370117
+      Distance: 37.887210845947266
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 21.543067932128906
-        Y: 14.533353805541992
-        Z: 4.189929485321045
+        X: 16.21634864807129
+        Y: 11.140829086303711
+        Z: 4.193243026733398
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.4347964525222778
+      Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.5730550289154053
+      Yaw: 1.593055009841919
     Saved: ~
 Window Geometry:
   Displays:
