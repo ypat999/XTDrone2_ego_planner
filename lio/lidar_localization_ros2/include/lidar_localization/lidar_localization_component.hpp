@@ -1,5 +1,6 @@
 #include <chrono>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <string>
 #include <thread>
@@ -144,6 +145,11 @@ public:
   double last_localization_y_{0.0};
   double last_localization_z_{0.0};
   bool first_localization_done_{false};  // Track if first localization is done
+  
+  // Dynamic score threshold mechanism
+  double current_fitness_score_{std::numeric_limits<double>::max()};  // Track current best fitness score
+  bool enable_dynamic_threshold_{true};  // Enable dynamic threshold mechanism
+  double dynamic_threshold_factor_{2.0};  // Factor for dynamic threshold (new score must be <= current * factor)
   
   // Helper methods
   double calculateDisplacement(const geometry_msgs::msg::Pose& current_pose);

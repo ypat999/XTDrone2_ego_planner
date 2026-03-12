@@ -46,6 +46,10 @@ PCLLocalization::PCLLocalization(const rclcpp::NodeOptions & options)
   declare_parameter("search_grid_size", 5);          // grid points per dimension
   declare_parameter("enable_displacement_check", true);
   declare_parameter("enable_search_optimization", true);
+  
+  // New parameters for dynamic score threshold mechanism
+  declare_parameter("enable_dynamic_threshold", true);
+  declare_parameter("dynamic_threshold_factor", 2.0);
 }
 
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
@@ -228,6 +232,10 @@ void PCLLocalization::initializeParameters()
   get_parameter("enable_displacement_check", enable_displacement_check_);
   get_parameter("enable_search_optimization", enable_search_optimization_);
 
+  // New parameters for dynamic score threshold mechanism
+  get_parameter("enable_dynamic_threshold", enable_dynamic_threshold_);
+  get_parameter("dynamic_threshold_factor", dynamic_threshold_factor_);
+
   RCLCPP_INFO(get_logger(),"global_frame_id: %s", global_frame_id_.c_str());
   RCLCPP_INFO(get_logger(),"odom_frame_id: %s", odom_frame_id_.c_str());
   RCLCPP_INFO(get_logger(),"base_frame_id: %s", base_frame_id_.c_str());
@@ -254,6 +262,8 @@ void PCLLocalization::initializeParameters()
   RCLCPP_INFO(get_logger(),"search_grid_size: %d", search_grid_size_);
   RCLCPP_INFO(get_logger(),"enable_displacement_check: %d", enable_displacement_check_);
   RCLCPP_INFO(get_logger(),"enable_search_optimization: %d", enable_search_optimization_);
+  RCLCPP_INFO(get_logger(),"enable_dynamic_threshold: %d", enable_dynamic_threshold_);
+  RCLCPP_INFO(get_logger(),"dynamic_threshold_factor: %lf", dynamic_threshold_factor_);
 }
 
 void PCLLocalization::initializePubSub()
@@ -575,9 +585,32 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
     RCLCPP_WARN(get_logger(), "The registration didn't converge.");
     return;
   }
-  if (fitness_score > score_threshold_) {
-    RCLCPP_WARN(get_logger(), "The fitness score is over %lf. Rejecting transformation.", score_threshold_);
+  
+  // Dynamic score threshold mechanism
+  double effective_threshold = score_threshold_;
+  if (enable_dynamic_threshold_) {
+    if (!first_localization_done_) {
+      // First localization: accept any score that meets the basic threshold
+      effective_threshold = score_threshold_;
+      RCLCPP_INFO(get_logger(), "First localization, using base threshold: %lf", effective_threshold);
+    } else {
+      // Subsequent localizations: use dynamic threshold based on current best score
+      effective_threshold = current_fitness_score_ * dynamic_threshold_factor_;
+      RCLCPP_DEBUG(get_logger(), "Dynamic threshold: %lf (current score: %lf, factor: %lf)", 
+                   effective_threshold, current_fitness_score_, dynamic_threshold_factor_);
+    }
+  }
+  
+  if (fitness_score > effective_threshold) {
+    RCLCPP_WARN(get_logger(), "The fitness score %lf is over threshold %lf. Rejecting transformation.", 
+                fitness_score, effective_threshold);
     return;
+  }
+  
+  // Update current fitness score if this is a better result
+  if (fitness_score < current_fitness_score_) {
+    current_fitness_score_ = fitness_score;
+    RCLCPP_INFO(get_logger(), "Updated current fitness score to: %lf", current_fitness_score_);
   }
   Eigen::Matrix3d rot_mat = final_transformation.block<3, 3>(0, 0).cast<double>();
   Eigen::Quaterniond quat_eig(rot_mat);
@@ -589,6 +622,12 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
   corrent_pose_with_cov_stamped_ptr_->pose.pose.position.y = static_cast<double>(final_transformation(1, 3));
   corrent_pose_with_cov_stamped_ptr_->pose.pose.position.z = static_cast<double>(final_transformation(2, 3));
   corrent_pose_with_cov_stamped_ptr_->pose.pose.orientation = quat_msg;
+  
+  // Mark first localization as done after successful pose update
+  if (!first_localization_done_) {
+    first_localization_done_ = true;
+    RCLCPP_INFO(get_logger(), "First localization completed successfully");
+  }
     
   // publish here if timer is not enabled
 
