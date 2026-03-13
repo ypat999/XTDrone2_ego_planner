@@ -173,7 +173,7 @@ CallbackReturn PCLLocalization::on_cleanup(const rclcpp_lifecycle::State &)
   cloud_sub_.reset();
   imu_sub_.reset();
 
-  if (enable_timer_publishing_){
+  if (enable_timer_publishing){
     pose_publish_timer_.reset();
   }
 
@@ -226,7 +226,7 @@ void PCLLocalization::initializeParameters()
   get_parameter("use_odom", use_odom_);
   get_parameter("use_imu", use_imu_);
   get_parameter("enable_debug", enable_debug_);
-  get_parameter("enable_timer_publishing", enable_timer_publishing_);
+  get_parameter("enable_timer_publishing", enable_timer_publishing);
   get_parameter("pose_publish_frequency", pose_publish_frequency_);
 
   // New parameters for improved localization
@@ -259,7 +259,7 @@ void PCLLocalization::initializeParameters()
   RCLCPP_INFO(get_logger(),"use_odom: %d", use_odom_);
   RCLCPP_INFO(get_logger(),"use_imu: %d", use_imu_);
   RCLCPP_INFO(get_logger(),"enable_debug: %d", enable_debug_);
-  RCLCPP_INFO(get_logger(),"enable_timer_publishing: %d", enable_timer_publishing_);
+  RCLCPP_INFO(get_logger(),"enable_timer_publishing: %d", enable_timer_publishing);
   RCLCPP_INFO(get_logger(),"pose_publish_frequency: %lf", pose_publish_frequency_);
   RCLCPP_INFO(get_logger(),"displacement_threshold: %lf", displacement_threshold_);
   RCLCPP_INFO(get_logger(),"search_radius: %lf", search_radius_);
@@ -306,7 +306,7 @@ void PCLLocalization::initializePubSub()
     "imu", rclcpp::QoS(rclcpp::KeepLast(100)).best_effort(),
     std::bind(&PCLLocalization::imuReceived, this, std::placeholders::_1));
 
-  if (enable_timer_publishing_) {
+  if (enable_timer_publishing) {
     auto period = std::chrono::duration<double>(1.0 / pose_publish_frequency_);
     pose_publish_timer_ = create_wall_timer(
       std::chrono::duration_cast<std::chrono::nanoseconds>(period),
@@ -649,7 +649,7 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
     
   // publish here if timer is not enabled
 
-  if (!enable_timer_publishing_){
+  if (!enable_timer_publishing){
     pose_pub_->publish(*corrent_pose_with_cov_stamped_ptr_);
 
     geometry_msgs::msg::TransformStamped map_to_base_link_stamped;

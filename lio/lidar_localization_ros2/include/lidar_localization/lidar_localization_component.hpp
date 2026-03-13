@@ -63,6 +63,7 @@ public:
   void odomReceived(const nav_msgs::msg::Odometry::ConstSharedPtr msg);
   void imuReceived(const sensor_msgs::msg::Imu::ConstSharedPtr msg);
   void cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
+  void timerPublishPose();
   // void gnssReceived();
 
   tf2_ros::TransformBroadcaster broadcaster_;
@@ -87,6 +88,8 @@ public:
     cloud_sub_;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::ConstSharedPtr
     imu_sub_;
+
+  rclcpp::TimerBase::SharedPtr pose_publish_timer_;
 
   boost::shared_ptr<pcl::Registration<pcl::PointXYZI, pcl::PointXYZI>> registration_;
   pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_filter_;
