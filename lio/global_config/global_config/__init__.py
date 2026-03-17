@@ -138,7 +138,7 @@ config_by_machine = {
     },
     'lubancat': {
         # lubancat主机配置 - LIO-SAM
-        'ONLINE_LIDAR': False,
+        'ONLINE_LIDAR': True,
         'LIO_SAM_BASE_CODE_PATH': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/LIO-SAM_MID360_ROS2_DOG/',
         'DEFAULT_BAG_PATH': '/home/cat/slam_data/livox_record_new/',
         'DEFAULT_RELIABILITY_OVERRIDE': '/home/cat/slam_data/reliability_override.yaml',
