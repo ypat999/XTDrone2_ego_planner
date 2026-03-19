@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'accel_test = xtd2_test.communication_test.accel_test:main',
+            'rosbag_player = xtd2_test.rosbag_player:main',
         ],
     },
 )

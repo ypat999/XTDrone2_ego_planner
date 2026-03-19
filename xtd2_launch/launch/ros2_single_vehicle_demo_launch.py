@@ -87,7 +87,8 @@ def generate_launch_description():
             "--model", LaunchConfiguration('model_name'),
             "--id", LaunchConfiguration('id'),
             "--namespace", LaunchConfiguration('namespace'),
-            "--debug", "true"
+            "--debug", "true",
+            "--allow-arm", "false"
         ]
     )
 

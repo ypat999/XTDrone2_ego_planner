@@ -82,6 +82,21 @@ ros2 launch xtd2_launch ego_planner_launch.py
 ros2 launch ego_planner rviz.launch.py
 ```
 
+#### 4. 点云数据
+```bash
+# 记录点云数据
+cd ~/git/xtd2_ws && source install/setup.bash
+ros2 bag record -o /home/cat/slam_data/livox_record/ /livox/lidar /livox/imu
+
+# 播放bag
+cd ~/git/xtd2_ws && source install/setup.bash
+# ros2 bag play /home/cat/slam_data/livox_record/ --clock --loop
+ros2 run xtd2_test rosbag_player /home/cat/slam_data/livox_record/livox_record/
+
+# 保存fastlio点云
+ros2 service call /map_save std_srvs/srv/Trigger {}
+```
+
 ### 地面站QGC
 ```bash
 ./QGroundControl-x86_64.AppImage
