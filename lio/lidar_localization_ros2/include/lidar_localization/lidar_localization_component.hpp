@@ -149,6 +149,11 @@ public:
   double last_localization_z_{0.0};
   bool first_localization_done_{false};  // Track if first localization is done
   
+  // Angle search optimization parameters
+  bool enable_angle_search_{true};       // Enable angle search for better rotation convergence
+  double angle_search_range_{0.349};     // Angle search range in radians (±20 degrees)
+  int angle_search_steps_{9};            // Number of angle steps to try
+  
   // Dynamic score threshold mechanism
   double current_fitness_score_{std::numeric_limits<double>::max()};  // Track current best fitness score
   bool enable_dynamic_threshold_{true};  // Enable dynamic threshold mechanism

@@ -86,9 +86,9 @@ def generate_launch_description():
         arguments=[
             "--model", LaunchConfiguration('model_name'),
             "--id", LaunchConfiguration('id'),
+            "--allowarm", "false",
             "--namespace", LaunchConfiguration('namespace'),
-            "--debug", "true",
-            "--allow-arm", "false"
+            "--debug", "true"
         ]
     )
 
@@ -102,8 +102,39 @@ def generate_launch_description():
         shell=False
     )
 
-    #######################
-    # EGO Planner Launch #
+    ##############################
+    # Super LIO (真实飞机环境下启动)
+    ##############################
+    super_lio_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare('super_lio'),
+                'launch',
+                'Livox_mid360.py'
+            ])
+        ]),
+        launch_arguments={
+            'rviz': 'false',
+            'use_sim_time': use_sim_time_str,
+        }.items()
+    )
+
+    ##############################
+    # Lidar Localization
+    ##############################
+    lidar_localization_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare('lidar_localization_ros2'),
+                'launch',
+                'lidar_localization.launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'rviz': 'false',
+            'use_sim_time': use_sim_time_str,
+        }.items()
+    )
     #######################
     ego_planner_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
@@ -195,20 +226,7 @@ exit 1
     ld.add_action(wait_for_px4_odom)  # 等待px4_odom_topic发布
     
 
-    # Super LIO (真实飞机环境下启动)
-    super_lio_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            PathJoinSubstitution([
-                FindPackageShare('super_lio'),
-                'launch',
-                'Livox_mid360.py'
-            ])
-        ]),
-        launch_arguments={
-            'rviz': 'false',
-            'use_sim_time': use_sim_time_str,
-        }.items()
-    )
+    
 
      # Add all nodes to the launch description
     ld.add_action(
@@ -237,7 +255,8 @@ exit 1
                 target_action=wait_for_px4_odom,
                 on_exit=[
                     ego_planner_launch,
-                    super_lio_launch
+                    super_lio_launch,
+                    lidar_localization_launch
                 ]
             )
         )

@@ -47,6 +47,11 @@ PCLLocalization::PCLLocalization(const rclcpp::NodeOptions & options)
   declare_parameter("enable_displacement_check", true);
   declare_parameter("enable_search_optimization", true);
   
+  // New parameters for angle search optimization
+  declare_parameter("enable_angle_search", true);
+  declare_parameter("angle_search_range", 0.349);   // radians (±20 degrees)
+  declare_parameter("angle_search_steps", 9);
+  
   // New parameters for dynamic score threshold mechanism
   declare_parameter("enable_dynamic_threshold", true);
   declare_parameter("dynamic_threshold_factor", 2.0);
@@ -236,6 +241,11 @@ void PCLLocalization::initializeParameters()
   get_parameter("enable_displacement_check", enable_displacement_check_);
   get_parameter("enable_search_optimization", enable_search_optimization_);
 
+  // New parameters for angle search optimization
+  get_parameter("enable_angle_search", enable_angle_search_);
+  get_parameter("angle_search_range", angle_search_range_);
+  get_parameter("angle_search_steps", angle_search_steps_);
+
   // New parameters for dynamic score threshold mechanism
   get_parameter("enable_dynamic_threshold", enable_dynamic_threshold_);
   get_parameter("dynamic_threshold_factor", dynamic_threshold_factor_);
@@ -266,6 +276,9 @@ void PCLLocalization::initializeParameters()
   RCLCPP_INFO(get_logger(),"search_grid_size: %d", search_grid_size_);
   RCLCPP_INFO(get_logger(),"enable_displacement_check: %d", enable_displacement_check_);
   RCLCPP_INFO(get_logger(),"enable_search_optimization: %d", enable_search_optimization_);
+  RCLCPP_INFO(get_logger(),"enable_angle_search: %d", enable_angle_search_);
+  RCLCPP_INFO(get_logger(),"angle_search_range: %lf (deg: %lf)", angle_search_range_, angle_search_range_ * 180.0 / M_PI);
+  RCLCPP_INFO(get_logger(),"angle_search_steps: %d", angle_search_steps_);
   RCLCPP_INFO(get_logger(),"enable_dynamic_threshold: %d", enable_dynamic_threshold_);
   RCLCPP_INFO(get_logger(),"dynamic_threshold_factor: %lf", dynamic_threshold_factor_);
 }
@@ -838,68 +851,111 @@ PCLLocalization::SearchResult PCLLocalization::searchOptimalTransformation(
   }
   
   RCLCPP_INFO(get_logger(), "Performing search optimization with radius %lf m", search_radius_);
+  if (enable_angle_search_) {
+    RCLCPP_INFO(get_logger(), "Angle search enabled: range %.3f rad (%.1f deg), %d steps", 
+      angle_search_range_, angle_search_range_ * 180.0 / M_PI, angle_search_steps_);
+  }
   
-  // Extract initial position from transformation matrix
+  // Extract initial position and rotation from transformation matrix
   Eigen::Vector3f initial_position = initial_guess.block<3,1>(0,3);
+  Eigen::Matrix3f initial_rotation = initial_guess.block<3,3>(0,0);
+  Eigen::Vector3f initial_euler = initial_rotation.eulerAngles(0, 1, 2);
   
   double best_fitness_score = std::numeric_limits<double>::max();
   Eigen::Matrix4f best_transformation = initial_guess;
   bool best_has_converged = false;
   
-  // Calculate step size for z-axis search only
-  double step_size = (2.0 * search_radius_) / (search_grid_size_ - 1);
+  // Calculate step size for z-axis search
+  double z_step_size = (2.0 * search_radius_) / (search_grid_size_ - 1);
   
-  // Perform z-axis search only (since initial pose is 2D input, only need to search upward)
+  // Calculate angle step size for yaw search
+  double angle_step_size = (2.0 * angle_search_range_) / (angle_search_steps_ - 1);
+  
+  int total_searches = search_grid_size_;
+  if (enable_angle_search_) {
+    total_searches *= angle_search_steps_;
+  }
+  
+  RCLCPP_INFO(get_logger(), "Total search iterations: %d", total_searches);
+  
+  int search_count = 0;
+  
+  // Perform z-axis and angle search
   for (int k = 0; k < search_grid_size_; ++k) {
-    // Calculate offset for this grid point (only z-axis)
-    double z_offset = -search_radius_ + k * step_size;
+    // Calculate z offset for this grid point
+    double z_offset = -search_radius_ + k * z_step_size;
     
-    // Create transformation matrix with offset (only modify z)
-    Eigen::Matrix4f test_guess = initial_guess;
-    test_guess(0,3) = initial_position.x();  // Keep x unchanged
-    test_guess(1,3) = initial_position.y();  // Keep y unchanged
-    test_guess(2,3) = initial_position.z() + z_offset;  // Only search z-axis
-    
-    // Create a new registration object for each test to avoid state issues
-    boost::shared_ptr<pcl::Registration<pcl::PointXYZI, pcl::PointXYZI>> test_registration;
-    
-    if (registration_method_ == "NDT_OMP") {
-      pclomp::NormalDistributionsTransform<pcl::PointXYZI, pcl::PointXYZI>::Ptr ndt_omp(
-        new pclomp::NormalDistributionsTransform<pcl::PointXYZI, pcl::PointXYZI>());
-      ndt_omp->setStepSize(ndt_step_size_);
-      ndt_omp->setResolution(ndt_resolution_);
-      ndt_omp->setTransformationEpsilon(transform_epsilon_);
-      if (ndt_num_threads_ > 0) {
-        ndt_omp->setNumThreads(ndt_num_threads_);
-      }
-      ndt_omp->setMaximumIterations(ndt_max_iterations_);
-      ndt_omp->setInputTarget(registration_->getInputTarget());
-      test_registration = ndt_omp;
-    } else if (registration_method_ == "GICP_OMP") {
-      pclomp::GeneralizedIterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI>::Ptr gicp_omp(
-        new pclomp::GeneralizedIterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI>());
-      gicp_omp->setTransformationEpsilon(transform_epsilon_);
-      gicp_omp->setMaximumIterations(ndt_max_iterations_);
-      gicp_omp->setInputTarget(registration_->getInputTarget());
-      test_registration = gicp_omp;
-    } else {
-      // Fallback to standard registration
-      test_registration = registration_;
-    }
-    
-    // Perform registration with this initial guess
-    test_registration->setInputSource(cloud_ptr);
-    pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud(new pcl::PointCloud<pcl::PointXYZI>);
-    test_registration->align(*output_cloud, test_guess);
-    
-    if (test_registration->hasConverged()) {
-      double fitness_score = test_registration->getFitnessScore();
+    for (int a = 0; a < (enable_angle_search_ ? angle_search_steps_ : 1); ++a) {
+      search_count++;
       
-      if (fitness_score < best_fitness_score) {
-        best_fitness_score = fitness_score;
-        best_transformation = test_registration->getFinalTransformation();
-        best_has_converged = true;
-        RCLCPP_DEBUG(get_logger(), "Found better transformation with fitness score: %lf", fitness_score);
+      // Calculate yaw angle offset
+      double yaw_offset = 0.0;
+      if (enable_angle_search_) {
+        yaw_offset = -angle_search_range_ + a * angle_step_size;
+      }
+      
+      // Create transformation matrix with offset
+      Eigen::Matrix4f test_guess = initial_guess;
+      test_guess(0,3) = initial_position.x();  // Keep x unchanged
+      test_guess(1,3) = initial_position.y();  // Keep y unchanged
+      test_guess(2,3) = initial_position.z() + z_offset;  // Apply z offset
+      
+      // Apply yaw rotation (only modify yaw, keep roll and pitch)
+      Eigen::AngleAxisf roll_angle(initial_euler(0), Eigen::Vector3f::UnitX());
+      Eigen::AngleAxisf pitch_angle(initial_euler(1), Eigen::Vector3f::UnitY());
+      Eigen::AngleAxisf yaw_angle(initial_euler(2) + yaw_offset, Eigen::Vector3f::UnitZ());
+      
+      Eigen::Matrix3f rotation_matrix = (yaw_angle * pitch_angle * roll_angle).toRotationMatrix();
+      test_guess.block<3,3>(0,0) = rotation_matrix;
+      
+      // Create a new registration object for each test to avoid state issues
+      boost::shared_ptr<pcl::Registration<pcl::PointXYZI, pcl::PointXYZI>> test_registration;
+      
+      if (registration_method_ == "NDT_OMP") {
+        pclomp::NormalDistributionsTransform<pcl::PointXYZI, pcl::PointXYZI>::Ptr ndt_omp(
+          new pclomp::NormalDistributionsTransform<pcl::PointXYZI, pcl::PointXYZI>());
+        ndt_omp->setStepSize(ndt_step_size_);
+        ndt_omp->setResolution(ndt_resolution_);
+        ndt_omp->setTransformationEpsilon(transform_epsilon_);
+        if (ndt_num_threads_ > 0) {
+          ndt_omp->setNumThreads(ndt_num_threads_);
+        }
+        ndt_omp->setMaximumIterations(ndt_max_iterations_);
+        ndt_omp->setInputTarget(registration_->getInputTarget());
+        test_registration = ndt_omp;
+      } else if (registration_method_ == "GICP_OMP") {
+        pclomp::GeneralizedIterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI>::Ptr gicp_omp(
+          new pclomp::GeneralizedIterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI>());
+        gicp_omp->setTransformationEpsilon(transform_epsilon_);
+        gicp_omp->setMaximumIterations(ndt_max_iterations_);
+        gicp_omp->setInputTarget(registration_->getInputTarget());
+        test_registration = gicp_omp;
+      } else {
+        // Fallback to standard registration
+        test_registration = registration_;
+      }
+      
+      // Perform registration with this initial guess
+      test_registration->setInputSource(cloud_ptr);
+      pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud(new pcl::PointCloud<pcl::PointXYZI>);
+      test_registration->align(*output_cloud, test_guess);
+      
+      if (test_registration->hasConverged()) {
+        double fitness_score = test_registration->getFitnessScore();
+        
+        if (fitness_score < best_fitness_score) {
+          best_fitness_score = fitness_score;
+          best_transformation = test_registration->getFinalTransformation();
+          best_has_converged = true;
+          
+          if (enable_angle_search_) {
+            RCLCPP_DEBUG(get_logger(), "Search %d/%d: z=%.2f, yaw=%.2f deg, score=%.4f (best)", 
+              search_count, total_searches, z_offset, yaw_offset * 180.0 / M_PI, fitness_score);
+          } else {
+            RCLCPP_DEBUG(get_logger(), "Search %d/%d: z=%.2f, score=%.4f (best)", 
+              search_count, total_searches, z_offset, fitness_score);
+          }
+        }
       }
     }
   }

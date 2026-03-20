@@ -98,6 +98,7 @@ def generate_launch_description():
             {'fsm/emergency_time': 1.0},  # 紧急情况处理时间
             {'fsm/realworld_experiment': True},  # 仿真模式  False
             {'fsm/fail_safe': True},  # 启用安全保护
+            {'fsm/frame_id': "world"},  # 目标坐标系frame_id
 
             # 路径点参数
             {'fsm/waypoint_num': point_num},

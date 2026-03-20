@@ -33,7 +33,7 @@ import argparse
 from .coordinate_transform import CoordinateTransform
 
 class MultirotorCommunication(Node):
-    def __init__(self, model, id, namespace="", debug=False, allow_arm=False):
+    def __init__(self, model, id, namespace="", debug=False, allowarm=False):
         
         if model.startswith("gz_"):  # 删除gz_前缀
             model = model[3:]
@@ -41,7 +41,7 @@ class MultirotorCommunication(Node):
 
         self.id = int(id)
         self.debug = debug
-        self.allow_arm = allow_arm
+        self.allowarm = allowarm
 
         self.namespace = namespace if namespace else f'{model}_{id}'
 
@@ -127,7 +127,8 @@ class MultirotorCommunication(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self, spin_thread=True)  # 启用独立线程
         
         # Goal marker subscription for automatic switching
-        if self.allow_arm:
+        print(f"Allow Arm: {self.allowarm}")
+        if self.allowarm:
             self.create_subscription(PoseStamped, '/goal_pose_3d', self.goal_marker_callback, 10)
         
         # Gazebo odometry subscription for PX4 visual odometry
@@ -1022,20 +1023,32 @@ class MultirotorCommunication(Node):
         self.get_logger().info('已关闭offboard模式，进入降落')
 
 
+def str_to_bool(value):
+    if isinstance(value, bool):
+        return value
+    if value.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif value.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError(f'Boolean value expected, got {value}')
+
+
 def main():
     rclpy.init(args=sys.argv)
-
+    
     parser = argparse.ArgumentParser(description='XTDrone2 Multirotor Communication Node')
 
     parser.add_argument('--model', type=str, help='Vehicle type', required=True)
     parser.add_argument('--id', type=int, help='Vehicle id, should be unique in same model', required=True)
+    parser.add_argument('--allowarm', type=str_to_bool, help='Allow arm command', required=False, default=False)
     parser.add_argument('--namespace', type=str, help='ROS namespace, {{model}}_{{id}} by default', required=False, default="")
     parser.add_argument('--debug', action='store_true', help='Enable debug mode to publish vehicle state', required=False, default=False)
-    parser.add_argument('--allow-arm', action='store_true', help='Allow arm command', required=False, default=True)
+    
 
     args, unknown = parser.parse_known_args()
 
-    multirotor_communication = MultirotorCommunication(args.model, args.id, args.namespace, args.debug, args.allow_arm)
+    multirotor_communication = MultirotorCommunication(args.model, args.id, args.namespace, args.debug, args.allowarm)
     rclpy.spin(multirotor_communication)
     multirotor_communication.destroy_node()
     rclpy.shutdown()
