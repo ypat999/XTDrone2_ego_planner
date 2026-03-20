@@ -387,6 +387,9 @@ void PCLLocalization::initialPoseReceived(const geometry_msgs::msg::PoseWithCova
   initialpose_recieved_ = true;
   corrent_pose_with_cov_stamped_ptr_ = msg;
   
+  // Set trigger flag to true for initialpose (will search z-axis)
+  is_initialpose_trigger_ = true;
+  
   // Initialize last localization position and reset first localization flag
   last_localization_x_ = msg->pose.pose.position.x;
   last_localization_y_ = msg->pose.pose.position.y;
@@ -604,7 +607,7 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
   rclcpp::Time time_align_start = system_clock.now();
   
   // Use search optimization to find best transformation
-  SearchResult search_result = searchOptimalTransformation(tmp_ptr, init_guess);
+  SearchResult search_result = searchOptimalTransformation(tmp_ptr, init_guess, is_initialpose_trigger_);
   Eigen::Matrix4f final_transformation = search_result.transformation;
   
   rclcpp::Time time_align_end = system_clock.now();
@@ -821,6 +824,10 @@ bool PCLLocalization::shouldUpdateLocalization(const geometry_msgs::msg::Pose& c
     last_localization_x_ = current_pose.position.x;
     last_localization_y_ = current_pose.position.y;
     last_localization_z_ = current_pose.position.z;
+    
+    // Set trigger flag to false for displacement (will NOT search z-axis)
+    is_initialpose_trigger_ = false;
+    
     RCLCPP_INFO(get_logger(), "Displacement %.3f m exceeds threshold %.3f m, updating localization",
       displacement, displacement_threshold_);
     return true;
@@ -832,7 +839,8 @@ bool PCLLocalization::shouldUpdateLocalization(const geometry_msgs::msg::Pose& c
 
 PCLLocalization::SearchResult PCLLocalization::searchOptimalTransformation(
   const pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud_ptr,
-  const Eigen::Matrix4f& initial_guess)
+  const Eigen::Matrix4f& initial_guess,
+  bool search_z_axis)
 {
   SearchResult result;
   result.transformation = initial_guess;
@@ -850,11 +858,12 @@ PCLLocalization::SearchResult PCLLocalization::searchOptimalTransformation(
     return result;
   }
   
-  RCLCPP_INFO(get_logger(), "Performing search optimization with radius %lf m", search_radius_);
+  RCLCPP_INFO(get_logger(), "Performing two-stage search optimization with radius %lf m", search_radius_);
   if (enable_angle_search_) {
     RCLCPP_INFO(get_logger(), "Angle search enabled: range %.3f rad (%.1f deg), %d steps", 
       angle_search_range_, angle_search_range_ * 180.0 / M_PI, angle_search_steps_);
   }
+  RCLCPP_INFO(get_logger(), "Z-axis search: %s", search_z_axis ? "enabled" : "disabled");
   
   // Extract initial position and rotation from transformation matrix
   Eigen::Vector3f initial_position = initial_guess.block<3,1>(0,3);
@@ -864,6 +873,7 @@ PCLLocalization::SearchResult PCLLocalization::searchOptimalTransformation(
   double best_fitness_score = std::numeric_limits<double>::max();
   Eigen::Matrix4f best_transformation = initial_guess;
   bool best_has_converged = false;
+  double best_z_offset = 0.0;
   
   // Calculate step size for z-axis search
   double z_step_size = (2.0 * search_radius_) / (search_grid_size_ - 1);
@@ -871,34 +881,107 @@ PCLLocalization::SearchResult PCLLocalization::searchOptimalTransformation(
   // Calculate angle step size for yaw search
   double angle_step_size = (2.0 * angle_search_range_) / (angle_search_steps_ - 1);
   
-  int total_searches = search_grid_size_;
+  int total_searches = 0;
+  if (search_z_axis) {
+    total_searches = search_grid_size_;
+  }
   if (enable_angle_search_) {
-    total_searches *= angle_search_steps_;
+    total_searches += (angle_search_steps_ - 1);
   }
   
-  RCLCPP_INFO(get_logger(), "Total search iterations: %d", total_searches);
+  RCLCPP_INFO(get_logger(), "Total search iterations (two-stage): %d", total_searches);
   
   int search_count = 0;
   
-  // Perform z-axis and angle search
-  for (int k = 0; k < search_grid_size_; ++k) {
-    // Calculate z offset for this grid point
-    double z_offset = -search_radius_ + k * z_step_size;
-    
-    for (int a = 0; a < (enable_angle_search_ ? angle_search_steps_ : 1); ++a) {
+  // Stage 1: Search z-axis only (only if search_z_axis is true)
+  if (search_z_axis) {
+    for (int k = 0; k < search_grid_size_; ++k) {
       search_count++;
       
-      // Calculate yaw angle offset
-      double yaw_offset = 0.0;
-      if (enable_angle_search_) {
-        yaw_offset = -angle_search_range_ + a * angle_step_size;
-      }
+      // Calculate z offset for this grid point
+      double z_offset = -search_radius_ + k * z_step_size;
       
-      // Create transformation matrix with offset
+      // Create transformation matrix with z offset only
       Eigen::Matrix4f test_guess = initial_guess;
       test_guess(0,3) = initial_position.x();  // Keep x unchanged
       test_guess(1,3) = initial_position.y();  // Keep y unchanged
       test_guess(2,3) = initial_position.z() + z_offset;  // Apply z offset
+      
+      // Keep original rotation (no angle offset in stage 1)
+      test_guess.block<3,3>(0,0) = initial_rotation;
+      
+      // Create a new registration object for each test to avoid state issues
+      boost::shared_ptr<pcl::Registration<pcl::PointXYZI, pcl::PointXYZI>> test_registration;
+      
+      if (registration_method_ == "NDT_OMP") {
+        pclomp::NormalDistributionsTransform<pcl::PointXYZI, pcl::PointXYZI>::Ptr ndt_omp(
+          new pclomp::NormalDistributionsTransform<pcl::PointXYZI, pcl::PointXYZI>());
+        ndt_omp->setStepSize(ndt_step_size_);
+        ndt_omp->setResolution(ndt_resolution_);
+        ndt_omp->setTransformationEpsilon(transform_epsilon_);
+        if (ndt_num_threads_ > 0) {
+          ndt_omp->setNumThreads(ndt_num_threads_);
+        }
+        ndt_omp->setMaximumIterations(ndt_max_iterations_);
+        ndt_omp->setInputTarget(registration_->getInputTarget());
+        test_registration = ndt_omp;
+      } else if (registration_method_ == "GICP_OMP") {
+        pclomp::GeneralizedIterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI>::Ptr gicp_omp(
+          new pclomp::GeneralizedIterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI>());
+        gicp_omp->setTransformationEpsilon(transform_epsilon_);
+        gicp_omp->setMaximumIterations(ndt_max_iterations_);
+        gicp_omp->setInputTarget(registration_->getInputTarget());
+        test_registration = gicp_omp;
+      } else {
+        // Fallback to standard registration
+        test_registration = registration_;
+      }
+      
+      // Perform registration with this initial guess
+      test_registration->setInputSource(cloud_ptr);
+      pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud(new pcl::PointCloud<pcl::PointXYZI>);
+      test_registration->align(*output_cloud, test_guess);
+      
+      if (test_registration->hasConverged()) {
+        double fitness_score = test_registration->getFitnessScore();
+        
+        if (fitness_score < best_fitness_score) {
+          best_fitness_score = fitness_score;
+          best_transformation = test_registration->getFinalTransformation();
+          best_has_converged = true;
+          best_z_offset = z_offset;
+          
+          RCLCPP_DEBUG(get_logger(), "Stage 1 Search %d/%d: z=%.2f, score=%.4f (best)", 
+            search_count, total_searches, z_offset, fitness_score);
+        }
+      }
+    }
+  } else {
+    // If not searching z-axis, use initial guess as baseline
+    best_z_offset = 0.0;
+    RCLCPP_DEBUG(get_logger(), "Stage 1 skipped (z-axis search disabled)");
+  }
+  
+  // Stage 2: Search angles only at the best z position
+  if (enable_angle_search_) {
+    RCLCPP_DEBUG(get_logger(), "Stage 2: Searching angles at best z=%.2f", best_z_offset);
+    
+    for (int a = 0; a < angle_search_steps_; ++a) {
+      // Skip the first angle (0 offset) as it was already tested in Stage 1
+      if (a == (angle_search_steps_ - 1) / 2) {
+        continue;
+      }
+      
+      search_count++;
+      
+      // Calculate yaw angle offset
+      double yaw_offset = -angle_search_range_ + a * angle_step_size;
+      
+      // Create transformation matrix with best z offset and angle offset
+      Eigen::Matrix4f test_guess = initial_guess;
+      test_guess(0,3) = initial_position.x();  // Keep x unchanged
+      test_guess(1,3) = initial_position.y();  // Keep y unchanged
+      test_guess(2,3) = initial_position.z() + best_z_offset;  // Use best z offset
       
       // Apply yaw rotation (only modify yaw, keep roll and pitch)
       Eigen::AngleAxisf roll_angle(initial_euler(0), Eigen::Vector3f::UnitX());
@@ -948,13 +1031,8 @@ PCLLocalization::SearchResult PCLLocalization::searchOptimalTransformation(
           best_transformation = test_registration->getFinalTransformation();
           best_has_converged = true;
           
-          if (enable_angle_search_) {
-            RCLCPP_DEBUG(get_logger(), "Search %d/%d: z=%.2f, yaw=%.2f deg, score=%.4f (best)", 
-              search_count, total_searches, z_offset, yaw_offset * 180.0 / M_PI, fitness_score);
-          } else {
-            RCLCPP_DEBUG(get_logger(), "Search %d/%d: z=%.2f, score=%.4f (best)", 
-              search_count, total_searches, z_offset, fitness_score);
-          }
+          RCLCPP_DEBUG(get_logger(), "Stage 2 Search %d/%d: z=%.2f, yaw=%.2f deg, score=%.4f (best)", 
+            search_count, total_searches, best_z_offset, yaw_offset * 180.0 / M_PI, fitness_score);
         }
       }
     }

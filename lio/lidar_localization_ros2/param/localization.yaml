@@ -37,7 +37,16 @@
       search_radius: 2.0                 # Search radius around initial point（搜索半径）
       search_grid_size: 5                # Grid points per dimension for search（搜索网格密度）
       enable_displacement_check: true    # Enable displacement-based triggering（启用位移检查）
-      enable_search_optimization: true   # Enable search for optimal localization（启用搜索优化）
+      enable_search_optimization: true   # Enable two-stage search for optimal localization（启用两阶段搜索优化）
+      
+      # Two-stage search strategy with trigger-based z-axis search:
+      # - Initialpose trigger: Stage 1 searches Z-axis (5 times), Stage 2 searches angles at best Z position (4 times) = 9 total
+      # - Displacement trigger: Stage 1 skipped (no Z-axis search), Stage 2 searches angles only (4 times) = 4 total
+      # Both triggers always search angles for better rotation convergence
+      # 两阶段搜索策略，基于触发类型决定是否搜索Z轴：
+      # - initialpose触发：第一阶段搜索Z轴（5次），第二阶段在最佳Z位置搜索角度（4次）= 总共9次
+      # - 位移触发：跳过第一阶段（不搜索Z轴），第二阶段只搜索角度（4次）= 总共4次
+      # 两种触发方式都会搜索角度以获得更好的旋转收敛
       
       # New parameters for angle search optimization（角度搜索优化参数）
       enable_angle_search: true          # Enable angle search for better rotation convergence（启用角度搜索）

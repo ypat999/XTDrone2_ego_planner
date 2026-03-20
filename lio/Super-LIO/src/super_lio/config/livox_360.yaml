@@ -13,7 +13,7 @@
     lio.sensor.lidar_type: 1
     lio.sensor.blind: 0.8
     lio.sensor.maxrange: 100.0
-    lio.sensor.filter_rate: 3
+    lio.sensor.filter_rate: 4
     lio.sensor.enable_downsample: true
     lio.sensor.voxel_fliter_size: 0.5
     lio.sensor.gravity_norm: 9.8066
@@ -29,7 +29,7 @@
                               0.0, 0.0, 1.0]
     lio.extrinsic.odom_robo: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
-    lio.hash_map.hash_capacity: 2000000
+    lio.hash_map.hash_capacity: 4000000
     lio.hash_map.vox_resolution: 0.5
 
     lio.kf.kf_type: 0
