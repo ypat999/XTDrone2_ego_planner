@@ -30,7 +30,7 @@
     lio.extrinsic.odom_robo: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
     lio.hash_map.hash_capacity: 2000000
-    lio.hash_map.vox_resolution: 0.5
+    lio.hash_map.vox_resolution: 0.25
 
     lio.kf.kf_type: 0
     lio.kf.kf_max_iterations: 4

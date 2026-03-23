@@ -22,7 +22,7 @@ XTDrone2是基于PX4、ROS2与Gazebo Ignition的无人机通用仿真平台。
 ### 构建命令
 ```bash
 cd ~/git/xtd2_ws && source install/setup.bash
-colcon build --symlink-install --parallel-workers 8 --packages-skip livox_ros_driver2 basic super_lio
+colcon build --symlink-install --parallel-workers 8   --packages-skip livox_ros_driver2 basic super_lio     #--cmake-args -DROS_EDITION=ROS2 -DHUMBLE_ROS=humble 
 source install/setup.bash
 ```
 
