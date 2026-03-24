@@ -46,7 +46,6 @@ PCLLocalization::PCLLocalization(const rclcpp::NodeOptions & options)
   declare_parameter("search_grid_size", 5);          // grid points per dimension
   declare_parameter("enable_displacement_check", true);
   declare_parameter("enable_search_optimization", true);
-  declare_parameter("accumulation_target_frames", 10);  // Number of frames to accumulate for initialpose trigger
   
   // New parameters for angle search optimization
   declare_parameter("enable_angle_search", true);
@@ -241,7 +240,6 @@ void PCLLocalization::initializeParameters()
   get_parameter("search_grid_size", search_grid_size_);
   get_parameter("enable_displacement_check", enable_displacement_check_);
   get_parameter("enable_search_optimization", enable_search_optimization_);
-  get_parameter("accumulation_target_frames", accumulation_target_frames_);
 
   // New parameters for angle search optimization
   get_parameter("enable_angle_search", enable_angle_search_);
@@ -278,7 +276,6 @@ void PCLLocalization::initializeParameters()
   RCLCPP_INFO(get_logger(),"search_grid_size: %d", search_grid_size_);
   RCLCPP_INFO(get_logger(),"enable_displacement_check: %d", enable_displacement_check_);
   RCLCPP_INFO(get_logger(),"enable_search_optimization: %d", enable_search_optimization_);
-  RCLCPP_INFO(get_logger(),"accumulation_target_frames: %d", accumulation_target_frames_);
   RCLCPP_INFO(get_logger(),"enable_angle_search: %d", enable_angle_search_);
   RCLCPP_INFO(get_logger(),"angle_search_range: %lf (deg: %lf)", angle_search_range_, angle_search_range_ * 180.0 / M_PI);
   RCLCPP_INFO(get_logger(),"angle_search_steps: %d", angle_search_steps_);
@@ -389,13 +386,6 @@ void PCLLocalization::initialPoseReceived(const geometry_msgs::msg::PoseWithCova
   }
   initialpose_recieved_ = true;
   corrent_pose_with_cov_stamped_ptr_ = msg;
-  
-  // Set trigger flag to true for initialpose (will search z-axis)
-  is_initialpose_trigger_ = true;
-  
-  // Reset point cloud accumulation for new initialpose
-  accumulated_cloud_ptr_.reset(new pcl::PointCloud<pcl::PointXYZI>());
-  accumulated_frame_count_ = 0;
   
   // Initialize last localization position and reset first localization flag
   last_localization_x_ = msg->pose.pose.position.x;
@@ -601,43 +591,8 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
   }
   pcl::PointCloud<pcl::PointXYZI>::Ptr tmp_ptr(new pcl::PointCloud<pcl::PointXYZI>(tmp));
   
-  // Point cloud accumulation logic for initialpose trigger
-  pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_for_registration;
-  
-  if (is_initialpose_trigger_) {
-    // Initialize accumulated cloud if needed
-    if (!accumulated_cloud_ptr_) {
-      accumulated_cloud_ptr_.reset(new pcl::PointCloud<pcl::PointXYZI>());
-    }
-    
-    // Accumulate this frame
-    *accumulated_cloud_ptr_ += *tmp_ptr;
-    accumulated_frame_count_++;
-    
-    RCLCPP_INFO(get_logger(), "Accumulating point cloud: %d/%d frames", 
-                accumulated_frame_count_, accumulation_target_frames_);
-    
-    // Check if we have accumulated enough frames
-    if (accumulated_frame_count_ < accumulation_target_frames_) {
-      RCLCPP_DEBUG(get_logger(), "Not enough frames accumulated yet, skipping localization");
-      return;
-    }
-    
-    // Use accumulated cloud for registration
-    cloud_for_registration = accumulated_cloud_ptr_;
-    RCLCPP_INFO(get_logger(), "Using accumulated cloud with %d frames for registration", 
-                accumulated_frame_count_);
-    
-    // Reset accumulation after using
-    accumulated_cloud_ptr_.reset(new pcl::PointCloud<pcl::PointXYZI>());
-    accumulated_frame_count_ = 0;
-    
-    // Only accumulate once for initialpose, then switch to single frame mode
-    is_initialpose_trigger_ = false;
-  } else {
-    // Displacement trigger: use single frame directly
-    cloud_for_registration = tmp_ptr;
-  }
+  // Use single frame directly for registration
+  pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_for_registration = tmp_ptr;
   
   registration_->setInputSource(cloud_for_registration);
 
@@ -656,8 +611,8 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
   rclcpp::Clock system_clock;
   rclcpp::Time time_align_start = system_clock.now();
   
-  // Use search optimization to find best transformation
-  SearchResult search_result = searchOptimalTransformation(cloud_for_registration, init_guess, is_initialpose_trigger_);
+  // Use search optimization to find best transformation (no Z-axis search)
+  SearchResult search_result = searchOptimalTransformation(cloud_for_registration, init_guess, false);
   Eigen::Matrix4f final_transformation = search_result.transformation;
   
   rclcpp::Time time_align_end = system_clock.now();
@@ -717,47 +672,47 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
 
   if (!enable_timer_publishing){
     pose_pub_->publish(*corrent_pose_with_cov_stamped_ptr_);
-
-    geometry_msgs::msg::TransformStamped map_to_base_link_stamped;
-    map_to_base_link_stamped.header.stamp = msg->header.stamp;
-    map_to_base_link_stamped.header.frame_id = global_frame_id_;
-    map_to_base_link_stamped.child_frame_id = base_frame_id_;
-    map_to_base_link_stamped.transform.translation.x = static_cast<double>(final_transformation(0, 3));
-    map_to_base_link_stamped.transform.translation.y = static_cast<double>(final_transformation(1, 3));
-    map_to_base_link_stamped.transform.translation.z = static_cast<double>(final_transformation(2, 3));
-    map_to_base_link_stamped.transform.rotation = quat_msg;
-
-    tf2::Transform map_to_base_link_tf;
-    tf2::fromMsg(map_to_base_link_stamped.transform, map_to_base_link_tf);
-
-    geometry_msgs::msg::TransformStamped odom_to_base_link_msg;
-    try {
-      odom_to_base_link_msg = tfbuffer_.lookupTransform(
-        odom_frame_id_, base_frame_id_, msg->header.stamp, rclcpp::Duration::from_seconds(1.0));
-    } catch (tf2::TransformException & ex) {
-      RCLCPP_WARN(
-        this->get_logger(), "Could not get transform %s to %s: %s",
-        base_frame_id_.c_str(), odom_frame_id_.c_str(), ex.what());
-      return;
-    }
-    tf2::Transform odom_to_base_link_tf;
-    tf2::fromMsg(odom_to_base_link_msg.transform, odom_to_base_link_tf);
-
-    tf2::Transform map_to_odom_tf = map_to_base_link_tf * odom_to_base_link_tf.inverse();
-    geometry_msgs::msg::TransformStamped map_to_odom_stamped;
-    map_to_odom_stamped.header.stamp = msg->header.stamp;
-    map_to_odom_stamped.header.frame_id = global_frame_id_;
-    map_to_odom_stamped.child_frame_id = odom_frame_id_;
-    map_to_odom_stamped.transform = tf2::toMsg(map_to_odom_tf);
-    static_broadcaster_.sendTransform(map_to_odom_stamped);
-
-    geometry_msgs::msg::PoseStamped::SharedPtr pose_stamped_ptr(new geometry_msgs::msg::PoseStamped);
-    pose_stamped_ptr->header.stamp = msg->header.stamp;
-    pose_stamped_ptr->header.frame_id = global_frame_id_;
-    pose_stamped_ptr->pose = corrent_pose_with_cov_stamped_ptr_->pose.pose;
-    path_ptr_->poses.push_back(*pose_stamped_ptr);
-    path_pub_->publish(*path_ptr_);
   }
+
+  geometry_msgs::msg::TransformStamped map_to_base_link_stamped;
+  map_to_base_link_stamped.header.stamp = msg->header.stamp;
+  map_to_base_link_stamped.header.frame_id = global_frame_id_;
+  map_to_base_link_stamped.child_frame_id = base_frame_id_;
+  map_to_base_link_stamped.transform.translation.x = static_cast<double>(final_transformation(0, 3));
+  map_to_base_link_stamped.transform.translation.y = static_cast<double>(final_transformation(1, 3));
+  map_to_base_link_stamped.transform.translation.z = static_cast<double>(final_transformation(2, 3));
+  map_to_base_link_stamped.transform.rotation = quat_msg;
+
+  tf2::Transform map_to_base_link_tf;
+  tf2::fromMsg(map_to_base_link_stamped.transform, map_to_base_link_tf);
+
+  geometry_msgs::msg::TransformStamped odom_to_base_link_msg;
+  try {
+    odom_to_base_link_msg = tfbuffer_.lookupTransform(
+      odom_frame_id_, base_frame_id_, msg->header.stamp, rclcpp::Duration::from_seconds(1.0));
+  } catch (tf2::TransformException & ex) {
+    RCLCPP_WARN(
+      this->get_logger(), "Could not get transform %s to %s: %s",
+      base_frame_id_.c_str(), odom_frame_id_.c_str(), ex.what());
+    return;
+  }
+  tf2::Transform odom_to_base_link_tf;
+  tf2::fromMsg(odom_to_base_link_msg.transform, odom_to_base_link_tf);
+
+  tf2::Transform map_to_odom_tf = map_to_base_link_tf * odom_to_base_link_tf.inverse();
+  geometry_msgs::msg::TransformStamped map_to_odom_stamped;
+  map_to_odom_stamped.header.stamp = msg->header.stamp;
+  map_to_odom_stamped.header.frame_id = global_frame_id_;
+  map_to_odom_stamped.child_frame_id = odom_frame_id_;
+  map_to_odom_stamped.transform = tf2::toMsg(map_to_odom_tf);
+  static_broadcaster_.sendTransform(map_to_odom_stamped);
+
+  geometry_msgs::msg::PoseStamped::SharedPtr pose_stamped_ptr(new geometry_msgs::msg::PoseStamped);
+  pose_stamped_ptr->header.stamp = msg->header.stamp;
+  pose_stamped_ptr->header.frame_id = global_frame_id_;
+  pose_stamped_ptr->pose = corrent_pose_with_cov_stamped_ptr_->pose.pose;
+  path_ptr_->poses.push_back(*pose_stamped_ptr);
+  path_pub_->publish(*path_ptr_);
 
   last_scan_ptr_ = msg;
 
@@ -788,58 +743,36 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
 
 void PCLLocalization::timerPublishPose()
 {
-  if (!corrent_pose_with_cov_stamped_ptr_) {return;}
-  geometry_msgs::msg::PoseWithCovarianceStamped pose_copy = *corrent_pose_with_cov_stamped_ptr_;
-  pose_copy.header.stamp = now();
+  geometry_msgs::msg::PoseWithCovarianceStamped pose_msg;
+  pose_msg.header.stamp = now();
+  pose_msg.header.frame_id = global_frame_id_;
+
+  geometry_msgs::msg::TransformStamped map_to_base_link_stamped;
+  try {
+    map_to_base_link_stamped = tfbuffer_.lookupTransform(
+      global_frame_id_, base_frame_id_, rclcpp::Time(0), rclcpp::Duration::from_seconds(0.1));
+  } catch (tf2::TransformException & ex) {
+    RCLCPP_WARN(
+      this->get_logger(), "Could not get transform %s to %s: %s",
+      global_frame_id_.c_str(), base_frame_id_.c_str(), ex.what());
+    return;
+  }
+
+  pose_msg.pose.pose.position.x = map_to_base_link_stamped.transform.translation.x;
+  pose_msg.pose.pose.position.y = map_to_base_link_stamped.transform.translation.y;
+  pose_msg.pose.pose.position.z = map_to_base_link_stamped.transform.translation.z;
+  pose_msg.pose.pose.orientation = map_to_base_link_stamped.transform.rotation;
 
   geometry_msgs::msg::PoseStamped stamped;
-  stamped.header = pose_copy.header;
+  stamped.header = pose_msg.header;
   stamped.header.frame_id = global_frame_id_;
-  stamped.pose = pose_copy.pose.pose;
+  stamped.pose = pose_msg.pose.pose;
   path_ptr_->poses.push_back(stamped);
 
   nav_msgs::msg::Path path_copy = *path_ptr_;
 
-  pose_pub_->publish(pose_copy);
+  pose_pub_->publish(pose_msg);
   path_pub_->publish(path_copy);
-
-  geometry_msgs::msg::TransformStamped map_to_base_link_stamped;
-  map_to_base_link_stamped.header.stamp = pose_copy.header.stamp;
-  map_to_base_link_stamped.header.frame_id = global_frame_id_;
-  map_to_base_link_stamped.child_frame_id = base_frame_id_;
-  map_to_base_link_stamped.transform.translation.x = pose_copy.pose.pose.position.x;
-  map_to_base_link_stamped.transform.translation.y = pose_copy.pose.pose.position.y;
-  map_to_base_link_stamped.transform.translation.z = pose_copy.pose.pose.position.z;
-  map_to_base_link_stamped.transform.rotation = pose_copy.pose.pose.orientation;
-
-  if (!enable_map_odom_tf_) {
-    broadcaster_.sendTransform(map_to_base_link_stamped);
-  } else {
-    tf2::Transform map_to_base_link_tf;
-    tf2::fromMsg(map_to_base_link_stamped.transform, map_to_base_link_tf);
-
-    geometry_msgs::msg::TransformStamped odom_to_base_link_msg;
-    try {
-      odom_to_base_link_msg = tfbuffer_.lookupTransform(
-        odom_frame_id_, base_frame_id_, pose_copy.header.stamp, rclcpp::Duration::from_seconds(0.1));
-    } catch (tf2::TransformException & ex) {
-      RCLCPP_WARN(
-        this->get_logger(), "Could not get transform %s to %s: %s",
-        base_frame_id_.c_str(), odom_frame_id_.c_str(), ex.what());
-      return;
-    }
-    tf2::Transform odom_to_base_link_tf;
-    tf2::fromMsg(odom_to_base_link_msg.transform, odom_to_base_link_tf);
-
-    tf2::Transform map_to_odom_tf = map_to_base_link_tf * odom_to_base_link_tf.inverse();
-    geometry_msgs::msg::TransformStamped map_to_odom_stamped;
-    map_to_odom_stamped.header.stamp = pose_copy.header.stamp;
-    map_to_odom_stamped.header.frame_id = global_frame_id_;
-    map_to_odom_stamped.child_frame_id = odom_frame_id_;
-    map_to_odom_stamped.transform = tf2::toMsg(map_to_odom_tf);
-    
-    static_broadcaster_.sendTransform(map_to_odom_stamped);
-  }
 }
 
 double PCLLocalization::calculateDisplacement(const geometry_msgs::msg::Pose& current_pose)
@@ -874,9 +807,6 @@ bool PCLLocalization::shouldUpdateLocalization(const geometry_msgs::msg::Pose& c
     last_localization_x_ = current_pose.position.x;
     last_localization_y_ = current_pose.position.y;
     last_localization_z_ = current_pose.position.z;
-    
-    // Set trigger flag to false for displacement (will NOT search z-axis)
-    is_initialpose_trigger_ = false;
     
     RCLCPP_INFO(get_logger(), "Displacement %.3f m exceeds threshold %.3f m, updating localization",
       displacement, displacement_threshold_);
