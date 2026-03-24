@@ -46,6 +46,7 @@ PCLLocalization::PCLLocalization(const rclcpp::NodeOptions & options)
   declare_parameter("search_grid_size", 5);          // grid points per dimension
   declare_parameter("enable_displacement_check", true);
   declare_parameter("enable_search_optimization", true);
+  declare_parameter("accumulation_target_frames", 10);  // Number of frames to accumulate for initialpose trigger
   
   // New parameters for angle search optimization
   declare_parameter("enable_angle_search", true);
@@ -240,6 +241,7 @@ void PCLLocalization::initializeParameters()
   get_parameter("search_grid_size", search_grid_size_);
   get_parameter("enable_displacement_check", enable_displacement_check_);
   get_parameter("enable_search_optimization", enable_search_optimization_);
+  get_parameter("accumulation_target_frames", accumulation_target_frames_);
 
   // New parameters for angle search optimization
   get_parameter("enable_angle_search", enable_angle_search_);
@@ -276,6 +278,7 @@ void PCLLocalization::initializeParameters()
   RCLCPP_INFO(get_logger(),"search_grid_size: %d", search_grid_size_);
   RCLCPP_INFO(get_logger(),"enable_displacement_check: %d", enable_displacement_check_);
   RCLCPP_INFO(get_logger(),"enable_search_optimization: %d", enable_search_optimization_);
+  RCLCPP_INFO(get_logger(),"accumulation_target_frames: %d", accumulation_target_frames_);
   RCLCPP_INFO(get_logger(),"enable_angle_search: %d", enable_angle_search_);
   RCLCPP_INFO(get_logger(),"angle_search_range: %lf (deg: %lf)", angle_search_range_, angle_search_range_ * 180.0 / M_PI);
   RCLCPP_INFO(get_logger(),"angle_search_steps: %d", angle_search_steps_);
@@ -390,6 +393,10 @@ void PCLLocalization::initialPoseReceived(const geometry_msgs::msg::PoseWithCova
   // Set trigger flag to true for initialpose (will search z-axis)
   is_initialpose_trigger_ = true;
   
+  // Reset point cloud accumulation for new initialpose
+  accumulated_cloud_ptr_.reset(new pcl::PointCloud<pcl::PointXYZI>());
+  accumulated_frame_count_ = 0;
+  
   // Initialize last localization position and reset first localization flag
   last_localization_x_ = msg->pose.pose.position.x;
   last_localization_y_ = msg->pose.pose.position.y;
@@ -440,6 +447,10 @@ void PCLLocalization::odomReceived(const nav_msgs::msg::Odometry::ConstSharedPtr
   
   if (!corrent_pose_with_cov_stamped_ptr_) {
     RCLCPP_WARN(get_logger(), "corrent_pose_with_cov_stamped_ptr_ is null, ignoring odom data until initial pose is set");
+    
+    // 等待1秒
+    rclcpp::sleep_for(std::chrono::seconds(1));
+    
     return;
   }
   
@@ -589,7 +600,46 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
     }
   }
   pcl::PointCloud<pcl::PointXYZI>::Ptr tmp_ptr(new pcl::PointCloud<pcl::PointXYZI>(tmp));
-  registration_->setInputSource(tmp_ptr);
+  
+  // Point cloud accumulation logic for initialpose trigger
+  pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_for_registration;
+  
+  if (is_initialpose_trigger_) {
+    // Initialize accumulated cloud if needed
+    if (!accumulated_cloud_ptr_) {
+      accumulated_cloud_ptr_.reset(new pcl::PointCloud<pcl::PointXYZI>());
+    }
+    
+    // Accumulate this frame
+    *accumulated_cloud_ptr_ += *tmp_ptr;
+    accumulated_frame_count_++;
+    
+    RCLCPP_INFO(get_logger(), "Accumulating point cloud: %d/%d frames", 
+                accumulated_frame_count_, accumulation_target_frames_);
+    
+    // Check if we have accumulated enough frames
+    if (accumulated_frame_count_ < accumulation_target_frames_) {
+      RCLCPP_DEBUG(get_logger(), "Not enough frames accumulated yet, skipping localization");
+      return;
+    }
+    
+    // Use accumulated cloud for registration
+    cloud_for_registration = accumulated_cloud_ptr_;
+    RCLCPP_INFO(get_logger(), "Using accumulated cloud with %d frames for registration", 
+                accumulated_frame_count_);
+    
+    // Reset accumulation after using
+    accumulated_cloud_ptr_.reset(new pcl::PointCloud<pcl::PointXYZI>());
+    accumulated_frame_count_ = 0;
+    
+    // Only accumulate once for initialpose, then switch to single frame mode
+    is_initialpose_trigger_ = false;
+  } else {
+    // Displacement trigger: use single frame directly
+    cloud_for_registration = tmp_ptr;
+  }
+  
+  registration_->setInputSource(cloud_for_registration);
 
   Eigen::Affine3d affine;
   tf2::fromMsg(corrent_pose_with_cov_stamped_ptr_->pose.pose, affine);
@@ -607,7 +657,7 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
   rclcpp::Time time_align_start = system_clock.now();
   
   // Use search optimization to find best transformation
-  SearchResult search_result = searchOptimalTransformation(tmp_ptr, init_guess, is_initialpose_trigger_);
+  SearchResult search_result = searchOptimalTransformation(cloud_for_registration, init_guess, is_initialpose_trigger_);
   Eigen::Matrix4f final_transformation = search_result.transformation;
   
   rclcpp::Time time_align_end = system_clock.now();

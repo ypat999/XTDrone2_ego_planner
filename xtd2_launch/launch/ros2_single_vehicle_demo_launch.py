@@ -135,6 +135,7 @@ def generate_launch_description():
             'use_sim_time': use_sim_time_str,
         }.items()
     )
+    
     #######################
     ego_planner_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
@@ -192,7 +193,7 @@ timeout=300
 check_interval=1
 post_wait_delay=5
 
-while [ $(($(date +%s) - start_time) -lt $timeout ]; do
+while [ $(($(date +%s) - start_time)) -lt $timeout ]; do
     if ros2 topic list | grep -q "{px4_odom_topic}"; then
         echo "话题 {px4_odom_topic} 已发布！"
         echo "等待 $post_wait_delay 秒后退出..."
@@ -227,8 +228,7 @@ exit 1
     
 
     
-
-     # Add all nodes to the launch description
+    # Add all nodes to the launch description
     ld.add_action(
         TimerAction(period=5.0, actions=[tf_publisher]),  # 延迟启动，确保其他节点先启动
     )
@@ -249,7 +249,7 @@ exit 1
             )
         )
     else:
-        # 真实飞机环境
+        # 真实飞机环境       
         ego_planner_event_handler = RegisterEventHandler(
             OnProcessExit(
                 target_action=wait_for_px4_odom,

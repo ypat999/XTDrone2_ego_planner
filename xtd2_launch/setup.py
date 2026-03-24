@@ -31,6 +31,7 @@ setup(
             'tf_publisher = xtd2_launch.utils.tf_publisher:main',
             'tf_publisher_robot_state = xtd2_launch.utils.tf_publisher_robot_state:main',
             'goal_pose_marker = xtd2_launch.utils.goal_pose_interactive_marker:main',
+            'send_initialpose = xtd2_launch.utils.send_initialpose:main',
         ],
     },
 )

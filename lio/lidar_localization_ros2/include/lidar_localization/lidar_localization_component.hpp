@@ -150,6 +150,11 @@ public:
   bool first_localization_done_{false};  // Track if first localization is done
   bool is_initialpose_trigger_{true};   // True if triggered by initialpose, false if triggered by displacement
   
+  // Point cloud accumulation for initialpose trigger
+  pcl::PointCloud<pcl::PointXYZI>::Ptr accumulated_cloud_ptr_;  // Accumulated point cloud
+  int accumulated_frame_count_{0};  // Number of frames accumulated
+  int accumulation_target_frames_{10};  // Target number of frames to accumulate
+  
   // Angle search optimization parameters
   bool enable_angle_search_{true};       // Enable angle search for better rotation convergence
   double angle_search_range_{0.349};     // Angle search range in radians (±20 degrees)

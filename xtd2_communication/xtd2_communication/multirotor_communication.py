@@ -925,10 +925,10 @@ class MultirotorCommunication(Node):
                 self.auto_switch_enabled = False
                 return
         
-        # 每5秒重新检查一次状态
+        # 每1秒重新检查一次状态
         if hasattr(self, '_last_check_time'):
             elapsed = (self.get_clock().now() - self._last_check_time).nanoseconds / 1e9
-            if elapsed < 5:
+            if elapsed < 1:
                 return
         
         self._last_check_time = self.get_clock().now()
