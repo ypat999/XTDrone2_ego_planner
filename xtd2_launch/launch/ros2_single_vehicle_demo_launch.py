@@ -86,7 +86,7 @@ def generate_launch_description():
         arguments=[
             "--model", LaunchConfiguration('model_name'),
             "--id", LaunchConfiguration('id'),
-            "--allowarm", "false",
+            "--allowarm", "true",
             "--namespace", LaunchConfiguration('namespace'),
             "--debug", "true"
         ]

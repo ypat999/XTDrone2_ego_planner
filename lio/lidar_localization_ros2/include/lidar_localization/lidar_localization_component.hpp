@@ -93,6 +93,7 @@ public:
 
   boost::shared_ptr<pcl::Registration<pcl::PointXYZI, pcl::PointXYZI>> registration_;
   pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_filter_;
+  pcl::VoxelGrid<pcl::PointXYZI> map_downsample_filter_;
   geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr corrent_pose_with_cov_stamped_ptr_;
   nav_msgs::msg::Path::SharedPtr path_ptr_;
   sensor_msgs::msg::PointCloud2::ConstSharedPtr last_scan_ptr_;
@@ -144,6 +145,7 @@ public:
   int search_grid_size_{5};             // grid points per dimension
   bool enable_displacement_check_{true};
   bool enable_search_optimization_{true};
+  double map_downsample_leaf_size_{2.0};  // meters
   double last_localization_x_{0.0};
   double last_localization_y_{0.0};
   double last_localization_z_{0.0};
@@ -153,6 +155,9 @@ public:
   bool enable_angle_search_{true};       // Enable angle search for better rotation convergence
   double angle_search_range_{0.349};     // Angle search range in radians (±20 degrees)
   int angle_search_steps_{9};            // Number of angle steps to try
+  
+  // Z-axis search parameters
+  bool enable_z_axis_search_{false};     // Enable Z-axis search for all triggers
   
   // Dynamic score threshold mechanism
   double current_fitness_score_{std::numeric_limits<double>::max()};  // Track current best fitness score

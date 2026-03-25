@@ -47,10 +47,16 @@ PCLLocalization::PCLLocalization(const rclcpp::NodeOptions & options)
   declare_parameter("enable_displacement_check", true);
   declare_parameter("enable_search_optimization", true);
   
+  // New parameters for map downsampling
+  declare_parameter("map_downsample_leaf_size", 2.0);  // meters
+  
   // New parameters for angle search optimization
   declare_parameter("enable_angle_search", true);
   declare_parameter("angle_search_range", 0.349);   // radians (±20 degrees)
   declare_parameter("angle_search_steps", 9);
+  
+  // New parameters for Z-axis search
+  declare_parameter("enable_z_axis_search", false);  // Enable Z-axis search for all triggers
   
   // New parameters for dynamic score threshold mechanism
   declare_parameter("enable_dynamic_threshold", true);
@@ -133,19 +139,35 @@ CallbackReturn PCLLocalization::on_activate(const rclcpp_lifecycle::State &)
     }
 
     RCLCPP_INFO(get_logger(), "Map Size %ld", map_cloud_ptr->size());
+    
+    // Downsample the map to reduce size to ~100k points
+    pcl::PointCloud<pcl::PointXYZI>::Ptr downsampled_cloud_ptr(new pcl::PointCloud<pcl::PointXYZI>());
+    map_downsample_filter_.setInputCloud(map_cloud_ptr);
+    map_downsample_filter_.filter(*downsampled_cloud_ptr);
+    RCLCPP_INFO(get_logger(), "Downsampled Map Size %ld", downsampled_cloud_ptr->size());
+    
+    // Save downsampled map to 3dmap_down.pcd
+    std::string downsampled_map_path = "/home/cat/slam_data/3d_map/3dmap_down.pcd";
+    if (pcl::io::savePCDFileASCII(downsampled_map_path, *downsampled_cloud_ptr) == -1) {
+      RCLCPP_ERROR(get_logger(), "Failed to save downsampled map to: %s", downsampled_map_path.c_str());
+    } else {
+      RCLCPP_INFO(get_logger(), "Downsampled map saved to: %s", downsampled_map_path.c_str());
+    }
+    
+    // Publish downsampled map
     sensor_msgs::msg::PointCloud2::SharedPtr map_msg_ptr(new sensor_msgs::msg::PointCloud2);
-    pcl::toROSMsg(*map_cloud_ptr, *map_msg_ptr);
+    pcl::toROSMsg(*downsampled_cloud_ptr, *map_msg_ptr);
     map_msg_ptr->header.frame_id = global_frame_id_;
     initial_map_pub_->publish(*map_msg_ptr);
     RCLCPP_INFO(get_logger(), "Initial Map Published");
 
     if (registration_method_ == "GICP" || registration_method_ == "GICP_OMP") {
       pcl::PointCloud<pcl::PointXYZI>::Ptr filtered_cloud_ptr(new pcl::PointCloud<pcl::PointXYZI>());
-      voxel_grid_filter_.setInputCloud(map_cloud_ptr);
+      voxel_grid_filter_.setInputCloud(downsampled_cloud_ptr);
       voxel_grid_filter_.filter(*filtered_cloud_ptr);
       registration_->setInputTarget(filtered_cloud_ptr);
     } else {
-      registration_->setInputTarget(map_cloud_ptr);
+      registration_->setInputTarget(downsampled_cloud_ptr);
     }
 
     map_recieved_ = true;
@@ -241,10 +263,16 @@ void PCLLocalization::initializeParameters()
   get_parameter("enable_displacement_check", enable_displacement_check_);
   get_parameter("enable_search_optimization", enable_search_optimization_);
 
+  // New parameters for map downsampling
+  get_parameter("map_downsample_leaf_size", map_downsample_leaf_size_);
+
   // New parameters for angle search optimization
   get_parameter("enable_angle_search", enable_angle_search_);
   get_parameter("angle_search_range", angle_search_range_);
   get_parameter("angle_search_steps", angle_search_steps_);
+
+  // New parameters for Z-axis search
+  get_parameter("enable_z_axis_search", enable_z_axis_search_);
 
   // New parameters for dynamic score threshold mechanism
   get_parameter("enable_dynamic_threshold", enable_dynamic_threshold_);
@@ -276,6 +304,8 @@ void PCLLocalization::initializeParameters()
   RCLCPP_INFO(get_logger(),"search_grid_size: %d", search_grid_size_);
   RCLCPP_INFO(get_logger(),"enable_displacement_check: %d", enable_displacement_check_);
   RCLCPP_INFO(get_logger(),"enable_search_optimization: %d", enable_search_optimization_);
+  RCLCPP_INFO(get_logger(),"map_downsample_leaf_size: %lf", map_downsample_leaf_size_);
+  RCLCPP_INFO(get_logger(),"enable_z_axis_search: %d", enable_z_axis_search_);
   RCLCPP_INFO(get_logger(),"enable_angle_search: %d", enable_angle_search_);
   RCLCPP_INFO(get_logger(),"angle_search_range: %lf (deg: %lf)", angle_search_range_, angle_search_range_ * 180.0 / M_PI);
   RCLCPP_INFO(get_logger(),"angle_search_steps: %d", angle_search_steps_);
@@ -372,8 +402,8 @@ void PCLLocalization::initializeRegistration()
   }
   registration_->setMaximumIterations(ndt_max_iterations_);
 
-
   voxel_grid_filter_.setLeafSize(voxel_leaf_size_, voxel_leaf_size_, voxel_leaf_size_);
+  map_downsample_filter_.setLeafSize(map_downsample_leaf_size_, map_downsample_leaf_size_, map_downsample_leaf_size_);
   RCLCPP_INFO(get_logger(), "initializeRegistration end");
 }
 
@@ -611,8 +641,8 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
   rclcpp::Clock system_clock;
   rclcpp::Time time_align_start = system_clock.now();
   
-  // Use search optimization to find best transformation (no Z-axis search)
-  SearchResult search_result = searchOptimalTransformation(cloud_for_registration, init_guess, false);
+  // Use search optimization to find best transformation
+  SearchResult search_result = searchOptimalTransformation(cloud_for_registration, init_guess, enable_z_axis_search_);
   Eigen::Matrix4f final_transformation = search_result.transformation;
   
   rclcpp::Time time_align_end = system_clock.now();

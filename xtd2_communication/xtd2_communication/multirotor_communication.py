@@ -781,9 +781,9 @@ class MultirotorCommunication(Node):
         # | Yaw angle (if magnetometer present), ignored without magnetometer
         # | Latitude
         # | Longitude
-        # | Altitude (限制为1米)
-        self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_NAV_TAKEOFF, param1=0.0, param4=self.cur_vehicle_local_position.heading, param5=self.cur_vehicle_local_position.ref_lat, param6=self.cur_vehicle_local_position.ref_lon, param7=1.0)
-        self.get_logger().info("Take off command send. Target altitude: 1.0m")
+        # | Altitude (限制为1.5米)
+        self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_NAV_TAKEOFF, param1=0.0, param4=self.cur_vehicle_local_position.heading, param5=self.cur_vehicle_local_position.ref_lat, param6=self.cur_vehicle_local_position.ref_lon, param7=1.5)
+        self.get_logger().info("Take off command send. Target altitude: 1.5m")
 
     def land(self):
         # | Empty
