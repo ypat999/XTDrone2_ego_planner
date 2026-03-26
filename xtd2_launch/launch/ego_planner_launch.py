@@ -68,6 +68,7 @@ def generate_launch_description():
         name='ego_planner_node',
         namespace=namespace,
         output='screen',
+        prefix=['taskset -c 5,6'],   # 绑定 CPU 4
         # 重新映射话题以匹配Gazebo环境
         remappings=[
             ('odom_world', odom_world_topic),  # 使用Gazebo发布的里程计数据

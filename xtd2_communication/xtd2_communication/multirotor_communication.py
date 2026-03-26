@@ -862,7 +862,7 @@ class MultirotorCommunication(Node):
         
         # 1. 检查是否已起飞（使用高度判断）
         current_altitude = -self.cur_vehicle_local_position.z  # NED坐标系，z向下为负
-        is_flying = current_altitude > 0.5  # 高度超过0.5米认为已起飞
+        is_flying = current_altitude > 0.3  # 高度超过0.3米认为已起飞
         
         # 2. 检查是否已解锁
         is_armed = self.vehicle_status.arming_state == 2  # ARMING_STATE_ARMED
@@ -908,7 +908,7 @@ class MultirotorCommunication(Node):
         current_altitude = -self.cur_vehicle_local_position.z
         is_armed = self.vehicle_status.arming_state == 2
         is_offboard = self.vehicle_status.nav_state == 14
-        is_flying = current_altitude > 0.5  # 使用高度判断是否在飞行状态
+        is_flying = current_altitude > 0.3  # 使用高度判断是否在飞行状态
         
         # 如果所有条件都满足，完成切换
         if is_armed and is_flying and is_offboard:
@@ -953,7 +953,7 @@ class MultirotorCommunication(Node):
         # 使用高度和nav_state综合判断是否在飞行状态
         is_offboard = nav_state == 14
         is_landing = nav_state == 18
-        is_flying = is_offboard and current_altitude > 0.5  # 在offboard模式且高度超过0.5米认为在飞行
+        is_flying = is_offboard and current_altitude > 0.3  # 在offboard模式且高度超过0.3米认为在飞行
         
         # 检测状态变化：从飞行状态变为降落状态
         if self.was_flying and is_landing and is_armed:
