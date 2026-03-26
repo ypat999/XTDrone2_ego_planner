@@ -86,9 +86,9 @@ def generate_launch_description():
         arguments=[
             "--model", LaunchConfiguration('model_name'),
             "--id", LaunchConfiguration('id'),
+            "--allowarm", "true",
             "--namespace", LaunchConfiguration('namespace'),
-            "--debug", "true",
-            "--allow-arm", "false"
+            "--debug", "true"
         ]
     )
 
@@ -102,8 +102,40 @@ def generate_launch_description():
         shell=False
     )
 
-    #######################
-    # EGO Planner Launch #
+    ##############################
+    # Super LIO (真实飞机环境下启动)
+    ##############################
+    super_lio_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare('super_lio'),
+                'launch',
+                'Livox_mid360.py'
+            ])
+        ]),
+        launch_arguments={
+            'rviz': 'false',
+            'use_sim_time': use_sim_time_str,
+        }.items()
+    )
+
+    ##############################
+    # Lidar Localization
+    ##############################
+    lidar_localization_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare('lidar_localization_ros2'),
+                'launch',
+                'lidar_localization.launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'rviz': 'false',
+            'use_sim_time': use_sim_time_str,
+        }.items()
+    )
+    
     #######################
     ego_planner_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
@@ -161,7 +193,7 @@ timeout=300
 check_interval=1
 post_wait_delay=5
 
-while [ $(($(date +%s) - start_time) -lt $timeout ]; do
+while [ $(($(date +%s) - start_time)) -lt $timeout ]; do
     if ros2 topic list | grep -q "{px4_odom_topic}"; then
         echo "话题 {px4_odom_topic} 已发布！"
         echo "等待 $post_wait_delay 秒后退出..."
@@ -195,22 +227,8 @@ exit 1
     ld.add_action(wait_for_px4_odom)  # 等待px4_odom_topic发布
     
 
-    # Super LIO (真实飞机环境下启动)
-    super_lio_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            PathJoinSubstitution([
-                FindPackageShare('super_lio'),
-                'launch',
-                'Livox_mid360.py'
-            ])
-        ]),
-        launch_arguments={
-            'rviz': 'false',
-            'use_sim_time': use_sim_time_str,
-        }.items()
-    )
-
-     # Add all nodes to the launch description
+    
+    # Add all nodes to the launch description
     ld.add_action(
         TimerAction(period=5.0, actions=[tf_publisher]),  # 延迟启动，确保其他节点先启动
     )
@@ -231,13 +249,14 @@ exit 1
             )
         )
     else:
-        # 真实飞机环境
+        # 真实飞机环境       
         ego_planner_event_handler = RegisterEventHandler(
             OnProcessExit(
                 target_action=wait_for_px4_odom,
                 on_exit=[
                     ego_planner_launch,
-                    super_lio_launch
+                    super_lio_launch,
+                    lidar_localization_launch
                 ]
             )
         )
