@@ -127,9 +127,9 @@ def generate_launch_description():
             {'grid_map/local_update_range_x': 10.0},  # 局部更新范围X  10.0
             {'grid_map/local_update_range_y': 15.0},  # 局部更新范围Y  15.0
             {'grid_map/local_update_range_z': 8.0},  # 局部更新范围Z   8.0  
-            {'grid_map/obstacles_inflation': 0.5},  # 障碍物膨胀半径 0.6
+            {'grid_map/obstacles_inflation': 0.4},  # 障碍物膨胀半径 0.6
             {'grid_map/local_map_margin': 2},  # 局部地图边界
-            {'grid_map/ground_height': 0.01},  # 地面高度
+            {'grid_map/ground_height': -0.1},  # 地面高度
 
             # depth filter - 深度滤波器参数
             {'grid_map/use_depth_filter': False},  # 启用深度滤波
