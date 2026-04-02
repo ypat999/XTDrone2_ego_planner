@@ -27,7 +27,7 @@ def generate_launch_description():
     map_size_z = LaunchConfiguration('map_size_z', default=40.0)
 
     max_vel = LaunchConfiguration('max_vel', default=1.0)
-    max_acc = LaunchConfiguration('max_acc', default=0.1)
+    max_acc = LaunchConfiguration('max_acc', default=0.2)
     
     # 根据主机名决定是否使用仿真时间
     if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':

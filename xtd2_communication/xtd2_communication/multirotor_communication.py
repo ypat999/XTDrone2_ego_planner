@@ -11,6 +11,7 @@ All rights reserved. This code is licensed under the MIT License.
 
 import rclpy
 from rclpy.node import Node
+import time
 
 from std_msgs.msg import String
 from geometry_msgs.msg import Pose, Twist, PoseStamped, PoseWithCovarianceStamped
@@ -66,6 +67,7 @@ class MultirotorCommunication(Node):
         self.cmd = None
         self.cur_vehicle_local_position = None
         self.cur_vehicle_odometry = None
+        self.cur_lio_vehicle_odometry = None
         self.cur_vehicle_global_position = None
         self.init_vehicle_local_position = None
         self.init_vehicle_global_position = None
@@ -332,6 +334,9 @@ class MultirotorCommunication(Node):
     def ros2_odom_callback(self, msg: Odometry):
         """Gazebo odometry callback - 发布 PX4 visual odometry (NED坐标系)"""
         
+        # 保存 LIO odometry 用于高度判断
+        self.cur_lio_vehicle_odometry = msg
+        
         # 检查 odom 消息的 frame_id，如果是 livox_frame，则转换到 base_link 坐标系
         # if self.hostname != 'ywj-B250-D3A' and self.hostname != 'DESKTOP-ypat':
         #     try:
@@ -455,8 +460,8 @@ class MultirotorCommunication(Node):
             self.auto_switch_to_egoplanner()
         elif self.auto_switch_completed and not self.auto_switch_enabled:
             # 检查无人机是否可以重新启动切换
-            if self.vehicle_status is not None and self.cur_vehicle_local_position is not None:
-                current_altitude = -self.cur_vehicle_local_position.z
+            if self.vehicle_status is not None:
+                current_altitude = self.get_current_altitude()
                 is_armed = self.vehicle_status.arming_state == 2
                 nav_state = self.vehicle_status.nav_state
                 
@@ -854,14 +859,25 @@ class MultirotorCommunication(Node):
 
         self.vehicle_state_publisher.publish(msg)
 
+    def get_current_altitude(self):
+        """获取当前高度，优先使用 LIO odometry，否则使用 PX4 local position"""
+        if self.cur_lio_vehicle_odometry is not None:
+            # LIO odometry 使用 ENU 坐标系，z 向上为正
+            return self.cur_lio_vehicle_odometry.pose.pose.position.z
+        elif self.cur_vehicle_local_position is not None:
+            # PX4 local position 使用 NED 坐标系，z 向下为负
+            return -self.cur_vehicle_local_position.z
+        else:
+            return 0.0
+
     def auto_switch_to_egoplanner(self):
         """自动切换到egoplanner控制模式"""
-        if self.vehicle_status is None or self.cur_vehicle_local_position is None:
+        if self.vehicle_status is None:
             self.get_logger().warn('无法获取无人机状态，等待数据...')
             return
         
-        # 1. 检查是否已起飞（使用高度判断）
-        current_altitude = -self.cur_vehicle_local_position.z  # NED坐标系，z向下为负
+        # 1. 检查是否已起飞（使用高度判断，优先使用 LIO odometry）
+        current_altitude = self.get_current_altitude()
         is_flying = current_altitude > 0.3  # 高度超过0.3米认为已起飞
         
         # 2. 检查是否已解锁
@@ -869,17 +885,17 @@ class MultirotorCommunication(Node):
         
         # 3. 检查是否在offboard模式
         is_offboard = self.vehicle_status.nav_state == 14  # NAVIGATION_STATE_OFFBOARD
+
+        # 4. 检查是否在起飞模式
+        is_takeoff = self.vehicle_status.nav_state == 17  # NAVIGATION_STATE_TAKEOFF
+
+        is_landing = self.vehicle_status.nav_state == 18  # NAVIGATION_STATE_LAND
         
         self.get_logger().info(f'状态检查: nav_state={self.vehicle_status.nav_state}, 高度={current_altitude:.2f}m, 已起飞={is_flying}, 已解锁={is_armed}, offboard模式={is_offboard}')
         
-        # 执行状态切换（按照PX4安全要求：先offboard，再解锁，最后起飞）
+        # 执行状态切换（按照PX4安全要求：先解锁，再起飞，最后切换到offboard模式）
         # 只有在非offboard模式时才切换
-        if not is_offboard:
-            self.get_logger().info('先切换到offboard模式...')
-            self.OFFBOARD_STATE = "ENABLED"
-            self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 6)
-            self.get_logger().info('offboard模式切换完成，等待解锁')
-            return
+        
         
         # 已经在offboard模式，检查是否需要解锁
         if not is_armed:
@@ -889,23 +905,31 @@ class MultirotorCommunication(Node):
             return
         
         # 已解锁，检查是否需要起飞
-        if not is_flying:
+        if not is_takeoff and not is_flying and not is_landing:
             self.get_logger().info('无人机未起飞，执行起飞...')
             self.takeoff()
             self.get_logger().info('等待起飞完成...')
             return
         
+        if not is_offboard and not is_landing and is_flying:
+            self.get_logger().info('已起飞，最后切换到offboard模式...')
+            self.OFFBOARD_STATE = "ENABLED"
+            self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 6)
+            self.get_logger().info('offboard模式切换完成')
+            return
+        
         # 所有条件满足，切换到egoplanner控制
-        self.get_logger().info('无人机已准备就绪，可以接收egoplanner控制指令')
-        self.auto_switch_enabled = False  # 重置标志
-        self.auto_switch_completed = True  # 设置完成标志
+        if is_offboard:
+            self.get_logger().info('无人机已准备就绪，可以接收egoplanner控制指令')
+            self.auto_switch_enabled = False  # 重置标志
+            self.auto_switch_completed = True  # 设置完成标志
 
     def check_auto_switch_progress(self):
         """检查自动切换进度，确保状态转换完成"""
-        if self.vehicle_status is None or self.cur_vehicle_local_position is None:
+        if self.vehicle_status is None:
             return
         
-        current_altitude = -self.cur_vehicle_local_position.z
+        current_altitude = self.get_current_altitude()
         is_armed = self.vehicle_status.arming_state == 2
         is_offboard = self.vehicle_status.nav_state == 14
         is_flying = current_altitude > 0.3  # 使用高度判断是否在飞行状态
@@ -939,11 +963,11 @@ class MultirotorCommunication(Node):
 
     def check_landing_and_disarm(self):
         """检查无人机是否落地，并在确认落地后自动解除arm"""
-        if self.vehicle_status is None or self.cur_vehicle_local_position is None:
+        if self.vehicle_status is None:
             return
         
-        # 获取当前高度（NED坐标系，z向下为负）
-        current_altitude = -self.cur_vehicle_local_position.z
+        # 获取当前高度（优先使用 LIO odometry）
+        current_altitude = self.get_current_altitude()
         is_armed = self.vehicle_status.arming_state == 2
         nav_state = self.vehicle_status.nav_state
         
@@ -958,13 +982,14 @@ class MultirotorCommunication(Node):
         # 检测状态变化：从飞行状态变为降落状态
         if self.was_flying and is_landing and is_armed:
             # 首次检测到降落，先切换到hold模式，再切换回降落模式
+            
             if self.landed_time is None:
                 self.get_logger().info(f'检测到无人机降落，nav_state={nav_state}, 高度={current_altitude:.2f}m，切换到hold模式...')
-                self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 16)
-                self.get_logger().info('切换回降落模式...')
+                self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 4)
+                time.sleep(2)
+                self.get_logger().info(f'检测到无人机降落，nav_state={nav_state}，切换回降落模式...')
                 self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 21)
                 self.landed_time = self.get_clock().now()
-                self.get_logger().info(f'等待确认降落...')
             else:
                 # 检查降落确认时间（3秒）
                 elapsed_time = (self.get_clock().now() - self.landed_time).nanoseconds / 1e9
@@ -972,30 +997,26 @@ class MultirotorCommunication(Node):
                     self.get_logger().info('确认无人机已降落，自动解除arm...')
                     self.disarm()
                     self.landed_time = None
-                    self.was_flying = False
         elif is_flying:
             # 无人机在飞行状态，重置降落计时器
             self.landed_time = None
             self.was_flying = True
-        elif not is_flying and not is_armed:
-            # 无人机已降落且已解除arm，重置状态
-            self.landed_time = None
-            self.was_flying = False
-            # 重置自动切换完成标志，允许下次收到goal marker时重新启动
-            if self.auto_switch_completed:
-                self.get_logger().info('无人机已降落并解除arm，重置自动切换状态，等待新目标点')
-                self.auto_switch_completed = False
-        elif is_landing and not is_armed:
+
+        elif self.was_flying and not is_armed:
             # 在降落状态且已解除arm，也重置状态
             self.landed_time = None
             self.was_flying = False
             # 重置自动切换完成标志，允许下次收到goal marker时重新启动
+            self.get_logger().info(f'无人机降落完成，nav_state={nav_state}, 高度={current_altitude:.2f}m，切换到position模式...')
+            self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 3)
             if self.auto_switch_completed:
                 self.get_logger().info(f'无人机在降落状态(nav_state={nav_state})且已解除arm，重置自动切换状态，等待新目标点')
                 self.auto_switch_completed = False
+                self.auto_switch_enabled = False
         
         # 更新飞行状态记录
-        self.was_flying = is_flying
+        if is_flying:
+            self.was_flying = is_flying
     
     def trigger_landing(self):
         """触发无人机降落"""
