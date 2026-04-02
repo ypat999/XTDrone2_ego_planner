@@ -552,6 +552,25 @@ void ROSWrapper::stdMsgHandler(const sensor_msgs::msg::PointCloud2::SharedPtr ms
     lidar_data.end_time = lidar_data.start_time + offset_time;
     break;
   }
+  case LID_TYPE::GAZEBO:
+  {
+    // Handle generic PointCloud2 from Gazebo
+    pcl::PointCloud<pcl::PointXYZI> pl_orig;
+    pcl::fromROSMsg(*msg, pl_orig);
+    lidar_data.pc->reserve(pl_orig.size() / g_filter_rate + 1);
+    lidar_data.start_time = stampToSec(msg->header.stamp);
+
+    for(std::size_t i = 0; i < pl_orig.size(); i += g_filter_rate){
+      auto& pt = pl_orig.points[i];
+      if (!validPoint(pt.x, pt.y, pt.z)) continue;
+      // Use relative time based on index
+      offset_time = static_cast<double>(i) / pl_orig.size() * 0.1; // Assume 10Hz scan
+      lidar_data.pc->emplace_back(
+          pt.x, pt.y, pt.z, pt.intensity, offset_time);
+    }
+    lidar_data.end_time = lidar_data.start_time + offset_time;
+    break;
+  }
   default:
     return;
   }

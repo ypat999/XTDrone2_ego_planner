@@ -91,31 +91,6 @@ class TfPublisher(Node):
 
         self.get_logger().info('TF publisher started (static + dynamic TF + PX4 visual odometry)')
 
-    # def raw_trajectory_callback(self, msg: PoseStamped):
-    #     """处理原始轨迹（直接发布，不进行坐标转换）"""
-    #     try:
-    #         # 直接发布原始轨迹（Gazebo坐标系/ENU）
-    #         trajectory_pose = Pose()
-    #         trajectory_pose.position.x = msg.pose.position.x
-    #         trajectory_pose.position.y = msg.pose.position.y
-    #         trajectory_pose.position.z = msg.pose.position.z
-            
-    #         trajectory_pose.orientation.w = msg.pose.orientation.w
-    #         trajectory_pose.orientation.x = msg.pose.orientation.x
-    #         trajectory_pose.orientation.y = msg.pose.orientation.y
-    #         trajectory_pose.orientation.z = msg.pose.orientation.z
-            
-    #         # 发布轨迹
-    #         self.compensated_traj_pub.publish(trajectory_pose)
-            
-    #         self.get_logger().debug(
-    #             f'Trajectory: position=({trajectory_pose.position.x:.3f}, '
-    #             f'{trajectory_pose.position.y:.3f}, {trajectory_pose.position.z:.3f})',
-    #             throttle_duration_sec=1.0
-    #         )
-                
-    #     except Exception as e:
-    #         self.get_logger().error(f'Error processing trajectory: {str(e)}')
 
     def odom_callback(self, msg: Odometry):
         """Gazebo odometry callback - 发布 world -> base_footprint tf (真值)"""
@@ -236,6 +211,38 @@ class TfPublisher(Node):
         # 发布mid360位姿
         self.mid360_pose_publisher.publish(mid360_pose)
 
+    def euler_to_quaternion(self, roll, pitch, yaw):
+        """将欧拉角（角度）转换为四元数
+        
+        Args:
+            roll: 绕X轴旋转角度（度）
+            pitch: 绕Y轴旋转角度（度）
+            yaw: 绕Z轴旋转角度（度）
+            
+        Returns:
+            四元数 (x, y, z, w)
+        """
+        import math
+        
+        # 将角度转换为弧度
+        roll_rad = math.radians(roll)
+        pitch_rad = math.radians(pitch)
+        yaw_rad = math.radians(yaw)
+        
+        cy = math.cos(yaw_rad * 0.5)
+        sy = math.sin(yaw_rad * 0.5)
+        cp = math.cos(pitch_rad * 0.5)
+        sp = math.sin(pitch_rad * 0.5)
+        cr = math.cos(roll_rad * 0.5)
+        sr = math.sin(roll_rad * 0.5)
+        
+        qw = cr * cp * cy + sr * sp * sy
+        qx = sr * cp * cy - cr * sp * sy
+        qy = cr * sp * cy + sr * cp * sy
+        qz = cr * cp * sy - sr * sp * cy
+        
+        return (qx, qy, qz, qw)
+
     def publish_static_transforms(self):
         """发布静态TF变换"""
         now = self.get_clock().now().to_msg() 
@@ -343,10 +350,11 @@ class TfPublisher(Node):
             t.transform.translation.x = 0.1  # 0.1 0 0.30 0 -0.5236 3.1415926
             t.transform.translation.y = 0.0
             t.transform.translation.z = 0.3
-            t.transform.rotation.x = 0.2588196
-            t.transform.rotation.y = 0.0002061
-            t.transform.rotation.z = 0.9659254
-            t.transform.rotation.w = 0.0007692
+            qx, qy, qz, qw = self.euler_to_quaternion(0, 30, 0)
+            t.transform.rotation.x = qx
+            t.transform.rotation.y = qy
+            t.transform.rotation.z = qz
+            t.transform.rotation.w = qw
             tfs.append(t)
 
         # # 真机环境下添加mid360到base_link的TF变换

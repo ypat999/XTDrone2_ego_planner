@@ -161,6 +161,40 @@ config_by_machine = {
         # lubancat主机配置 - Livox MID360
         'LIVOX_MID360_CONFIG': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config.json',
         'LIVOX_MID360_CONFIG_NO_TILT': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config.json',
+    },
+    'ywj-B250-D3A': {
+        # ywj-B250-D3A主机配置 - LIO-SAM
+        'ONLINE_LIDAR': False,
+        'LIO_SAM_BASE_CODE_PATH': '/home/ywj/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/LIO-SAM_MID360_ROS2_DOG/',
+        'DEFAULT_BAG_PATH': '/home/ywj/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/LIO-SAM_MID360_ROS2_DOG/',
+        'DEFAULT_RELIABILITY_OVERRIDE': '/home/ywj/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/scripts/reliability_override.yaml',
+        'LIO_SAM_DEFAULT_LOAM_SAVE_DIR': '/home/ywj/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/LOAM/',
+        
+        # ywj-B250-D3A主机配置 - Nav2
+        'NAV2_BASE_CODE_PATH': '/home/ywj/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/nav2_dog_slam/',
+        'NAV2_DEFAULT_MAP_FILE': "/home/ywj/slam_data/grid_map/map.yaml",
+        'NAV2_DEFAULT_WEB_SCRIPT_PATH': '/home/ywj/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/nav2_dog_slam/web/run_web.sh',
+        'NAV2_DEFAULT_BT_XML_PATH': '/home/ywj/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/nav2_dog_slam/config/navigate_to_pose_w_replanning_and_recovery.xml',
+        'NAV2_DEFAULT_PARAMS_FILE': '/home/ywj/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/nav2_dog_slam/config/nav2_params.yaml',
+        
+        # ywj-B250-D3A主机配置 - FAST-LIO
+        'FAST_LIO_BASE_CODE_PATH': '/home/ywj/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/FAST_LIO_ROS2_edit/',
+        'FAST_LIO_LIDAR_TYPE': 1,  # 其他主机lidar_type为1
+        'FAST_LIO_MAP_FILE_PATH': '/home/ywj/slam_data/pcd/test.pcd',  # 添加的地图文件路径
+        'DEFAULT_RELIABILITY_OVERRIDE': '/home/ywj/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/scripts/reliability_override.yaml',
+        'DEFAULT_USE_SIM_TIME': True,
+        
+        # ywj-B250-D3A主机配置 - Livox MID360
+        'LIVOX_MID360_CONFIG': '/home/ywj/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config_gazebo.json',
+        'LIVOX_MID360_CONFIG_NO_TILT': '/home/ywj/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config_gazebo.json',
+        
+        # ywj-B250-D3A主机配置 - Super-LIO
+        'SUPER_LIO_BASE_CODE_PATH': '/home/ywj/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/Super-LIO/',
+        'SUPER_LIO_SAVE_MAP': False,  # 台式机离线开发，不保存地图
+        'SUPER_LIO_SAVE_MAP_DIR': '/home/ywj/slam_data/pcd',
+        
+        #SC-PGO
+        'SC_PGO_SAVE_DIRECTORY': '/home/ywj/save_data/',
     }
 }
 
