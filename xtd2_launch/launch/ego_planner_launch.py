@@ -129,7 +129,7 @@ def generate_launch_description():
             {'grid_map/local_update_range_z': 8.0},  # 局部更新范围Z   8.0  
             {'grid_map/obstacles_inflation': 0.4},  # 障碍物膨胀半径 0.6
             {'grid_map/local_map_margin': 2},  # 局部地图边界
-            {'grid_map/ground_height': 0.2},  # 地面高度
+            {'grid_map/ground_height': -0.1},  # 地面高度
 
             # depth filter - 深度滤波器参数
             {'grid_map/use_depth_filter': False},  # 启用深度滤波
@@ -155,10 +155,12 @@ def generate_launch_description():
             {'grid_map/show_occ_time': False},  # 显示占用时间
             {'grid_map/visualization_truncate_height': 40.0},  # 可视化截断高度
             {'grid_map/frame_id': 'world'},  # 地图坐标系
+            
             {'grid_map/reset_buffer_enabled': False},  # 重置缓冲区是否启用
-
-
-
+            {'grid_map/origin_safe_zone_enabled': True},  # 启用起始安全安全区域
+            {'grid_map/origin_safe_zone_size_x': 1.0},
+            {'grid_map/origin_safe_zone_size_y': 1.0},
+            {'grid_map/origin_safe_zone_size_z': 1.0},
             
             # 规划器参数
             {'planning/max_vel': max_vel},  # 最大速度

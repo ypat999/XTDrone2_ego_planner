@@ -474,9 +474,9 @@ class MultirotorCommunication(Node):
                     self.auto_switch_completed = False
                     self.auto_switch_to_egoplanner()
                 else:
-                    self.get_logger().info('收到目标点标记，但无人机仍在飞行状态，忽略本次标记')
+                    self.get_logger().info('收到目标点标记，但无人机仍在飞行状态，不做状态变换')
             else:
-                self.get_logger().warn('收到目标点标记，但无法获取无人机状态，忽略本次标记')
+                self.get_logger().warn('收到目标点标记，但无法获取无人机状态，不做状态变换')
     
     def get_clock_microseconds(self):
         t_ = self.get_clock().now().seconds_nanoseconds()
