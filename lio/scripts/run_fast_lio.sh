@@ -29,4 +29,4 @@ source $WORKSPACE_DIR/install/setup.bash
 # echo "启动fast_lio..."
 # ros2 launch fast_lio mapping.launch.py
 echo "启动fast_lio中,pcd保存在/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/Super-LIO/src/super_lio/map/map.pcd"
-ros2 launch super_lio Livox_mid360.py
+ros2 launch super_lio Livox_mid360_drone.py
