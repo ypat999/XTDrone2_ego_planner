@@ -85,6 +85,8 @@ namespace LI2Sup{
   extern int  g_pub_step;
   extern bool g_footprint_pub_en;
   extern std::string g_tf_base_footprint_frame;
+  extern std::string g_world_frame;
+  extern std::string g_imu_frame;
 
   /// for planner
   extern bool g_planner_enable;

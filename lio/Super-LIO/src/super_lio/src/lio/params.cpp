@@ -68,6 +68,8 @@ namespace LI2Sup{
   int  g_pub_step;
   bool g_footprint_pub_en = true;
   string g_tf_base_footprint_frame = "base_footprint";
+  string g_world_frame = "world";
+  string g_imu_frame = "imu";
 
   /// for planner
   bool g_planner_enable;
