@@ -110,7 +110,7 @@ def generate_launch_description():
             PathJoinSubstitution([
                 FindPackageShare('super_lio'),
                 'launch',
-                'Livox_mid360.py'
+                'Livox_mid360_drone.py'
             ])
         ]),
         launch_arguments={

@@ -148,13 +148,16 @@ def generate_launch_description():
             {'grid_map/p_max': 0.90},
             {'grid_map/p_occ': 0.2185},  # 占用概率
             {'grid_map/min_ray_length': 0.5},
-            {'grid_map/max_ray_length': 14.5},
+            {'grid_map/max_ray_length': 30.0},
 
             {'grid_map/virtual_ceil_height': 40.0},  # 虚拟天花板高度
             {'grid_map/pose_type': 1},  # 位姿类型
             {'grid_map/show_occ_time': False},  # 显示占用时间
             {'grid_map/visualization_truncate_height': 40.0},  # 可视化截断高度
             {'grid_map/frame_id': 'world'},  # 地图坐标系
+            {'grid_map/reset_buffer_enabled': False},  # 重置缓冲区是否启用
+
+
 
             
             # 规划器参数

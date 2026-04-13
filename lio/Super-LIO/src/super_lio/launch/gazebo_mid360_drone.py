@@ -10,6 +10,11 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 from ament_index_python.packages import get_package_share_directory
 import sys, os
+import math
+
+def deg_to_rad(deg):
+    """将角度转换为弧度"""
+    return str(deg * math.pi / 180.0)
 
 def generate_launch_description():
     # 首先导入全局配置
@@ -38,7 +43,7 @@ def generate_launch_description():
         LIVOX_MID360_CONFIG_NO_TILT = ''
     
     pkg_super_lio = get_package_share_directory('super_lio')
-    config_yaml = os.path.join(pkg_super_lio, 'config', 'livox_360.yaml')
+    config_yaml = os.path.join(pkg_super_lio, 'config', 'gazebo_mid360_drone.yaml')
     # rviz_config_file = os.path.join(pkg_super_lio, 'rviz', 'lio.rviz')
     
     use_sim_time = DEFAULT_USE_SIM_TIME
@@ -60,24 +65,24 @@ def generate_launch_description():
 
 
     # 在线模式：Livox雷达驱动
-    livox_driver_node = Node(
-        package='livox_ros_driver2',
-        executable='livox_ros_driver2_node',
-        name='livox_lidar_publisher',
-        output='screen',
-        parameters=[
-            {"xfer_format": 1},
-            {"multi_topic": 0},
-            {"data_src": 0},
-            {"publish_freq": 10.0},
-            {"output_data_type": 0},
-            {"frame_id": 'livox_frame'},
-            {"user_config_path": livox_config_path},
-            {"cmdline_input_bd_code": 'livox0000000001'},
-        ],
-        prefix=['taskset -c 4'],   # 绑定 CPU 4
-        condition=IfCondition(PythonExpression("'" + lidar_mode + "' == 'ONLINE'"))
-    )
+    # livox_driver_node = Node(
+    #     package='livox_ros_driver2',
+    #     executable='livox_ros_driver2_node',
+    #     name='livox_lidar_publisher',
+    #     output='screen',
+    #     parameters=[
+    #         {"xfer_format": 1},
+    #         {"multi_topic": 0},
+    #         {"data_src": 0},
+    #         {"publish_freq": 10.0},
+    #         {"output_data_type": 0},
+    #         {"frame_id": 'livox_frame'},
+    #         {"user_config_path": livox_config_path},
+    #         {"cmdline_input_bd_code": 'livox0000000001'},
+    #     ],
+    #     prefix=['taskset -c 4'],   # 绑定 CPU 4
+    #     condition=IfCondition(PythonExpression("'" + lidar_mode + "' == 'ONLINE'"))
+    # )
 
     # # 离线模式：rosbag播放
     # from launch.actions import ExecuteProcess
@@ -91,8 +96,11 @@ def generate_launch_description():
 
     # 根据模式选择启动相应的节点
     # ld.add_action(rosbag_player)
-    if lidar_mode == "ONLINE":
-        ld.add_action(livox_driver_node)
+    # if lidar_mode == "ONLINE":
+    #     ld.add_action(livox_driver_node)
+
+    
+    use_sim_time = DEFAULT_USE_SIM_TIME
 
     # 创建Super-LIO生命周期节点
     super_lio_node = Node(
@@ -133,7 +141,7 @@ def generate_launch_description():
         executable='static_transform_publisher',
         name='static_transform_world_to_imu',
         parameters=[{'use_sim_time': DEFAULT_USE_SIM_TIME}],
-        arguments=['0.0', '0.0', '0.0', '0.0', '0.0', '0.0', 'world', 'imu'],
+        arguments=['0.0', '0.0', '0.0', '0', '0', '0', 'world', 'imu'],
         output='screen'
     )
     ld.add_action(static_transform_world_to_imu)
@@ -142,18 +150,19 @@ def generate_launch_description():
         package='tf2_ros',
         executable='static_transform_publisher',
         parameters=[{'use_sim_time': DEFAULT_USE_SIM_TIME}],
-        arguments=['0.0', '0', '0.0', '0', '0.0', '0', 'imu', 'livox_frame'],
+        arguments=['0.0', '0', '0.0', deg_to_rad(0), deg_to_rad(0), deg_to_rad(0), 'imu', 'x500_depth_0/livox_frame/mid360_lidar'],
         output='screen'
     )
     ld.add_action(imu_to_livox_frame_tf)
 
     # livox_frame -> base_link (机器人基坐标系到雷达坐标系的静态变换)
+    # 旋转角度：pitch = 50度 (0.87266弧度)
     livox_frame_to_base_link_tf = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         parameters=[{'use_sim_time': DEFAULT_USE_SIM_TIME}],
         # arguments=['0.1', '0', '0.1', '0', '0.0', '0', 'base_link', 'livox_frame'],
-        arguments=['-0.1', '0', '-0.1', '0', '-0.87266', '0', 'livox_frame', 'base_link'],
+        arguments=['-0.1', '0', '-0.3', deg_to_rad(0), deg_to_rad(-30), '0', 'x500_depth_0/livox_frame/mid360_lidar', 'x500_depth_0/base_link'],
         output='screen'
     )
     ld.add_action(livox_frame_to_base_link_tf)
@@ -163,7 +172,7 @@ def generate_launch_description():
         executable='static_transform_publisher',
         name='base_link_to_base_footprint_tf',
         parameters=[{'use_sim_time': DEFAULT_USE_SIM_TIME}],
-        arguments=['0.0', '0', '0.0', '0', '0.0', '0', 'world', 'base_footprint'],
+        arguments=['0.0', '0', '0.0', '0', '0.0', '0', 'world', 'x500_depth_0/base_footprint'],
         output='screen'
     )
     ld.add_action(base_link_to_base_footprint_tf)
