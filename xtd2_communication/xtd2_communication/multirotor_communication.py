@@ -270,7 +270,7 @@ class MultirotorCommunication(Node):
         # 间隔限制检查
         current_time = time.time()
         if current_time - self.last_px4_odom_time < self.odom_callback_min_interval:
-            self.callback_stats['px4_odom_callback']['count'] += 1
+            # self.callback_stats['px4_odom_callback']['count'] += 1
             self.callback_stats['px4_odom_callback']['total_time'] += time.time() - start_time
             return
         self.last_px4_odom_time = current_time
@@ -303,10 +303,10 @@ class MultirotorCommunication(Node):
         # 检查数值，如果与上一次有效位置差异过大则立刻发布切换到position模式
         if self.last_valid_enu_position is not None:
             # 计算位置差异的欧氏距离
-            position_diff = np.sqrt(
-                (enu_position[0] - self.last_valid_enu_position[0])**2 +
-                (enu_position[1] - self.last_valid_enu_position[1])**2 +
-                (enu_position[2] - self.last_valid_enu_position[2])**2
+            position_diff = (
+                abs(enu_position[0] - self.last_valid_enu_position[0]) +
+                abs(enu_position[1] - self.last_valid_enu_position[1]) +
+                abs(enu_position[2] - self.last_valid_enu_position[2])
             )
             
             # 设置最大允许位置差异阈值（单位：米）
@@ -319,6 +319,9 @@ class MultirotorCommunication(Node):
                     f'新ENU位置: ({enu_position[0]:.2f}, {enu_position[1]:.2f}, {enu_position[2]:.2f}) | '
                     f'立即切换到POSITION模式以确保安全'
                 )
+                # 更新上一次有效位置
+                self.last_valid_enu_position = enu_position.copy()
+                
                 # 切换到POSITION模式 (mode 3)
                 self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 3)
                 
@@ -429,7 +432,7 @@ class MultirotorCommunication(Node):
         # 间隔限制检查
         current_time = time.time()
         if current_time - self.last_ros2_odom_time < self.odom_callback_min_interval:
-            self.callback_stats['ros2_odom_callback']['count'] += 1
+            # self.callback_stats['ros2_odom_callback']['count'] += 1
             self.callback_stats['ros2_odom_callback']['total_time'] += time.time() - start_time
             return
         self.last_ros2_odom_time = current_time
@@ -474,7 +477,7 @@ class MultirotorCommunication(Node):
         #         self.get_logger().warning(f'Failed to transform odom from livox_frame to base_link: {e}')
         #         # 如果转换失败，仍然使用原始消息
         
-        self.publish_px4_visual_odometry(msg)
+        # self.publish_px4_visual_odometry(msg)  # 不发布odom，减少影响
         self.callback_stats['ros2_odom_callback']['count'] += 1
         self.callback_stats['ros2_odom_callback']['total_time'] += time.time() - start_time
 
