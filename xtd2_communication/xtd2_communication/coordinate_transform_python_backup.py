@@ -30,72 +30,47 @@ Email: zhuoan@stu.pku.edu.cn
 import math
 import numpy as np
 
-try:
-    from .coordinate_transform_cpp import CoordinateTransform as CoordinateTransformCPP
-    USE_CPP_IMPL = True
-except ImportError:
-    USE_CPP_IMPL = False
-    print("Warning: C++ implementation not available, falling back to Python implementation")
-
 
 class CoordinateTransform:
-    """坐标系转换工具类 - Python包装器"""
+    """坐标系转换工具类"""
 
-    _cpp_impl = None
-    
-    @classmethod
-    def _get_cpp_impl(cls):
-        if cls._cpp_impl is None and USE_CPP_IMPL:
-            cls._cpp_impl = CoordinateTransformCPP()
-        return cls._cpp_impl
+    # =========================================================================
+    # NED <-> ENU 转换 (右手系之间的转换)
+    # =========================================================================
 
     @staticmethod
     def ned_to_enu_position(x: float, y: float, z: float) -> list:
         """NED位置 -> ENU位置"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().ned_to_enu_position(x, y, z)
         return [y, x, -z]
 
     @staticmethod
     def enu_to_ned_position(x: float, y: float, z: float) -> list:
         """ENU位置 -> NED位置"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().enu_to_ned_position(x, y, z)
         return [y, x, -z]
 
     @staticmethod
     def ned_to_enu_velocity(vx: float, vy: float, vz: float) -> list:
         """NED速度 -> ENU速度"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().ned_to_enu_velocity(vx, vy, vz)
         return [vy, vx, -vz]
 
     @staticmethod
     def enu_to_ned_velocity(vx: float, vy: float, vz: float) -> list:
         """ENU速度 -> NED速度"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().enu_to_ned_velocity(vx, vy, vz)
         return [vy, vx, -vz]
 
     @staticmethod
     def ned_to_enu_acceleration(ax: float, ay: float, az: float) -> list:
         """NED加速度 -> ENU加速度"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().ned_to_enu_acceleration(ax, ay, az)
         return [ay, ax, -az]
 
     @staticmethod
     def enu_to_ned_acceleration(ax: float, ay: float, az: float) -> list:
         """ENU加速度 -> NED加速度"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().enu_to_ned_acceleration(ax, ay, az)
         return [ay, ax, -az]
 
     @staticmethod
     def ned_to_enu_quaternion(qw: float, qx: float, qy: float, qz: float) -> list:
         """NED四元数 -> ENU四元数"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().ned_to_enu_quaternion(qw, qx, qy, qz)
         R_ned = CoordinateTransform._quat_to_rot(qw, qx, qy, qz)
         T = np.array([[0, 1, 0], [1, 0, 0], [0, 0, -1]])
         R_enu = T @ R_ned
@@ -104,12 +79,14 @@ class CoordinateTransform:
     @staticmethod
     def enu_to_ned_quaternion(qw: float, qx: float, qy: float, qz: float) -> list:
         """ENU四元数 -> NED四元数"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().enu_to_ned_quaternion(qw, qx, qy, qz)
         R_enu = CoordinateTransform._quat_to_rot(qw, qx, qy, qz)
         T = np.array([[0, 1, 0], [1, 0, 0], [0, 0, -1]])
         R_ned = T.T @ R_enu
         return CoordinateTransform._rot_to_quat(R_ned)
+
+    # =========================================================================
+    # FRD <-> FLU 转换 (PX4机体系 <-> ROS机体系)
+    # =========================================================================
 
     @staticmethod
     def frd_to_flu_position(x: float, y: float, z: float) -> list:
@@ -120,45 +97,34 @@ class CoordinateTransform:
         
         转换: [x, y, z] -> [x, -y, -z]
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().frd_to_flu_position(x, y, z)
         return [x, -y, -z]
 
     @staticmethod
     def flu_to_frd_position(x: float, y: float, z: float) -> list:
         """FLU位置 -> FRD位置"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_to_frd_position(x, y, z)
         return [x, -y, -z]
 
     @staticmethod
     def frd_to_flu_velocity(vx: float, vy: float, vz: float) -> list:
         """FRD速度 -> FLU速度"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().frd_to_flu_velocity(vx, vy, vz)
         return [vx, -vy, -vz]
 
     @staticmethod
     def flu_to_frd_velocity(vx: float, vy: float, vz: float) -> list:
         """FLU速度 -> FRD速度"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_to_frd_velocity(vx, vy, vz)
         return [vx, -vy, -vz]
 
     @staticmethod
     def frd_to_flu_acceleration(ax: float, ay: float, az: float) -> list:
         """FRD加速度 -> FLU加速度"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().frd_to_flu_acceleration(ax, ay, az)
         return [ax, -ay, -az]
 
     @staticmethod
     def flu_to_frd_acceleration(ax: float, ay: float, az: float) -> list:
         """FLU加速度 -> FRD加速度"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_to_frd_acceleration(ax, ay, az)
         return [ax, -ay, -az]
 
+    @staticmethod
     @staticmethod
     def frd_to_flu_quaternion(qw: float, qx: float, qy: float, qz: float) -> list:
         """
@@ -173,10 +139,10 @@ class CoordinateTransform:
         旋转矩阵转换: R_flu = T @ R_frd @ T
         (注意: 对于反射，使用 T 而不是 T.T)
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().frd_to_flu_quaternion(qw, qx, qy, qz)
+        # FRD->FLU 轴反射矩阵
         T = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
         R_frd = CoordinateTransform._quat_to_rot(qw, qx, qy, qz)
+        # 应用轴反射: R_flu = T @ R_frd @ T
         R_flu = T @ R_frd @ T
         return CoordinateTransform._rot_to_quat(R_flu)
 
@@ -188,12 +154,15 @@ class CoordinateTransform:
         轴反射矩阵: T = diag(1, -1, -1)
         旋转矩阵转换: R_frd = T @ R_flu @ T
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_to_frd_quaternion(qw, qx, qy, qz)
         T = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
         R_flu = CoordinateTransform._quat_to_rot(qw, qx, qy, qz)
+        # 应用轴反射
         R_frd = T @ R_flu @ T
         return CoordinateTransform._rot_to_quat(R_frd)
+
+    # =========================================================================
+    # BODY (FLU) <-> NED 转换 (都是右手系，使用标准旋转矩阵)
+    # =========================================================================
 
     @staticmethod
     def body_to_ned_matrix(heading: float) -> np.ndarray:
@@ -217,8 +186,6 @@ class CoordinateTransform:
         Returns:
             2x2反射矩阵，行列式=-1
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().body_to_ned_matrix(heading)
         c = math.cos(heading)
         s = math.sin(heading)
         return np.array([[c, s], [s, -c]])
@@ -235,8 +202,6 @@ class CoordinateTransform:
         Returns:
             2x2反射矩阵
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().ned_to_body_matrix(heading)
         c = math.cos(heading)
         s = math.sin(heading)
         return np.array([[c, s], [s, -c]])
@@ -265,8 +230,6 @@ class CoordinateTransform:
         Returns:
             3x3变换矩阵
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().body_to_ned_3d_matrix(heading)
         c = math.cos(heading)
         s = math.sin(heading)
         return np.array([
@@ -288,8 +251,6 @@ class CoordinateTransform:
         Returns:
             3x3变换矩阵
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().ned_to_body_3d_matrix(heading)
         c = math.cos(heading)
         s = math.sin(heading)
         return np.array([
@@ -301,8 +262,6 @@ class CoordinateTransform:
     @staticmethod
     def flu_to_ned_position(flu_x: float, flu_y: float, flu_z: float, heading: float) -> list:
         """FLU位置 -> NED位置"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_to_ned_position(flu_x, flu_y, flu_z, heading)
         R = CoordinateTransform.body_to_ned_3d_matrix(heading)
         ned_vec = R @ np.array([flu_x, flu_y, flu_z])
         return [ned_vec[0], ned_vec[1], ned_vec[2]]
@@ -310,8 +269,6 @@ class CoordinateTransform:
     @staticmethod
     def ned_to_flu_position(ned_x: float, ned_y: float, ned_z: float, heading: float) -> list:
         """NED位置 -> FLU位置"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().ned_to_flu_position(ned_x, ned_y, ned_z, heading)
         R = CoordinateTransform.ned_to_body_3d_matrix(heading)
         flu_vec = R @ np.array([ned_x, ned_y, ned_z])
         return [flu_vec[0], flu_vec[1], flu_vec[2]]
@@ -319,8 +276,6 @@ class CoordinateTransform:
     @staticmethod
     def flu_to_ned_velocity(flu_vx: float, flu_vy: float, flu_vz: float, heading: float) -> list:
         """FLU速度 -> NED速度"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_to_ned_velocity(flu_vx, flu_vy, flu_vz, heading)
         R = CoordinateTransform.body_to_ned_3d_matrix(heading)
         ned_vec = R @ np.array([flu_vx, flu_vy, flu_vz])
         return [ned_vec[0], ned_vec[1], ned_vec[2]]
@@ -328,8 +283,6 @@ class CoordinateTransform:
     @staticmethod
     def ned_to_flu_velocity(ned_vx: float, ned_vy: float, ned_vz: float, heading: float) -> list:
         """NED速度 -> FLU速度"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().ned_to_flu_velocity(ned_vx, ned_vy, ned_vz, heading)
         R = CoordinateTransform.ned_to_body_3d_matrix(heading)
         flu_vec = R @ np.array([ned_vx, ned_vy, ned_vz])
         return [flu_vec[0], flu_vec[1], flu_vec[2]]
@@ -337,8 +290,6 @@ class CoordinateTransform:
     @staticmethod
     def flu_to_ned_acceleration(flu_ax: float, flu_ay: float, flu_az: float, heading: float) -> list:
         """FLU加速度 -> NED加速度"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_to_ned_acceleration(flu_ax, flu_ay, flu_az, heading)
         R = CoordinateTransform.body_to_ned_3d_matrix(heading)
         ned_vec = R @ np.array([flu_ax, flu_ay, flu_az])
         return [ned_vec[0], ned_vec[1], ned_vec[2]]
@@ -346,11 +297,13 @@ class CoordinateTransform:
     @staticmethod
     def ned_to_flu_acceleration(ned_ax: float, ned_ay: float, ned_az: float, heading: float) -> list:
         """NED加速度 -> FLU加速度"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().ned_to_flu_acceleration(ned_ax, ned_ay, ned_az, heading)
         R = CoordinateTransform.ned_to_body_3d_matrix(heading)
         flu_vec = R @ np.array([ned_ax, ned_ay, ned_az])
         return [flu_vec[0], flu_vec[1], flu_vec[2]]
+
+    # =========================================================================
+    # 角速度转换 (机体系之间，不需要 heading)
+    # =========================================================================
 
     @staticmethod
     def flu_to_frd_angular_velocity(flu_wx: float, flu_wy: float, flu_wz: float) -> list:
@@ -367,8 +320,6 @@ class CoordinateTransform:
         Returns:
             [w_forward, w_right, w_down]: FRD坐标系下的角速度
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_to_frd_angular_velocity(flu_wx, flu_wy, flu_wz)
         return [flu_wx, -flu_wy, -flu_wz]
 
     @staticmethod
@@ -383,9 +334,11 @@ class CoordinateTransform:
         Returns:
             [w_forward, w_left, w_up]: FLU坐标系下的角速度
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().frd_to_flu_angular_velocity(frd_wx, frd_wy, frd_wz)
         return [frd_wx, -frd_wy, -frd_wz]
+
+    # =========================================================================
+    # FRD <-> NED 转换 (PX4机体系 <-> PX4世界系)
+    # =========================================================================
 
     @staticmethod
     def frd_to_ned_velocity(vx: float, vy: float, vz: float, heading: float) -> list:
@@ -395,9 +348,9 @@ class CoordinateTransform:
         vehicle_odometry.velocity 是 FRD 坐标系！
         需要先 FRD->FLU，再 FLU->NED
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().frd_to_ned_velocity(vx, vy, vz, heading)
+        # FRD -> FLU
         flu_vx, flu_vy, flu_vz = vx, -vy, -vz
+        # FLU -> NED
         return CoordinateTransform.flu_to_ned_velocity(flu_vx, flu_vy, flu_vz, heading)
 
     @staticmethod
@@ -405,10 +358,14 @@ class CoordinateTransform:
         """
         NED速度 -> FRD速度
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().ned_to_frd_velocity(vx, vy, vz, heading)
+        # NED -> FLU
         flu_vel = CoordinateTransform.ned_to_flu_velocity(vx, vy, vz, heading)
+        # FLU -> FRD
         return [flu_vel[0], -flu_vel[1], -flu_vel[2]]
+
+    # =========================================================================
+    # VehicleOdometry 专用转换 (FRD/NED <-> FLU/ENU)
+    # =========================================================================
 
     @staticmethod
     def frd_ned_to_flu_enu_velocity(frd_vx: float, frd_vy: float, frd_vz: float, 
@@ -418,10 +375,11 @@ class CoordinateTransform:
         
         这是从 PX4 接收 velocity 时的完整转换链
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().frd_ned_to_flu_enu_velocity(frd_vx, frd_vy, frd_vz, heading)
+        # FRD -> FLU
         flu_vx, flu_vy, flu_vz = frd_vx, -frd_vy, -frd_vz
+        # FLU -> NED (使用heading)
         ned_vel = CoordinateTransform.flu_to_ned_velocity(flu_vx, flu_vy, flu_vz, heading)
+        # NED -> ENU
         return CoordinateTransform.ned_to_enu_velocity(ned_vel[0], ned_vel[1], ned_vel[2])
 
     @staticmethod
@@ -432,10 +390,11 @@ class CoordinateTransform:
         
         这是发送 velocity 到 PX4 时的完整转换链
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_enu_to_frd_ned_velocity(flu_vx, flu_vy, flu_vz, heading)
+        # ENU -> NED
         ned_vel = CoordinateTransform.enu_to_ned_velocity(flu_vx, flu_vy, flu_vz)
+        # NED -> FLU
         flu_vel = CoordinateTransform.ned_to_flu_velocity(ned_vel[0], ned_vel[1], ned_vel[2], heading)
+        # FLU -> FRD
         return [flu_vel[0], -flu_vel[1], -flu_vel[2]]
 
     @staticmethod
@@ -452,12 +411,16 @@ class CoordinateTransform:
         - R_ned_to_enu = [[0,1,0], [1,0,0], [0,0,-1]] (NED->ENU)
         - R_frd_to_flu = [[1,0,0], [0,-1,0], [0,0,-1]] (FRD->FLU, 轴反射)
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().frd_ned_to_flu_enu_quaternion(frd_qw, frd_qx, frd_qy, frd_qz)
+        # 转换矩阵
         R_ned_to_enu = np.array([[0, 1, 0], [1, 0, 0], [0, 0, -1]])
         R_frd_to_flu = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+
+        # PX4 quaternion: FRD-relative-to-NED
         R_frd_ned = CoordinateTransform._quat_to_rot(frd_qw, frd_qx, frd_qy, frd_qz)
+
+        # 正确变换: R_flu_enu = R_ned_to_enu * R_frd_ned * R_frd_to_flu
         R_flu_enu = R_ned_to_enu @ R_frd_ned @ R_frd_to_flu
+
         return CoordinateTransform._rot_to_quat(R_flu_enu)
 
     @staticmethod
@@ -474,75 +437,71 @@ class CoordinateTransform:
         - R_enu_to_ned = [[0,1,0], [1,0,0], [0,0,-1]] (ENU->NED)
         - R_flu_to_frd = [[1,0,0], [0,-1,0], [0,0,-1]] (FLU->FRD, 轴反射)
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_enu_to_frd_ned_quaternion(flu_qw, flu_qx, flu_qy, flu_qz)
+        # 转换矩阵
         R_enu_to_ned = np.array([[0, 1, 0], [1, 0, 0], [0, 0, -1]])
         R_flu_to_frd = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+
+        # ROS quaternion: FLU-relative-to-ENU
         R_flu_enu = CoordinateTransform._quat_to_rot(flu_qw, flu_qx, flu_qy, flu_qz)
+
+        # 正确变换: R_frd_ned = R_enu_to_ned * R_flu_enu * R_flu_to_frd
         R_frd_ned = R_enu_to_ned @ R_flu_enu @ R_flu_to_frd
+
         return CoordinateTransform._rot_to_quat(R_frd_ned)
 
     @staticmethod
     def flu_to_ned_yawspeed(flu_wz: float) -> float:
         """FLU yawspeed -> NED yawspeed"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_to_ned_yawspeed(flu_wz)
         return -flu_wz
 
     @staticmethod
     def ned_to_flu_yawspeed(ned_wz: float) -> float:
         """NED yawspeed -> FLU yawspeed"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().ned_to_flu_yawspeed(ned_wz)
         return -ned_wz
+
+    # =========================================================================
+    # BODY (FLU) <-> ENU 转换 (通过 NED 中转)
+    # =========================================================================
 
     @staticmethod
     def flu_to_enu_position(flu_x: float, flu_y: float, flu_z: float, heading: float) -> list:
         """FLU位置 -> ENU位置"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_to_enu_position(flu_x, flu_y, flu_z, heading)
         ned_pos = CoordinateTransform.flu_to_ned_position(flu_x, flu_y, flu_z, heading)
         return CoordinateTransform.ned_to_enu_position(ned_pos[0], ned_pos[1], ned_pos[2])
 
     @staticmethod
     def enu_to_flu_position(enu_x: float, enu_y: float, enu_z: float, heading: float) -> list:
         """ENU位置 -> FLU位置"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().enu_to_flu_position(enu_x, enu_y, enu_z, heading)
         ned_pos = CoordinateTransform.enu_to_ned_position(enu_x, enu_y, enu_z)
         return CoordinateTransform.ned_to_flu_position(ned_pos[0], ned_pos[1], ned_pos[2], heading)
 
     @staticmethod
     def flu_to_enu_velocity(flu_vx: float, flu_vy: float, flu_vz: float, heading: float) -> list:
         """FLU速度 -> ENU速度"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_to_enu_velocity(flu_vx, flu_vy, flu_vz, heading)
         ned_vel = CoordinateTransform.flu_to_ned_velocity(flu_vx, flu_vy, flu_vz, heading)
         return CoordinateTransform.ned_to_enu_velocity(ned_vel[0], ned_vel[1], ned_vel[2])
 
     @staticmethod
     def enu_to_flu_velocity(enu_vx: float, enu_vy: float, enu_vz: float, heading: float) -> list:
         """ENU速度 -> FLU速度"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().enu_to_flu_velocity(enu_vx, enu_vy, enu_vz, heading)
         ned_vel = CoordinateTransform.enu_to_ned_velocity(enu_vx, enu_vy, enu_vz)
         return CoordinateTransform.ned_to_flu_velocity(ned_vel[0], ned_vel[1], ned_vel[2], heading)
 
     @staticmethod
     def flu_to_enu_acceleration(flu_ax: float, flu_ay: float, flu_az: float, heading: float) -> list:
         """FLU加速度 -> ENU加速度"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_to_enu_acceleration(flu_ax, flu_ay, flu_az, heading)
         ned_accel = CoordinateTransform.flu_to_ned_acceleration(flu_ax, flu_ay, flu_az, heading)
         return CoordinateTransform.ned_to_enu_acceleration(ned_accel[0], ned_accel[1], ned_accel[2])
 
     @staticmethod
     def enu_to_flu_acceleration(enu_ax: float, enu_ay: float, enu_az: float, heading: float) -> list:
         """ENU加速度 -> FLU加速度"""
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().enu_to_flu_acceleration(enu_ax, enu_ay, enu_az, heading)
         ned_accel = CoordinateTransform.enu_to_ned_acceleration(enu_ax, enu_ay, enu_az)
         return CoordinateTransform.ned_to_flu_acceleration(ned_accel[0], ned_accel[1], ned_accel[2], heading)
+
+    # =========================================================================
+    # 使用完整旋转矩阵的转换 (用于 TF 直接转换)
+    # =========================================================================
 
     @staticmethod
     def flu_to_enu_vector_by_rotation_matrix(flu_vec: np.ndarray, rotation_matrix: np.ndarray) -> np.ndarray:
@@ -555,8 +514,6 @@ class CoordinateTransform:
         Returns:
             ENU坐标系下的向量
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_to_enu_vector_by_rotation_matrix(flu_vec, rotation_matrix)
         return rotation_matrix @ flu_vec
 
     @staticmethod
@@ -570,8 +527,6 @@ class CoordinateTransform:
         Returns:
             FLU坐标系下的向量
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().enu_to_flu_vector_by_rotation_matrix(enu_vec, rotation_matrix)
         return rotation_matrix.T @ enu_vec
 
     @staticmethod
@@ -587,11 +542,170 @@ class CoordinateTransform:
         Returns:
             NED坐标系下的向量 [north, east, down]
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_to_ned_vector_by_rotation_matrix(flu_vec, rotation_matrix)
         enu_vec = rotation_matrix @ flu_vec
         return np.array(CoordinateTransform.enu_to_ned_velocity(
             enu_vec[0], enu_vec[1], enu_vec[2]))
+
+    @staticmethod
+    def ned_to_flu_vector_by_rotation_matrix(ned_vec: np.ndarray, rotation_matrix: np.ndarray) -> np.ndarray:
+        """
+        使用完整旋转矩阵将 NED 向量转换到 FLU
+
+        转换链: NED -> ENU -> FLU
+
+        Args:
+            ned_vec: NED坐标系下的向量 [north, east, down]
+            rotation_matrix: 3x3 旋转矩阵 (FLU -> ENU)
+        Returns:
+            FLU坐标系下的向量
+        """
+        enu_vec = np.array(CoordinateTransform.ned_to_enu_velocity(
+            ned_vec[0], ned_vec[1], ned_vec[2]))
+        return rotation_matrix.T @ enu_vec
+
+    # =========================================================================
+    # 工具函数
+    # =========================================================================
+
+    @staticmethod
+    def heading_from_quaternion(qw: float, qx: float, qy: float, qz: float) -> float:
+        """
+        从 NED 四元数提取航向角 (heading)
+
+        重要: 输入四元数必须是 NED 坐标系 (FRD-relative-to-NED)
+
+        - NED quaternion: heading = yaw (North, CW)
+        - ENU quaternion: yaw = East, CCW (结果会偏差 90° 且方向相反)
+
+        Args:
+            qw, qx, qy, qz: NED 坐标系下的四元数 (w-first)
+        Returns:
+            heading: 航向角 (弧度)，顺时针为正，0 = North
+
+        警告: 如果传入 ROS ENU 四元数，结果会错误 (误差约 90° + 方向相反)
+        """
+        return math.atan2(2 * (qw * qz + qx * qy), 1 - 2 * (qy * qy + qz * qz))
+
+    @staticmethod
+    def normalize_quaternion(qw: float, qx: float, qy: float, qz: float) -> list:
+        """归一化四元数"""
+        norm = math.sqrt(qw*qw + qx*qx + qy*qy + qz*qz)
+        if norm < 1e-10:
+            return [1.0, 0.0, 0.0, 0.0]
+        return [qw/norm, qx/norm, qy/norm, qz/norm]
+
+    @staticmethod
+    def quaternion_conjugate(qw: float, qx: float, qy: float, qz: float) -> list:
+        """四元数共轭 (逆旋转)"""
+        return [qw, -qx, -qy, -qz]
+
+    @staticmethod
+    def create_yaw_rotation_matrix(yaw: float) -> np.ndarray:
+        """创建绕Z轴旋转的3D旋转矩阵"""
+        c = math.cos(yaw)
+        s = math.sin(yaw)
+        return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
+
+    @staticmethod
+    def create_rotation_matrix_from_quaternion(qw: float, qx: float, qy: float, qz: float) -> np.ndarray:
+        """从四元数创建3D旋转矩阵"""
+        return CoordinateTransform._quat_to_rot(qw, qx, qy, qz)
+
+    @staticmethod
+    def inverse_transform(position: list, orientation: list) -> tuple:
+        """
+        计算变换的逆
+
+        给定一个变换 T = (position, orientation)，计算其逆变换 T_inv。
+        如果 T 表示 frame_A -> frame_B，则 T_inv 表示 frame_B -> frame_A。
+
+        数学上:
+        - 逆旋转: q_inv = q_conj (四元数共轭)
+        - 逆位置: p_inv = -R_inv @ p
+
+        Args:
+            position: [x, y, z] 位置向量
+            orientation: [qw, qx, qy, qz] 四元数 (w-first)
+        Returns:
+            (inv_position, inv_orientation): 逆变换的位置和姿态
+            inv_position: [x, y, z]
+            inv_orientation: [qw, qx, qy, qz] (w-first)
+
+        Example:
+            # world -> px4_odom 的变换
+            pos = [1.0, 2.0, 3.0]
+            quat = [1.0, 0.0, 0.0, 0.0]  # 单位四元数
+            # 计算 px4_odom -> world 的逆变换
+            inv_pos, inv_quat = CoordinateTransform.inverse_transform(pos, quat)
+        """
+        qw, qx, qy, qz = orientation
+
+        # 逆旋转: 四元数共轭
+        inv_orientation = [qw, -qx, -qy, -qz]
+
+        # 逆位置: p_inv = -R_inv @ p
+        # R_inv 是逆旋转的旋转矩阵，即共轭四元数对应的旋转矩阵
+        R_inv = CoordinateTransform._quat_to_rot(qw, -qx, -qy, -qz)
+        p = np.array(position)
+        inv_position = -R_inv @ p
+
+        return inv_position.tolist(), inv_orientation
+
+    @staticmethod
+    def compose_transforms(pos1: list, quat1: list, pos2: list, quat2: list) -> tuple:
+        """
+        组合两个变换: T = T1 @ T2
+
+        先应用 T2，再应用 T1。
+        如果 T1: A->B, T2: B->C，则结果 T: A->C
+
+        Args:
+            pos1, quat1: 第一个变换的位置和四元数 (w-first)
+            pos2, quat2: 第二个变换的位置和四元数 (w-first)
+        Returns:
+            (composed_pos, composed_quat): 组合后的变换
+        """
+        # 旋转组合: q = q1 * q2
+        composed_quat = CoordinateTransform.quaternion_multiply(quat1, quat2)
+
+        # 位置组合: p = p1 + R1 @ p2
+        R1 = CoordinateTransform._quat_to_rot(*quat1)
+        p1 = np.array(pos1)
+        p2 = np.array(pos2)
+        composed_pos = p1 + R1 @ p2
+
+        return composed_pos.tolist(), composed_quat
+
+    @staticmethod
+    def quaternion_from_rotation_matrix(R: np.ndarray) -> list:
+        """从3D旋转矩阵创建四元数"""
+        return CoordinateTransform._rot_to_quat(R)
+
+    @staticmethod
+    def quaternion_multiply(q1: list, q2: list) -> list:
+        """四元数乘法 q1 * q2"""
+        w1, x1, y1, z1 = q1
+        w2, x2, y2, z2 = q2
+        w = w1*w2 - x1*x2 - y1*y2 - z1*z2
+        x = w1*x2 + x1*w2 + y1*z2 - z1*y2
+        y = w1*y2 - x1*z2 + y1*w2 + z1*x2
+        z = w1*z2 + x1*y2 - y1*x2 + z1*w2
+        return [w, x, y, z]
+
+    @staticmethod
+    def yaw_to_quaternion(yaw: float) -> list:
+        """航向角 -> 四元数 (仅绕Z轴旋转)"""
+        half_yaw = yaw / 2.0
+        return [math.cos(half_yaw), 0.0, 0.0, math.sin(half_yaw)]
+
+    @staticmethod
+    def quaternion_to_yaw(qw: float, qx: float, qy: float, qz: float) -> float:
+        """四元数 -> 航向角"""
+        return math.atan2(2 * (qw * qz + qx * qy), 1 - 2 * (qy * qy + qz * qz))
+
+    # =========================================================================
+    # 内部辅助函数
+    # =========================================================================
 
     @staticmethod
     def _quat_to_rot(w: float, x: float, y: float, z: float) -> np.ndarray:
@@ -630,11 +744,15 @@ class CoordinateTransform:
             x = (R[0,2] + R[2,0]) / S
             y = (R[1,2] + R[2,1]) / S
             z = 0.25 * S
-        
-        norm = np.sqrt(w*w + x*x + y*y + z*z)
+        # 归一化四元数，防止数值漂移
+        norm = math.sqrt(w*w + x*x + y*y + z*z)
         if norm > 1e-10:
             w, x, y, z = w/norm, x/norm, y/norm, z/norm
         return [float(w), float(x), float(y), float(z)]
+
+    # =========================================================================
+    # px4_odom 专用转换函数 (用于视觉里程计)
+    # =========================================================================
 
     @staticmethod
     def flu_to_ned_position_px4_odom(flu_x: float, flu_y: float, flu_z: float,
@@ -653,13 +771,14 @@ class CoordinateTransform:
         Returns:
             (compensated_n, compensated_e, compensated_d): 补偿后的 NED 位置
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_to_ned_position_px4_odom(
-                flu_x, flu_y, flu_z, init_n, init_e, init_d, init_heading)
+        # 将 FLU 偏移转换为 NED 偏移
         ned_offset = CoordinateTransform.flu_to_ned_position(flu_x, flu_y, flu_z, init_heading)
+        
+        # 加上初始位置
         compensated_n = init_n + ned_offset[0]
         compensated_e = init_e + ned_offset[1]
         compensated_d = init_d + ned_offset[2]
+        
         return (compensated_n, compensated_e, compensated_d)
 
     @staticmethod
@@ -677,122 +796,5 @@ class CoordinateTransform:
         Returns:
             [qw, qx, qy, qz]: FRD/NED 四元数
         """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().flu_to_ned_quaternion_px4_odom(
-                flu_qw, flu_qx, flu_qy, flu_qz, init_heading)
+        # FLU/ENU -> FRD/NED
         return CoordinateTransform.flu_enu_to_frd_ned_quaternion(flu_qw, flu_qx, flu_qy, flu_qz)
-
-    @staticmethod
-    def qmult(q1_w: float, q1_x: float, q1_y: float, q1_z: float,
-              q2_w: float, q2_x: float, q2_y: float, q2_z: float) -> list:
-        """
-        四元数乘法: q1 * q2
-        
-        Args:
-            q1_w, q1_x, q1_y, q1_z: 第一个四元数
-            q2_w, q2_x, q2_y, q2_z: 第二个四元数
-        Returns:
-            [w, x, y, z]: 结果四元数
-        """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().qmult(q1_w, q1_x, q1_y, q1_z, q2_w, q2_x, q2_y, q2_z)
-        w = q1_w * q2_w - q1_x * q2_x - q1_y * q2_y - q1_z * q2_z
-        x = q1_w * q2_x + q1_x * q2_w + q1_y * q2_z - q1_z * q2_y
-        y = q1_w * q2_y - q1_x * q2_z + q1_y * q2_w + q1_z * q2_x
-        z = q1_w * q2_z + q1_x * q2_y - q1_y * q2_x + q1_z * q2_w
-        return [w, x, y, z]
-
-    @staticmethod
-    def quat2mat(w: float, x: float, y: float, z: float) -> np.ndarray:
-        """
-        四元数转旋转矩阵
-        
-        Args:
-            w, x, y, z: 四元数
-        Returns:
-            3x3 旋转矩阵
-        """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().quat2mat(w, x, y, z)
-        return CoordinateTransform._quat_to_rot(w, x, y, z)
-
-    @staticmethod
-    def inverse_transform(pos_x: float, pos_y: float, pos_z: float,
-                          quat_w: float, quat_x: float, quat_y: float, quat_z: float) -> tuple:
-        """
-        计算逆变换 (位置和四元数)
-        
-        Args:
-            pos_x, pos_y, pos_z: 位置
-            quat_w, quat_x, quat_y, quat_z: 四元数
-        Returns:
-            (inv_pos, inv_quat): 逆位置和逆四元数
-        """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().inverse_transform(
-                pos_x, pos_y, pos_z, quat_w, quat_x, quat_y, quat_z)
-        R = CoordinateTransform._quat_to_rot(quat_w, quat_x, quat_y, quat_z)
-        pos = np.array([pos_x, pos_y, pos_z])
-        inv_pos = -R.T @ pos
-        inv_quat = [quat_w, -quat_x, -quat_y, -quat_z]
-        norm = np.sqrt(sum(q*q for q in inv_quat))
-        if norm > 1e-10:
-            inv_quat = [q/norm for q in inv_quat]
-        return (list(inv_pos), inv_quat)
-
-    @staticmethod
-    def heading_from_quaternion(w: float, x: float, y: float, z: float) -> float:
-        """
-        从四元数提取航向角 (yaw)
-        
-        Args:
-            w, x, y, z: 四元数
-        Returns:
-            heading: 航向角 (弧度)
-        """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().heading_from_quaternion(w, x, y, z)
-        siny_cosp = 2.0 * (w * z + x * y)
-        cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
-        return math.atan2(siny_cosp, cosy_cosp)
-
-    @staticmethod
-    def create_rotation_matrix_from_quaternion(w: float, x: float, y: float, z: float) -> np.ndarray:
-        """
-        从四元数创建旋转矩阵
-        
-        Args:
-            w, x, y, z: 四元数
-        Returns:
-            3x3 旋转矩阵
-        """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().create_rotation_matrix_from_quaternion(w, x, y, z)
-        return CoordinateTransform._quat_to_rot(w, x, y, z)
-
-    @staticmethod
-    def multiply_transforms(t1_x: float, t1_y: float, t1_z: float,
-                            t1_qw: float, t1_qx: float, t1_qy: float, t1_qz: float,
-                            t2_x: float, t2_y: float, t2_z: float,
-                            t2_qw: float, t2_qx: float, t2_qy: float, t2_qz: float) -> tuple:
-        """
-        组合两个变换: result = t1 * t2
-        
-        Args:
-            t1_x, t1_y, t1_z: 第一个变换的位置
-            t1_qw, t1_qx, t1_qy, t1_qz: 第一个变换的四元数
-            t2_x, t2_y, t2_z: 第二个变换的位置
-            t2_qw, t2_qx, t2_qy, t2_qz: 第二个变换的四元数
-        Returns:
-            (result_pos, result_quat): 组合后的位置和四元数
-        """
-        if USE_CPP_IMPL:
-            return CoordinateTransform._get_cpp_impl().multiply_transforms(
-                t1_x, t1_y, t1_z, t1_qw, t1_qx, t1_qy, t1_qz,
-                t2_x, t2_y, t2_z, t2_qw, t2_qx, t2_qy, t2_qz)
-        result_quat = CoordinateTransform.qmult(t1_qw, t1_qx, t1_qy, t1_qz, t2_qw, t2_qx, t2_qy, t2_qz)
-        R1 = CoordinateTransform._quat_to_rot(t1_qw, t1_qx, t1_qy, t1_qz)
-        t1_trans = np.array([t1_x, t1_y, t1_z])
-        t2_trans = np.array([t2_x, t2_y, t2_z])
-        result_trans = t1_trans + R1 @ t2_trans
-        return (list(result_trans), result_quat)

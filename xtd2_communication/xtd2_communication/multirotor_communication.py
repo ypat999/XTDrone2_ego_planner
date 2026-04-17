@@ -77,6 +77,10 @@ class MultirotorCommunication(Node):
         self.was_flying = False  # 记录之前是否在飞行状态
         self.landed_time = None  # 记录落地时间
         self.auto_switch_completed = False  # 记录自动切换是否已完成
+        self.last_px4_odom_time = 0.0  # 上次 px4_odom_callback 调用时间
+        self.last_ros2_odom_time = 0.0  # 上次 ros2_odom_callback 调用时间
+        self.odom_callback_min_interval = 0.1  # 最小调用间隔 (秒)
+        self.last_valid_enu_position = None  # 记录上一次有效的ENU位置
 
         # XTDrone2 Interface
         # 移除namespace前后的斜杠，避免重复
@@ -148,9 +152,44 @@ class MultirotorCommunication(Node):
             self.vehicle_state_publisher = self.create_publisher(XTD2VehicleState, xtdrone2_topic_prefix + 'debug/vehicle_state', 10)
             self.debug_timer = self.create_timer(0.1, self.publish_vehicle_state)  # 10Hz
 
+        self.callback_stats = {
+            'timer_callback': {'count': 0, 'total_time': 0.0},
+            'vehicle_local_position_callback': {'count': 0, 'total_time': 0.0},
+            'vehicle_global_position_callback': {'count': 0, 'total_time': 0.0},
+            'vehicle_status_callback': {'count': 0, 'total_time': 0.0},
+            'px4_odom_callback': {'count': 0, 'total_time': 0.0},
+            'ros2_odom_callback': {'count': 0, 'total_time': 0.0},
+            'cmd_pose_local_ned_callback': {'count': 0, 'total_time': 0.0},
+            'cmd_pose_local_flu_callback': {'count': 0, 'total_time': 0.0},
+            'cmd_vel_ned_callback': {'count': 0, 'total_time': 0.0},
+            'cmd_vel_flu_callback': {'count': 0, 'total_time': 0.0},
+            'cmd_accel_ned_callback': {'count': 0, 'total_time': 0.0},
+            'cmd_accel_flu_callback': {'count': 0, 'total_time': 0.0},
+            'cmd_attitude_flu_callback': {'count': 0, 'total_time': 0.0},
+            'goal_marker_callback': {'count': 0, 'total_time': 0.0},
+        }
+        self.stats_start_time = time.time()
+        self.stats_timer = self.create_timer(60.0, self.print_callback_stats)
+
         self.get_logger().info(f'{self.namespace} communication node started')
     
+    def print_callback_stats(self):
+        """每分钟输出回调函数统计信息"""
+        elapsed_time = time.time() - self.stats_start_time
+        self.get_logger().info(f'=== Callback Statistics (last {elapsed_time:.1f}s) ===')
+        for name, stats in self.callback_stats.items():
+            if stats['count'] > 0:
+                avg_time = stats['total_time'] / stats['count'] * 1000
+                freq = stats['count'] / elapsed_time
+                self.get_logger().info(
+                    f'  {name}: count={stats["count"]}, freq={freq:.1f}Hz, '
+                    f'avg_time={avg_time:.3f}ms, total_time={stats["total_time"]*1000:.1f}ms'
+                )
+        self.callback_stats = {k: {'count': 0, 'total_time': 0.0} for k in self.callback_stats}
+        self.stats_start_time = time.time()
+    
     def timer_callback(self):
+        start_time = time.time()
         # 检查自动切换状态
         if self.auto_switch_enabled:
             self.check_auto_switch_progress()
@@ -166,9 +205,13 @@ class MultirotorCommunication(Node):
             # 设置至少一个控制模式为True，否则PX4会拒绝offboard模式
             msg.position = True  # 设置为位置控制模式
             self.offboard_control_mode_pub.publish(msg)
+            self.callback_stats['timer_callback']['count'] += 1
+            self.callback_stats['timer_callback']['total_time'] += time.time() - start_time
             return
         
         if self.OFFBOARD_STATE == "DISABLED":
+            self.callback_stats['timer_callback']['count'] += 1
+            self.callback_stats['timer_callback']['total_time'] += time.time() - start_time
             return
         
         # Publish Offboard Control Mode (heartbeat)
@@ -195,22 +238,42 @@ class MultirotorCommunication(Node):
         # Always publish the offboard control mode (heartbeat)
         msg.timestamp = self.get_clock_microseconds()  
         self.offboard_control_mode_pub.publish(msg)
+        self.callback_stats['timer_callback']['count'] += 1
+        self.callback_stats['timer_callback']['total_time'] += time.time() - start_time
     
     def vehicle_local_position_callback(self, msg):
+        start_time = time.time()
         if self.init_vehicle_local_position is None:
             self.init_vehicle_local_position = msg
         self.cur_vehicle_local_position = msg
+        self.callback_stats['vehicle_local_position_callback']['count'] += 1
+        self.callback_stats['vehicle_local_position_callback']['total_time'] += time.time() - start_time
 
     def vehicle_global_position_callback(self, msg):
+        start_time = time.time()
         if self.init_vehicle_global_position is None:
             self.init_vehicle_global_position = msg
         self.cur_vehicle_global_position = msg
+        self.callback_stats['vehicle_global_position_callback']['count'] += 1
+        self.callback_stats['vehicle_global_position_callback']['total_time'] += time.time() - start_time
 
     def vehicle_status_callback(self, msg):
+        start_time = time.time()
         self.vehicle_status = msg
+        self.callback_stats['vehicle_status_callback']['count'] += 1
+        self.callback_stats['vehicle_status_callback']['total_time'] += time.time() - start_time
 
     def px4_odom_callback(self, msg):
         """PX4 odometry callback - 发布 base_link -> px4_odom tf (相对变换)"""
+        start_time = time.time()
+        
+        # 间隔限制检查
+        current_time = time.time()
+        if current_time - self.last_px4_odom_time < self.odom_callback_min_interval:
+            self.callback_stats['px4_odom_callback']['count'] += 1
+            self.callback_stats['px4_odom_callback']['total_time'] += time.time() - start_time
+            return
+        self.last_px4_odom_time = current_time
         
         # PX4 odometry 表示无人机在 NED 坐标系中的位置
         # 我们需要发布 base_link -> px4_odom 的相对变换
@@ -229,11 +292,44 @@ class MultirotorCommunication(Node):
         # 检查NaN值
         if any(np.isnan(enu_position)) or any(np.isnan(enu_orientation)):
             self.get_logger().warning('NaN detected in PX4 odometry conversion, skipping this message')
+            self.callback_stats['px4_odom_callback']['count'] += 1
+            self.callback_stats['px4_odom_callback']['total_time'] += time.time() - start_time
             return
 
         # 确保值是有效的float类型
         enu_position = [float(x) for x in enu_position]
         enu_orientation = [float(x) for x in enu_orientation]
+
+        # 检查数值，如果与上一次有效位置差异过大则立刻发布切换到position模式
+        if self.last_valid_enu_position is not None:
+            # 计算位置差异的欧氏距离
+            position_diff = np.sqrt(
+                (enu_position[0] - self.last_valid_enu_position[0])**2 +
+                (enu_position[1] - self.last_valid_enu_position[1])**2 +
+                (enu_position[2] - self.last_valid_enu_position[2])**2
+            )
+            
+            # 设置最大允许位置差异阈值（单位：米）
+            MAX_POSITION_DIFF = 2.0
+            
+            if position_diff > MAX_POSITION_DIFF:
+                self.get_logger().error(
+                    f'检测到位置跳变！差异: {position_diff:.2f}m > 阈值: {MAX_POSITION_DIFF}m | '
+                    f'上次ENU位置: ({self.last_valid_enu_position[0]:.2f}, {self.last_valid_enu_position[1]:.2f}, {self.last_valid_enu_position[2]:.2f}) | '
+                    f'新ENU位置: ({enu_position[0]:.2f}, {enu_position[1]:.2f}, {enu_position[2]:.2f}) | '
+                    f'立即切换到POSITION模式以确保安全'
+                )
+                # 切换到POSITION模式 (mode 3)
+                self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 3)
+                
+                # 更新统计信息并返回，跳过本次处理
+                self.callback_stats['px4_odom_callback']['count'] += 1
+                self.callback_stats['px4_odom_callback']['total_time'] += time.time() - start_time
+                return
+        
+        # 更新上一次有效位置
+        self.last_valid_enu_position = enu_position.copy()
+        
 
         # 发布 base_link -> px4_odom tf (相对变换)
         # PX4 odometry 表示无人机在 NED 坐标系中的位置
@@ -246,7 +342,10 @@ class MultirotorCommunication(Node):
 
         # 计算逆变换：使用工具函数
         # base_link -> px4_odom 的逆变换 = base_link -> world
-        inv_pos, inv_quat = CoordinateTransform.inverse_transform(enu_position, enu_orientation)
+        inv_pos, inv_quat = CoordinateTransform.inverse_transform(
+            enu_position[0], enu_position[1], enu_position[2],
+            enu_orientation[0], enu_orientation[1], enu_orientation[2], enu_orientation[3]
+        )
 
         t.transform.translation.x = float(inv_pos[0])
         t.transform.translation.y = float(inv_pos[1])
@@ -299,31 +398,23 @@ class MultirotorCommunication(Node):
             
         except Exception as e:
             self.get_logger().warning(f'Failed to publish static TF world->px4_odom: {e}')
+        
+        self.callback_stats['px4_odom_callback']['count'] += 1
+        self.callback_stats['px4_odom_callback']['total_time'] += time.time() - start_time
     
     def multiply_transforms(self, t1, t2):
         """组合两个 TF 变换: result = t1 * t2"""
-        from transforms3d.quaternions import qmult, quat2mat, mat2quat
+        result_pos, result_quat = CoordinateTransform.multiply_transforms(
+            t1.transform.translation.x, t1.transform.translation.y, t1.transform.translation.z,
+            t1.transform.rotation.w, t1.transform.rotation.x, t1.transform.rotation.y, t1.transform.rotation.z,
+            t2.transform.translation.x, t2.transform.translation.y, t2.transform.translation.z,
+            t2.transform.rotation.w, t2.transform.rotation.x, t2.transform.rotation.y, t2.transform.rotation.z
+        )
         
-        # 提取 t1 的平移和旋转
-        t1_trans = np.array([t1.transform.translation.x, t1.transform.translation.y, t1.transform.translation.z])
-        t1_quat = np.array([t1.transform.rotation.w, t1.transform.rotation.x, t1.transform.rotation.y, t1.transform.rotation.z])
-        
-        # 提取 t2 的平移和旋转
-        t2_trans = np.array([t2.transform.translation.x, t2.transform.translation.y, t2.transform.translation.z])
-        t2_quat = np.array([t2.transform.rotation.w, t2.transform.rotation.x, t2.transform.rotation.y, t2.transform.rotation.z])
-        
-        # 组合旋转四元数
-        result_quat = qmult(t1_quat, t2_quat)
-        
-        # 组合平移向量: result_trans = t1_trans + R1 * t2_trans
-        R1 = quat2mat(t1_quat)
-        result_trans = t1_trans + R1 @ t2_trans
-        
-        # 创建结果变换
         result = TransformStamped()
-        result.transform.translation.x = float(result_trans[0])
-        result.transform.translation.y = float(result_trans[1])
-        result.transform.translation.z = float(result_trans[2])
+        result.transform.translation.x = float(result_pos[0])
+        result.transform.translation.y = float(result_pos[1])
+        result.transform.translation.z = float(result_pos[2])
         result.transform.rotation.w = float(result_quat[0])
         result.transform.rotation.x = float(result_quat[1])
         result.transform.rotation.y = float(result_quat[2])
@@ -333,6 +424,15 @@ class MultirotorCommunication(Node):
 
     def ros2_odom_callback(self, msg: Odometry):
         """Gazebo odometry callback - 发布 PX4 visual odometry (NED坐标系)"""
+        start_time = time.time()
+        
+        # 间隔限制检查
+        current_time = time.time()
+        if current_time - self.last_ros2_odom_time < self.odom_callback_min_interval:
+            self.callback_stats['ros2_odom_callback']['count'] += 1
+            self.callback_stats['ros2_odom_callback']['total_time'] += time.time() - start_time
+            return
+        self.last_ros2_odom_time = current_time
         
         # 保存 LIO odometry 用于高度判断
         self.cur_lio_vehicle_odometry = msg
@@ -375,6 +475,8 @@ class MultirotorCommunication(Node):
         #         # 如果转换失败，仍然使用原始消息
         
         self.publish_px4_visual_odometry(msg)
+        self.callback_stats['ros2_odom_callback']['count'] += 1
+        self.callback_stats['ros2_odom_callback']['total_time'] += time.time() - start_time
 
     def publish_px4_visual_odometry(self, msg: Odometry):
         """转换并发布PX4 visual odometry (NED坐标系) - 直接转换 FLU -> NED，假设PX4 NED原点与ROS2 world位置重合"""
@@ -450,6 +552,7 @@ class MultirotorCommunication(Node):
 
     def goal_marker_callback(self, msg):
         """处理目标点标记，触发自动状态切换"""
+        start_time = time.time()
         self.last_goal_marker_time = self.get_clock().now()
         
         # 只有在自动切换未完成或无人机已落地的情况下才重新启动切换流程
@@ -477,13 +580,18 @@ class MultirotorCommunication(Node):
                     self.get_logger().info('收到目标点标记，但无人机仍在飞行状态，不做状态变换')
             else:
                 self.get_logger().warn('收到目标点标记，但无法获取无人机状态，不做状态变换')
+        self.callback_stats['goal_marker_callback']['count'] += 1
+        self.callback_stats['goal_marker_callback']['total_time'] += time.time() - start_time
     
     def get_clock_microseconds(self):
         t_ = self.get_clock().now().seconds_nanoseconds()
         return int(t_[0]*1e6 + t_[1]/1000)
 
     def cmd_pose_local_ned_callback(self, msg):
+        start_time = time.time()
         if self.OFFBOARD_STATE == "DISABLED":
+            self.callback_stats['cmd_pose_local_ned_callback']['count'] += 1
+            self.callback_stats['cmd_pose_local_ned_callback']['total_time'] += time.time() - start_time
             return
         
         self.OFFBOARD_STATE = "POSE_LOCAL_NED"
@@ -497,9 +605,14 @@ class MultirotorCommunication(Node):
         cmd.position = [msg.position.x, msg.position.y, msg.position.z]
         cmd.yaw = yaw
         self.cmd = cmd
+        self.callback_stats['cmd_pose_local_ned_callback']['count'] += 1
+        self.callback_stats['cmd_pose_local_ned_callback']['total_time'] += time.time() - start_time
         
     def cmd_pose_local_flu_callback(self, msg):
+        start_time = time.time()
         if self.OFFBOARD_STATE == "DISABLED":
+            self.callback_stats['cmd_pose_local_flu_callback']['count'] += 1
+            self.callback_stats['cmd_pose_local_flu_callback']['total_time'] += time.time() - start_time
             return
         
         self.OFFBOARD_STATE = "POSE_LOCAL_FLU"
@@ -571,9 +684,14 @@ class MultirotorCommunication(Node):
             # cmd.position = [p_n, p_e, p_d]
             # cmd.yaw = self.init_vehicle_local_position.heading + yaw if self.init_vehicle_local_position else yaw
             # self.cmd = cmd
+        self.callback_stats['cmd_pose_local_flu_callback']['count'] += 1
+        self.callback_stats['cmd_pose_local_flu_callback']['total_time'] += time.time() - start_time
 
     def cmd_vel_ned_callback(self, msg):
+        start_time = time.time()
         if self.OFFBOARD_STATE == "DISABLED":
+            self.callback_stats['cmd_vel_ned_callback']['count'] += 1
+            self.callback_stats['cmd_vel_ned_callback']['total_time'] += time.time() - start_time
             return
         
         self.OFFBOARD_STATE = "POSE_LOCAL_NED"
@@ -596,10 +714,15 @@ class MultirotorCommunication(Node):
         cmd.yaw = yaw
         cmd.yawspeed = math.nan
         self.cmd = cmd
+        self.callback_stats['cmd_vel_ned_callback']['count'] += 1
+        self.callback_stats['cmd_vel_ned_callback']['total_time'] += time.time() - start_time
 
     def cmd_vel_flu_callback(self, msg):
         """FLU速度 -> NED速度 (使用TF或heading)"""
+        start_time = time.time()
         if self.OFFBOARD_STATE == "DISABLED":
+            self.callback_stats['cmd_vel_flu_callback']['count'] += 1
+            self.callback_stats['cmd_vel_flu_callback']['total_time'] += time.time() - start_time
             return
 
         self.OFFBOARD_STATE = "VEL_FLU"
@@ -644,9 +767,14 @@ class MultirotorCommunication(Node):
         except Exception as tf_error:
             self.get_logger().warning(f'TF transform failed in cmd_vel_flu: {str(tf_error)}, using current heading')
             # TF 变换失败时的处理已在注释中，如需使用heading方式可取消注释
+        self.callback_stats['cmd_vel_flu_callback']['count'] += 1
+        self.callback_stats['cmd_vel_flu_callback']['total_time'] += time.time() - start_time
         
     def cmd_accel_ned_callback(self, msg):
+        start_time = time.time()
         if self.OFFBOARD_STATE == "DISABLED":
+            self.callback_stats['cmd_accel_ned_callback']['count'] += 1
+            self.callback_stats['cmd_accel_ned_callback']['total_time'] += time.time() - start_time
             return
 
         self.OFFBOARD_STATE = "ACCEL_NED"
@@ -657,10 +785,15 @@ class MultirotorCommunication(Node):
         cmd.acceleration = [msg.linear.x, msg.linear.y, msg.linear.z]
         #TODO: How about yaw?
         self.cmd = cmd
+        self.callback_stats['cmd_accel_ned_callback']['count'] += 1
+        self.callback_stats['cmd_accel_ned_callback']['total_time'] += time.time() - start_time
         
     def cmd_accel_flu_callback(self, msg):
         """FLU加速度 -> NED加速度 (使用TF)"""
+        start_time = time.time()
         if self.OFFBOARD_STATE == "DISABLED":
+            self.callback_stats['cmd_accel_flu_callback']['count'] += 1
+            self.callback_stats['cmd_accel_flu_callback']['total_time'] += time.time() - start_time
             return
 
         self.OFFBOARD_STATE = "ACCEL_FLU"
@@ -704,9 +837,14 @@ class MultirotorCommunication(Node):
         except Exception as tf_error:
             self.get_logger().warning(f'TF transform failed in cmd_accel_flu: {str(tf_error)}, using current heading')
             # TF 变换失败时的处理已在注释中，如需使用heading方式可取消注释
+        self.callback_stats['cmd_accel_flu_callback']['count'] += 1
+        self.callback_stats['cmd_accel_flu_callback']['total_time'] += time.time() - start_time
     
     def cmd_attitude_flu_callback(self, msg):
+        start_time = time.time()
         if self.OFFBOARD_STATE == "DISABLED":
+            self.callback_stats['cmd_attitude_flu_callback']['count'] += 1
+            self.callback_stats['cmd_attitude_flu_callback']['total_time'] += time.time() - start_time
             return
         
         self.OFFBOARD_STATE = "ATTITUDE_FLU"
@@ -715,6 +853,8 @@ class MultirotorCommunication(Node):
         cmd.q_d = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
         cmd.thrust = msg.linear.x
         self.cmd = cmd
+        self.callback_stats['cmd_attitude_flu_callback']['count'] += 1
+        self.callback_stats['cmd_attitude_flu_callback']['total_time'] += time.time() - start_time
 
 
     def cmd_callback(self, request, response):
