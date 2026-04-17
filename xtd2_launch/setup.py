@@ -15,6 +15,8 @@ setup(
         (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*launch.[pxy][yma]*'))),
         (os.path.join('share', package_name, 'launch', 'launch_config'), glob(os.path.join('launch', 'launch_config', '*.yaml'))),
         (os.path.join('share', package_name, 'rviz'), glob(os.path.join('rviz', '*.rviz'))),
+        (os.path.join('share', package_name, 'web'), glob(os.path.join('web', '*.html')) + glob(os.path.join('web', '*.sh'))),
+        (os.path.join('share', package_name, 'web', 'libs'), glob(os.path.join('web', 'libs', '*.js'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

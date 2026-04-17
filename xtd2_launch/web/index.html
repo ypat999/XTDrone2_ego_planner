@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ROS2 PointCloud2 Web Viewer</title>
+  <script src="libs/roslib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background-color: #1a1a2e;
+      color: #e0e0e0;
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #sidebar {
+      width: 340px;
+      min-width: 340px;
+      background: #16213e;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #0f3460;
+      overflow-y: auto;
+    }
+    #sidebar::-webkit-scrollbar { width: 6px; }
+    #sidebar::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 3px; }
+    #sidebar::-webkit-scrollbar-track { background: #16213e; }
+    .section {
+      padding: 12px;
+      border-bottom: 1px solid #0f3460;
+    }
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #e94560;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 6px;
+      gap: 6px;
+    }
+    .row label {
+      font-size: 12px;
+      color: #aaa;
+      min-width: 70px;
+    }
+    .row input, .row select {
+      flex: 1;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      border: 1px solid #0f3460;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+    .row input:focus, .row select:focus {
+      outline: none;
+      border-color: #e94560;
+    }
+    .btn {
+      background: #0f3460;
+      color: #e0e0e0;
+      border: 1px solid #e94560;
+      padding: 5px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: #e94560; color: #fff; }
+    .btn-danger { border-color: #ff4444; }
+    .btn-danger:hover { background: #ff4444; }
+    .btn-success { border-color: #44ff44; }
+    .btn-success:hover { background: #22aa22; color: #fff; }
+    #viewer-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+    #viewer-container canvas { display: block; }
+    #status-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(22,33,62,0.9);
+      padding: 6px 12px;
+      font-size: 11px;
+      color: #aaa;
+      display: flex;
+      justify-content: space-between;
+      z-index: 10;
+    }
+    #fps-display { color: #44ff44; }
+    #connection-status { color: #ff4444; }
+    #connection-status.connected { color: #44ff44; }
+    .topic-item {
+      background: #1a1a2e;
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      padding: 8px;
+      margin-bottom: 6px;
+    }
+    .topic-item.active { border-color: #e94560; }
+    .topic-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .topic-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: #e94560;
+      word-break: break-all;
+    }
+    .topic-stats {
+      font-size: 10px;
+      color: #888;
+    }
+    .color-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+    .tf-axes {
+      display: flex;
+      gap: 4px;
+      font-size: 11px;
+    }
+    .tf-axis { padding: 2px 6px; border-radius: 3px; }
+    .tf-axis-x { background: #ff4444; }
+    .tf-axis-y { background: #44ff44; }
+    .tf-axis-z { background: #4444ff; }
+    #grid-info {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(22,33,62,0.8);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      color: #aaa;
+      z-index: 10;
+    }
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+    .checkbox-row input[type="checkbox"] {
+      accent-color: #e94560;
+    }
+    .checkbox-row label {
+      font-size: 12px;
+      color: #ccc;
+    }
+    .point-size-slider {
+      width: 100%;
+      accent-color: #e94560;
+    }
+    #loading-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(26,26,46,0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      font-size: 18px;
+      color: #e94560;
+    }
+    .topic-color-picker {
+      width: 24px;
+      height: 24px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      background: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="sidebar">
+    <div class="section">
+      <div class="section-title">连接配置</div>
+      <div class="row">
+        <label>ROS IP:</label>
+        <input type="text" id="ros-ip" value="" placeholder="留空使用当前主机">
+      </div>
+      <div class="row">
+        <label>端口:</label>
+        <input type="text" id="ros-port" value="9090">
+      </div>
+      <div class="row">
+        <button class="btn btn-success" onclick="connectROS()" style="flex:1">连接</button>
+        <button class="btn btn-danger" onclick="disconnectROS()" style="flex:1">断开</button>
+      </div>
+      <div class="row">
+        <label>状态:</label>
+        <span id="connection-status">未连接</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">添加点云话题</div>
+      <div class="row">
+        <label>话题名:</label>
+        <input type="text" id="topic-name" value="/cloud_registered" placeholder="/pointcloud">
+      </div>
+      <div class="row">
+        <label>消息类型:</label>
+        <select id="msg-type">
+          <option value="sensor_msgs/msg/PointCloud2">PointCloud2</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>QoS深度:</label>
+        <select id="qos-depth">
+          <option value="1">1 (Best Effort)</option>
+          <option value="5">5</option>
+          <option value="10" selected>10 (Default)</option>
+          <option value="50">50</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>QoS策略:</label>
+        <select id="qos-reliability">
+          <option value="best_effort">Best Effort</option>
+          <option value="reliable" selected>Reliable</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>帧消失(ms):</label>
+        <input type="number" id="frame-timeout" value="0" min="0" step="100" placeholder="0=永不消失">
+      </div>
+      <div class="row">
+        <label>着色模式:</label>
+        <select id="color-mode">
+          <option value="z-axis">按Z轴高度</option>
+          <option value="topic">按话题颜色</option>
+          <option value="intensity">按Intensity字段</option>
+          <option value="rgb">按RGB字段</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>话题颜色:</label>
+        <input type="color" class="topic-color-picker" id="topic-color" value="#e94560">
+      </div>
+      <div class="row">
+        <label>点大小:</label>
+        <input type="range" class="point-size-slider" id="point-size" min="1" max="10" value="2" step="0.5">
+      </div>
+      <div class="row">
+        <button class="btn btn-success" onclick="addTopic()" style="flex:1">添加话题</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">已订阅话题</div>
+      <div id="topic-list"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">视图设置</div>
+      <div class="row">
+        <label>基准Frame:</label>
+        <select id="fixed-frame">
+          <option value="map">map</option>
+          <option value="odom">odom</option>
+          <option value="base_link">base_link</option>
+          <option value="world">world</option>
+        </select>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="show-grid" checked>
+        <label>显示网格</label>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="show-axes" checked>
+        <label>显示坐标轴</label>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="show-tf" checked>
+        <label>显示TF</label>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="auto-rotate">
+        <label>自动旋转</label>
+      </div>
+      <div class="row">
+        <label>背景色:</label>
+        <input type="color" class="topic-color-picker" id="bg-color" value="#1a1a2e">
+      </div>
+      <div class="row">
+        <button class="btn" onclick="resetCamera()" style="flex:1">重置视角</button>
+        <button class="btn" onclick="topView()" style="flex:1">俯视图</button>
+        <button class="btn" onclick="frontView()" style="flex:1">前视图</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">TF树</div>
+      <div id="tf-tree-display" style="font-size:11px; color:#aaa; max-height:200px; overflow-y:auto;">
+        等待连接...
+      </div>
+    </div>
+  </div>
+
+  <div id="viewer-container">
+    <div id="loading-overlay">正在初始化3D视图...</div>
+    <div id="grid-info">
+      <div class="tf-axes">
+        <span class="tf-axis tf-axis-x">X</span>
+        <span class="tf-axis tf-axis-y">Y</span>
+        <span class="tf-axis tf-axis-z">Z</span>
+      </div>
+      <div id="camera-info" style="margin-top:4px;"></div>
+    </div>
+    <div id="status-bar">
+      <span id="connection-status-bar">未连接</span>
+      <span id="point-count">点数: 0</span>
+      <span id="fps-display">FPS: 0</span>
+    </div>
+  </div>
+
+  <script>
+    const TOPIC_COLORS = [
+      '#e94560', '#00d2ff', '#44ff44', '#ffaa00',
+      '#ff44ff', '#44ffff', '#ffff44', '#ff8844',
+      '#8844ff', '#44ff88', '#ff4488', '#88ff44'
+    ];
+    let topicColorIndex = 0;
+
+    let ros = null;
+    let scene, camera, renderer, controls;
+    let gridHelper, axesHelper;
+    let topicSubscriptions = {};
+    let pointCloudObjects = {};
+    let tfSubscriptions = {};
+    let tfTransforms = {};
+    let tfAxesObjects = {};
+    let fixedFrame = 'map';
+    let frameCount = 0;
+    let lastFpsTime = performance.now();
+    let fps = 0;
+    let totalPoints = 0;
+    let animationId = null;
+
+    const DEFAULT_QOS = {
+      depth: 10,
+      durability: 'volatile',
+      reliability: 'reliable'
+    };
+
+    function initThreeJS() {
+      const container = document.getElementById('viewer-container');
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x1a1a2e);
+
+      camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 10000);
+      camera.position.set(10, 10, 10);
+      camera.lookAt(0, 0, 0);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.insertBefore(renderer.domElement, container.firstChild);
+
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.1;
+      controls.rotateSpeed = 0.8;
+      controls.panSpeed = 0.8;
+      controls.zoomSpeed = 1.2;
+      controls.target.set(0, 0, 0);
+
+      gridHelper = new THREE.GridHelper(100, 100, 0x444466, 0x222244);
+      scene.add(gridHelper);
+
+      axesHelper = new THREE.AxesHelper(5);
+      scene.add(axesHelper);
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      scene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+      directionalLight.position.set(10, 20, 10);
+      scene.add(directionalLight);
+
+      window.addEventListener('resize', onWindowResize);
+
+      document.getElementById('loading-overlay').style.display = 'none';
+      animate();
+    }
+
+    function onWindowResize() {
+      const container = document.getElementById('viewer-container');
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+
+    function animate() {
+      animationId = requestAnimationFrame(animate);
+      controls.update();
+
+      if (document.getElementById('auto-rotate').checked) {
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 2.0;
+      } else {
+        controls.autoRotate = false;
+      }
+
+      gridHelper.visible = document.getElementById('show-grid').checked;
+      axesHelper.visible = document.getElementById('show-axes').checked;
+
+      const showTf = document.getElementById('show-tf').checked;
+      for (const key in tfAxesObjects) {
+        tfAxesObjects[key].visible = showTf;
+      }
+
+      const now = Date.now();
+      for (const topicKey in pointCloudObjects) {
+        const obj = pointCloudObjects[topicKey];
+        if (obj.timeoutMs > 0 && obj.lastUpdateTime > 0) {
+          const elapsed = now - obj.lastUpdateTime;
+          if (elapsed > obj.timeoutMs) {
+            obj.points.visible = false;
+          } else {
+            obj.points.visible = true;
+            const fadeRatio = 1.0 - (elapsed / obj.timeoutMs) * 0.5;
+            obj.points.material.opacity = Math.max(0.3, fadeRatio);
+          }
+        }
+      }
+
+      renderer.render(scene, camera);
+
+      frameCount++;
+      const elapsed = now - lastFpsTime;
+      if (elapsed >= 1000) {
+        fps = Math.round(frameCount * 1000 / elapsed);
+        frameCount = 0;
+        lastFpsTime = now;
+        document.getElementById('fps-display').textContent = 'FPS: ' + fps;
+      }
+
+      totalPoints = 0;
+      for (const topicKey in pointCloudObjects) {
+        const obj = pointCloudObjects[topicKey];
+        if (obj.points && obj.points.geometry) {
+          totalPoints += obj.points.geometry.attributes.position.count;
+        }
+      }
+      document.getElementById('point-count').textContent = '点数: ' + totalPoints.toLocaleString();
+
+      const camPos = camera.position;
+      document.getElementById('camera-info').textContent =
+        'Cam: (' + camPos.x.toFixed(1) + ', ' + camPos.y.toFixed(1) + ', ' + camPos.z.toFixed(1) + ')';
+    }
+
+    function connectROS() {
+      const ipInput = document.getElementById('ros-ip').value.trim();
+      const port = document.getElementById('ros-port').value.trim() || '9090';
+      const ip = ipInput || location.hostname;
+
+      if (ros) {
+        ros.close();
+      }
+
+      ros = new ROSLIB.Ros({
+        url: 'ws://' + ip + ':' + port
+      });
+
+      ros.on('connection', function () {
+        updateConnectionStatus(true);
+        console.log('Connected to rosbridge at ws://' + ip + ':' + port);
+        subscribeTf();
+      });
+
+      ros.on('error', function (error) {
+        updateConnectionStatus(false);
+        console.error('Error connecting to rosbridge: ', error);
+      });
+
+      ros.on('close', function () {
+        updateConnectionStatus(false);
+        console.log('Connection to rosbridge closed.');
+      });
+    }
+
+    function disconnectROS() {
+      if (ros) {
+        for (const topicKey in topicSubscriptions) {
+          topicSubscriptions[topicKey].unsubscribe();
+        }
+        for (const topicKey in tfSubscriptions) {
+          tfSubscriptions[topicKey].unsubscribe();
+        }
+        ros.close();
+        ros = null;
+        updateConnectionStatus(false);
+      }
+    }
+
+    function updateConnectionStatus(connected) {
+      const statusElements = document.querySelectorAll('#connection-status, #connection-status-bar');
+      statusElements.forEach(el => {
+        el.textContent = connected ? '已连接' : '未连接';
+        el.className = connected ? 'connected' : '';
+      });
+    }
+
+    function addTopic() {
+      if (!ros || !ros.isConnected) {
+        alert('请先连接到ROS');
+        return;
+      }
+
+      const topicName = document.getElementById('topic-name').value.trim();
+      if (!topicName) {
+        alert('请输入话题名称');
+        return;
+      }
+
+      const msgType = document.getElementById('msg-type').value;
+      const qosDepth = parseInt(document.getElementById('qos-depth').value);
+      const qosReliability = document.getElementById('qos-reliability').value;
+      const frameTimeout = parseInt(document.getElementById('frame-timeout').value) || 0;
+      const colorMode = document.getElementById('color-mode').value;
+      const topicColor = document.getElementById('topic-color').value;
+      const pointSize = parseFloat(document.getElementById('point-size').value);
+
+      if (topicSubscriptions[topicName]) {
+        alert('该话题已添加');
+        return;
+      }
+
+      const topicColorFinal = topicColor || TOPIC_COLORS[topicColorIndex % TOPIC_COLORS.length];
+      topicColorIndex++;
+
+      const qos = {
+        depth: qosDepth,
+        durability: 'volatile',
+        reliability: qosReliability
+      };
+
+      const topic = new ROSLIB.Topic({
+        ros: ros,
+        name: topicName,
+        messageType: msgType,
+        qos: qos
+      });
+
+      const geometry = new THREE.BufferGeometry();
+      const material = new THREE.PointsMaterial({
+        size: pointSize,
+        vertexColors: true,
+        transparent: true,
+        opacity: 1.0,
+        sizeAttenuation: true
+      });
+
+      const points = new THREE.Points(geometry, material);
+      scene.add(points);
+
+      pointCloudObjects[topicName] = {
+        points: points,
+        colorMode: colorMode,
+        topicColor: topicColorFinal,
+        timeoutMs: frameTimeout,
+        lastUpdateTime: 0,
+        pointSize: pointSize,
+        frameId: ''
+      };
+
+      topic.subscribe(function (message) {
+        processPointCloud2(topicName, message);
+      });
+
+      topicSubscriptions[topicName] = topic;
+
+      renderTopicList();
+    }
+
+    function removeTopic(topicName) {
+      if (topicSubscriptions[topicName]) {
+        topicSubscriptions[topicName].unsubscribe();
+        delete topicSubscriptions[topicName];
+      }
+
+      if (pointCloudObjects[topicName]) {
+        scene.remove(pointCloudObjects[topicName].points);
+        pointCloudObjects[topicName].points.geometry.dispose();
+        pointCloudObjects[topicName].points.material.dispose();
+        delete pointCloudObjects[topicName];
+      }
+
+      renderTopicList();
+    }
+
+    function processPointCloud2(topicName, message) {
+      if (!pointCloudObjects[topicName]) return;
+
+      const obj = pointCloudObjects[topicName];
+      obj.lastUpdateTime = Date.now();
+
+      const frameId = message.header.frame_id.replace(/^\//, '');
+      obj.frameId = frameId;
+
+      const nPoints = message.width * message.height;
+      if (nPoints === 0) return;
+
+      const fields = message.fields;
+      const pointStep = message.point_step;
+      const isBigendian = message.is_bigendian;
+      const rawData = atob(message.data);
+
+      const fieldMap = {};
+      for (let i = 0; i < fields.length; i++) {
+        fieldMap[fields[i].name] = fields[i];
+      }
+
+      const xOffset = fieldMap['x'] ? fieldMap['x'].offset : -1;
+      const yOffset = fieldMap['y'] ? fieldMap['y'].offset : -1;
+      const zOffset = fieldMap['z'] ? fieldMap['z'].offset : -1;
+
+      if (xOffset < 0 || yOffset < 0 || zOffset < 0) return;
+
+      const intensityOffset = fieldMap['intensity'] ? fieldMap['intensity'].offset : -1;
+      const rgbOffset = fieldMap['rgb'] ? fieldMap['rgb'].offset : (fieldMap['r'] ? fieldMap['r'].offset : -1);
+      const hasRgbField = !!fieldMap['rgb'];
+
+      const positions = new Float32Array(nPoints * 3);
+      const colors = new Float32Array(nPoints * 3);
+
+      let minZ = Infinity, maxZ = -Infinity;
+      const zValues = new Float32Array(nPoints);
+
+      for (let i = 0; i < nPoints; i++) {
+        const base = i * pointStep;
+        const x = readFloat(rawData, base + xOffset, isBigendian);
+        const y = readFloat(rawData, base + yOffset, isBigendian);
+        const z = readFloat(rawData, base + zOffset, isBigendian);
+
+        if (!isFinite(x) || !isFinite(y) || !isFinite(z)) continue;
+
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = z;
+        zValues[i] = z;
+
+        if (z < minZ) minZ = z;
+        if (z > maxZ) maxZ = z;
+      }
+
+      const zRange = maxZ - minZ;
+      const tc = hexToRgb(obj.topicColor);
+
+      for (let i = 0; i < nPoints; i++) {
+        if (obj.colorMode === 'z-axis') {
+          const t = zRange > 0 ? (zValues[i] - minZ) / zRange : 0.5;
+          const c = zAxisColor(t);
+          colors[i * 3] = c.r;
+          colors[i * 3 + 1] = c.g;
+          colors[i * 3 + 2] = c.b;
+        } else if (obj.colorMode === 'topic') {
+          colors[i * 3] = tc.r;
+          colors[i * 3 + 1] = tc.g;
+          colors[i * 3 + 2] = tc.b;
+        } else if (obj.colorMode === 'intensity' && intensityOffset >= 0) {
+          const base = i * pointStep;
+          const intensityField = fieldMap['intensity'];
+          let intensity = 0;
+          if (intensityField.datatype === 7) {
+            intensity = readFloat(rawData, base + intensityOffset, isBigendian);
+          } else if (intensityField.datatype === 6) {
+            intensity = readUInt32(rawData, base + intensityOffset, isBigendian);
+          } else if (intensityField.datatype === 4) {
+            intensity = readUInt16(rawData, base + intensityOffset, isBigendian);
+          } else if (intensityField.datatype === 2) {
+            intensity = readUInt8(rawData, base + intensityOffset);
+          }
+          const t = Math.min(1.0, Math.max(0.0, intensity));
+          const c = intensityColor(t);
+          colors[i * 3] = c.r;
+          colors[i * 3 + 1] = c.g;
+          colors[i * 3 + 2] = c.b;
+        } else if (obj.colorMode === 'rgb' && rgbOffset >= 0) {
+          const base = i * pointStep;
+          if (hasRgbField) {
+            const rgbInt = readUInt32(rawData, base + rgbOffset, isBigendian);
+            colors[i * 3] = ((rgbInt >> 16) & 0xff) / 255.0;
+            colors[i * 3 + 1] = ((rgbInt >> 8) & 0xff) / 255.0;
+            colors[i * 3 + 2] = (rgbInt & 0xff) / 255.0;
+          } else {
+            const rField = fieldMap['r'];
+            const gField = fieldMap['g'];
+            const bField = fieldMap['b'];
+            if (rField && gField && bField) {
+              colors[i * 3] = readUInt8(rawData, base + rField.offset) / 255.0;
+              colors[i * 3 + 1] = readUInt8(rawData, base + gField.offset) / 255.0;
+              colors[i * 3 + 2] = readUInt8(rawData, base + bField.offset) / 255.0;
+            }
+          }
+        } else {
+          colors[i * 3] = tc.r;
+          colors[i * 3 + 1] = tc.g;
+          colors[i * 3 + 2] = tc.b;
+        }
+      }
+
+      const geometry = obj.points.geometry;
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      geometry.attributes.position.needsUpdate = true;
+      geometry.attributes.color.needsUpdate = true;
+
+      applyTfToPointCloud(topicName);
+    }
+
+    function applyTfToPointCloud(topicName) {
+      const obj = pointCloudObjects[topicName];
+      if (!obj || !obj.frameId) return;
+
+      fixedFrame = document.getElementById('fixed-frame').value;
+
+      if (obj.frameId === fixedFrame) {
+        obj.points.position.set(0, 0, 0);
+        obj.points.quaternion.set(0, 0, 0, 1);
+        return;
+      }
+
+      const transform = lookupTransform(fixedFrame, obj.frameId);
+      if (transform) {
+        obj.points.position.set(transform.translation.x, transform.translation.y, transform.translation.z);
+        obj.points.quaternion.set(transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w);
+      }
+    }
+
+    function lookupTransform(targetFrame, sourceFrame) {
+      if (targetFrame === sourceFrame) {
+        return {
+          translation: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0, w: 1 }
+        };
+      }
+
+      const path = findTfPath(targetFrame, sourceFrame);
+      if (!path) {
+        return null;
+      }
+
+      let result = {
+        translation: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 }
+      };
+
+      for (let i = 0; i < path.length - 1; i++) {
+        const from = path[i];
+        const to = path[i + 1];
+
+        let tfKey = from + '_' + to;
+        let tf = tfTransforms[tfKey];
+        let isInverse = false;
+
+        if (!tf) {
+          tfKey = to + '_' + from;
+          tf = tfTransforms[tfKey];
+          isInverse = true;
+        }
+
+        if (!tf) {
+          return null;
+        }
+
+        if (isInverse) {
+          result = multiplyTransforms(result, invertTransform(tf));
+        } else {
+          result = multiplyTransforms(result, tf);
+        }
+      }
+
+      return result;
+    }
+
+    function findTfPath(targetFrame, sourceFrame, visited = new Set()) {
+      if (targetFrame === sourceFrame) {
+        return [targetFrame];
+      }
+
+      if (visited.has(sourceFrame)) {
+        return null;
+      }
+      visited.add(sourceFrame);
+
+      const neighbors = new Set();
+      for (const key in tfTransforms) {
+        const tf = tfTransforms[key];
+        if (tf.parent === sourceFrame) {
+          neighbors.add(tf.child);
+        }
+        if (tf.child === sourceFrame) {
+          neighbors.add(tf.parent);
+        }
+      }
+
+      for (const neighbor of neighbors) {
+        const path = findTfPath(targetFrame, neighbor, new Set(visited));
+        if (path) {
+          return [sourceFrame, ...path];
+        }
+      }
+
+      return null;
+    }
+
+    function invertTransform(tf) {
+      const q = new THREE.Quaternion(tf.rotation.x, tf.rotation.y, tf.rotation.z, tf.rotation.w);
+      const t = new THREE.Vector3(tf.translation.x, tf.translation.y, tf.translation.z);
+
+      const qInv = q.clone().invert();
+      const tInv = t.clone().applyQuaternion(qInv).negate();
+
+      return {
+        translation: { x: tInv.x, y: tInv.y, z: tInv.z },
+        rotation: { x: qInv.x, y: qInv.y, z: qInv.z, w: qInv.w }
+      };
+    }
+
+    function multiplyTransforms(t1, t2) {
+      const q1 = new THREE.Quaternion(t1.rotation.x, t1.rotation.y, t1.rotation.z, t1.rotation.w);
+      const t1v = new THREE.Vector3(t1.translation.x, t1.translation.y, t1.translation.z);
+
+      const q2 = new THREE.Quaternion(t2.rotation.x, t2.rotation.y, t2.rotation.z, t2.rotation.w);
+      const t2v = new THREE.Vector3(t2.translation.x, t2.translation.y, t2.translation.z);
+
+      const qResult = q1.clone().multiply(q2);
+      const tResult = t1v.clone().add(t2v.clone().applyQuaternion(q1));
+
+      return {
+        translation: { x: tResult.x, y: tResult.y, z: tResult.z },
+        rotation: { x: qResult.x, y: qResult.y, z: qResult.z, w: qResult.w }
+      };
+    }
+
+    function readFloat(data, offset, isBigendian) {
+      const view = new DataView(new ArrayBuffer(4));
+      for (let i = 0; i < 4; i++) {
+        view.setUint8(isBigendian ? i : 3 - i, data.charCodeAt(offset + i));
+      }
+      return view.getFloat32(0, false);
+    }
+
+    function readUInt32(data, offset, isBigendian) {
+      const view = new DataView(new ArrayBuffer(4));
+      for (let i = 0; i < 4; i++) {
+        view.setUint8(isBigendian ? i : 3 - i, data.charCodeAt(offset + i));
+      }
+      return view.getUint32(0, false);
+    }
+
+    function readUInt16(data, offset, isBigendian) {
+      const view = new DataView(new ArrayBuffer(2));
+      for (let i = 0; i < 2; i++) {
+        view.setUint8(isBigendian ? i : 1 - i, data.charCodeAt(offset + i));
+      }
+      return view.getUint16(0, false);
+    }
+
+    function readUInt8(data, offset) {
+      return data.charCodeAt(offset) & 0xff;
+    }
+
+    function hexToRgb(hex) {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16) / 255,
+        g: parseInt(result[2], 16) / 255,
+        b: parseInt(result[3], 16) / 255
+      } : { r: 1, g: 1, b: 1 };
+    }
+
+    function zAxisColor(t) {
+      if (t < 0.25) {
+        const s = t / 0.25;
+        return { r: 0, g: s, b: 1 };
+      } else if (t < 0.5) {
+        const s = (t - 0.25) / 0.25;
+        return { r: 0, g: 1, b: 1 - s };
+      } else if (t < 0.75) {
+        const s = (t - 0.5) / 0.25;
+        return { r: s, g: 1, b: 0 };
+      } else {
+        const s = (t - 0.75) / 0.25;
+        return { r: 1, g: 1 - s, b: 0 };
+      }
+    }
+
+    function intensityColor(t) {
+      if (t < 0.5) {
+        const s = t / 0.5;
+        return { r: 0, g: s, b: 1 - s };
+      } else {
+        const s = (t - 0.5) / 0.5;
+        return { r: s, g: 1, b: 0 };
+      }
+    }
+
+    function subscribeTf() {
+      if (!ros || !ros.isConnected) return;
+
+      const tfTopic = new ROSLIB.Topic({
+        ros: ros,
+        name: '/tf',
+        messageType: 'tf2_msgs/msg/TFMessage',
+        qos: { depth: 10, durability: 'volatile', reliability: 'reliable' }
+      });
+
+      const tfStaticTopic = new ROSLIB.Topic({
+        ros: ros,
+        name: '/tf_static',
+        messageType: 'tf2_msgs/msg/TFMessage',
+        qos: { depth: 10, durability: 'transient_local', reliability: 'reliable' }
+      });
+
+      function processTfMessage(message) {
+        for (let i = 0; i < message.transforms.length; i++) {
+          const t = message.transforms[i];
+          const parentFrame = t.header.frame_id.replace(/^\//, '');
+          const childFrame = t.child_frame_id.replace(/^\//, '');
+          const tfKey = parentFrame + '_' + childFrame;
+
+          tfTransforms[tfKey] = {
+            parent: parentFrame,
+            child: childFrame,
+            translation: {
+              x: t.transform.translation.x,
+              y: t.transform.translation.y,
+              z: t.transform.translation.z
+            },
+            rotation: {
+              x: t.transform.rotation.x,
+              y: t.transform.rotation.y,
+              z: t.transform.rotation.z,
+              w: t.transform.rotation.w
+            }
+          };
+
+          updateTfAxes(childFrame, t.transform);
+          updateFixedFrameOptions(parentFrame, childFrame);
+        }
+
+        for (const topicKey in pointCloudObjects) {
+          applyTfToPointCloud(topicKey);
+        }
+
+        renderTfTree();
+      }
+
+      tfTopic.subscribe(processTfMessage);
+      tfStaticTopic.subscribe(processTfMessage);
+
+      tfSubscriptions['/tf'] = tfTopic;
+      tfSubscriptions['/tf_static'] = tfStaticTopic;
+    }
+
+    function updateTfAxes(frameName, transform) {
+      updateAllTfAxes();
+    }
+
+    function updateAllTfAxes() {
+      fixedFrame = document.getElementById('fixed-frame').value;
+
+      for (const frameName in tfAxesObjects) {
+        scene.remove(tfAxesObjects[frameName]);
+        tfAxesObjects[frameName].traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) child.material.dispose();
+        });
+        delete tfAxesObjects[frameName];
+      }
+
+      for (const key in tfTransforms) {
+        const tf = tfTransforms[key];
+        const childFrame = tf.child;
+
+        if (tfAxesObjects[childFrame]) continue;
+
+        const transform = lookupTransform(fixedFrame, childFrame);
+        if (!transform) continue;
+
+        const axesGroup = new THREE.Group();
+
+        const axisLength = 0.5;
+        const axisX = new THREE.ArrowHelper(
+          new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0),
+          axisLength, 0xff0000, axisLength * 0.2, axisLength * 0.1
+        );
+        const axisY = new THREE.ArrowHelper(
+          new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0),
+          axisLength, 0x00ff00, axisLength * 0.2, axisLength * 0.1
+        );
+        const axisZ = new THREE.ArrowHelper(
+          new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0),
+          axisLength, 0x0000ff, axisLength * 0.2, axisLength * 0.1
+        );
+
+        axesGroup.add(axisX);
+        axesGroup.add(axisY);
+        axesGroup.add(axisZ);
+
+        axesGroup.position.set(
+          transform.translation.x,
+          transform.translation.y,
+          transform.translation.z
+        );
+        axesGroup.quaternion.set(
+          transform.rotation.x,
+          transform.rotation.y,
+          transform.rotation.z,
+          transform.rotation.w
+        );
+
+        axesGroup.visible = document.getElementById('show-tf').checked;
+        scene.add(axesGroup);
+        tfAxesObjects[childFrame] = axesGroup;
+      }
+    }
+
+    function updateFixedFrameOptions() {
+      const select = document.getElementById('fixed-frame');
+      const currentValue = select.value;
+      const frames = new Set();
+
+      for (const key in tfTransforms) {
+        frames.add(tfTransforms[key].parent);
+        frames.add(tfTransforms[key].child);
+      }
+
+      const existingOptions = new Set();
+      for (let i = 0; i < select.options.length; i++) {
+        existingOptions.add(select.options[i].value);
+      }
+
+      frames.forEach(frame => {
+        if (!existingOptions.has(frame)) {
+          const option = document.createElement('option');
+          option.value = frame;
+          option.textContent = frame;
+          select.appendChild(option);
+          existingOptions.add(frame);
+        }
+      });
+
+      select.value = currentValue;
+    }
+
+    function renderTfTree() {
+      const container = document.getElementById('tf-tree-display');
+      const lines = [];
+      for (const key in tfTransforms) {
+        const tf = tfTransforms[key];
+        lines.push(
+          '<span style="color:#e94560">' + tf.parent + '</span>' +
+          ' → ' +
+          '<span style="color:#00d2ff">' + tf.child + '</span>' +
+          ' <span style="color:#666">(' +
+          tf.translation.x.toFixed(2) + ', ' +
+          tf.translation.y.toFixed(2) + ', ' +
+          tf.translation.z.toFixed(2) + ')</span>'
+        );
+      }
+      container.innerHTML = lines.length > 0 ? lines.join('<br>') : '等待TF数据...';
+    }
+
+    function renderTopicList() {
+      const container = document.getElementById('topic-list');
+      let html = '';
+
+      for (const topicName in topicSubscriptions) {
+        const obj = pointCloudObjects[topicName];
+        if (!obj) continue;
+
+        const pointCount = obj.points.geometry.attributes.position
+          ? obj.points.geometry.attributes.position.count : 0;
+        const isActive = obj.lastUpdateTime > 0;
+        const timeoutText = obj.timeoutMs > 0 ? (obj.timeoutMs / 1000).toFixed(1) + 's' : '永不过期';
+
+        html += '<div class="topic-item' + (isActive ? ' active' : '') + '">';
+        html += '<div class="topic-header">';
+        html += '<span class="topic-name"><span class="color-dot" style="background:' + obj.topicColor + '"></span>' + topicName + '</span>';
+        html += '<button class="btn btn-danger" onclick="removeTopic(\'' + topicName + '\')" style="padding:2px 8px;font-size:10px">移除</button>';
+        html += '</div>';
+        html += '<div class="topic-stats">';
+        html += '点数: ' + pointCount.toLocaleString() + ' | ';
+        html += 'Frame: ' + (obj.frameId || '-') + ' | ';
+        html += '着色: ' + obj.colorMode + ' | ';
+        html += '超时: ' + timeoutText;
+        html += '</div>';
+        html += '</div>';
+      }
+
+      container.innerHTML = html || '<div style="font-size:12px;color:#666">暂无订阅话题</div>';
+    }
+
+    function resetCamera() {
+      camera.position.set(10, 10, 10);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+
+    function topView() {
+      camera.position.set(0, 30, 0.01);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+
+    function frontView() {
+      camera.position.set(0, 5, 30);
+      controls.target.set(0, 5, 0);
+      controls.update();
+    }
+
+    document.getElementById('fixed-frame').addEventListener('change', function () {
+      fixedFrame = this.value;
+      for (const topicKey in pointCloudObjects) {
+        applyTfToPointCloud(topicKey);
+      }
+      updateAllTfAxes();
+    });
+
+    document.getElementById('bg-color').addEventListener('input', function () {
+      scene.background = new THREE.Color(this.value);
+    });
+
+    document.getElementById('show-grid').addEventListener('change', function () {
+      if (gridHelper) gridHelper.visible = this.checked;
+    });
+
+    document.getElementById('show-axes').addEventListener('change', function () {
+      if (axesHelper) axesHelper.visible = this.checked;
+    });
+
+    initThreeJS();
+
+    const savedIp = localStorage.getItem('ros_hostname');
+    if (savedIp) {
+      document.getElementById('ros-ip').value = savedIp;
+    }
+  </script>
+</body>
+</html>
