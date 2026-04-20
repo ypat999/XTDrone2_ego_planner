@@ -190,6 +190,46 @@
       cursor: pointer;
       background: none;
     }
+    #fullscreen-toggle {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: #e94560;
+      border: none;
+      color: #fff;
+      font-size: 20px;
+      cursor: pointer;
+      z-index: 1000;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s;
+    }
+    #fullscreen-toggle:hover {
+      background: #ff6b8a;
+      transform: scale(1.1);
+    }
+    body.fullscreen-mode #sidebar {
+      display: none;
+    }
+    body.fullscreen-mode #viewer-container {
+      width: 100vw;
+    }
+    @media (max-width: 768px) {
+      #sidebar {
+        width: 100%;
+        min-width: 100%;
+        max-height: 40vh;
+        overflow-y: auto;
+      }
+      body.fullscreen-mode #sidebar {
+        display: none;
+      }
+    }
   </style>
 </head>
 <body>
@@ -238,8 +278,8 @@
       <div class="row">
         <label>QoS策略:</label>
         <select id="qos-reliability">
-          <option value="best_effort">Best Effort</option>
-          <option value="reliable" selected>Reliable</option>
+          <option value="best_effort" selected>Best Effort</option>
+          <option value="reliable">Reliable</option>
         </select>
       </div>
       <div class="row">
@@ -261,7 +301,11 @@
       </div>
       <div class="row">
         <label>点大小:</label>
-        <input type="range" class="point-size-slider" id="point-size" min="1" max="10" value="2" step="0.5">
+        <input type="range" class="point-size-slider" id="point-size" min="1" max="10" value="1" step="0.5">
+      </div>
+      <div class="row">
+        <label>体素大小:</label>
+        <input type="number" id="voxel-size" value="0.5" min="0" max="1" step="0.01" placeholder="0=不采样">
       </div>
       <div class="row">
         <button class="btn btn-success" onclick="addTopic()" style="flex:1">添加话题</button>
@@ -379,7 +423,7 @@
       scene.add(rosRoot);
 
       camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 10000);
-      camera.position.set(10, 10, 10);
+      camera.position.set(0, 0, 20);
       camera.lookAt(0, 0, 0);
 
       renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -403,15 +447,15 @@
       axesHelper.name = 'axesHelper';
       const axisLength = 5;
       const axisX = new THREE.ArrowHelper(
-        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0),
         axisLength, 0xff0000, axisLength * 0.2, axisLength * 0.1
       );
       const axisY = new THREE.ArrowHelper(
-        new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0),
         axisLength, 0x00ff00, axisLength * 0.2, axisLength * 0.1
       );
       const axisZ = new THREE.ArrowHelper(
-        new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0),
         axisLength, 0x0000ff, axisLength * 0.2, axisLength * 0.1
       );
       axesHelper.add(axisX);
@@ -435,9 +479,9 @@
         sprite.scale.set(2, 1, 1);
         return sprite;
       }
-      axesHelper.add(createAxisLabel('X(F)', new THREE.Vector3(0, 0, axisLength + 1), '#ff0000'));
-      axesHelper.add(createAxisLabel('Y(L)', new THREE.Vector3(-(axisLength + 1), 0, 0), '#00ff00'));
-      axesHelper.add(createAxisLabel('Z(U)', new THREE.Vector3(0, axisLength + 1, 0), '#0000ff'));
+      axesHelper.add(createAxisLabel('X', new THREE.Vector3(axisLength + 1, 0, 0), '#ff0000'));
+      axesHelper.add(createAxisLabel('Y', new THREE.Vector3(0, axisLength + 1, 0), '#00ff00'));
+      axesHelper.add(createAxisLabel('Z', new THREE.Vector3(0, 0, axisLength + 1), '#0000ff'));
       rosRoot.add(axesHelper);
 
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -591,6 +635,7 @@
       const colorMode = document.getElementById('color-mode').value;
       const topicColor = document.getElementById('topic-color').value;
       const pointSize = parseFloat(document.getElementById('point-size').value);
+      const voxelSize = parseFloat(document.getElementById('voxel-size').value) || 0;
 
       if (topicSubscriptions[topicName]) {
         alert('该话题已添加');
@@ -632,6 +677,7 @@
         timeoutMs: frameTimeout,
         lastUpdateTime: 0,
         pointSize: pointSize,
+        voxelSize: voxelSize,
         frameId: ''
       };
 
@@ -692,11 +738,8 @@
       const rgbOffset = fieldMap['rgb'] ? fieldMap['rgb'].offset : (fieldMap['r'] ? fieldMap['r'].offset : -1);
       const hasRgbField = !!fieldMap['rgb'];
 
-      const positions = new Float32Array(nPoints * 3);
-      const colors = new Float32Array(nPoints * 3);
-
+      const tempPoints = [];
       let minZ = Infinity, maxZ = -Infinity;
-      const zValues = new Float32Array(nPoints);
 
       for (let i = 0; i < nPoints; i++) {
         const base = i * pointStep;
@@ -706,21 +749,46 @@
 
         if (!isFinite(x) || !isFinite(y) || !isFinite(z)) continue;
 
-        positions[i * 3] = -y;
-        positions[i * 3 + 1] = z;
-        positions[i * 3 + 2] = x;
-        zValues[i] = z;
+        tempPoints.push({ x, y, z, base, index: i });
 
         if (z < minZ) minZ = z;
         if (z > maxZ) maxZ = z;
       }
 
+      let sampledPoints = tempPoints;
+      const voxelSize = obj.voxelSize;
+
+      if (voxelSize > 0) {
+        const voxelMap = new Map();
+        for (const pt of tempPoints) {
+          const vx = Math.floor(pt.x / voxelSize);
+          const vy = Math.floor(pt.y / voxelSize);
+          const vz = Math.floor(pt.z / voxelSize);
+          const key = `${vx},${vy},${vz}`;
+          if (!voxelMap.has(key)) {
+            voxelMap.set(key, pt);
+          }
+        }
+        sampledPoints = Array.from(voxelMap.values());
+      }
+
+      const nSampled = sampledPoints.length;
+      const positions = new Float32Array(nSampled * 3);
+      const colors = new Float32Array(nSampled * 3);
+      const zValues = new Float32Array(nSampled);
+
       const zRange = maxZ - minZ;
       const tc = hexToRgb(obj.topicColor);
 
-      for (let i = 0; i < nPoints; i++) {
+      for (let i = 0; i < nSampled; i++) {
+        const pt = sampledPoints[i];
+        positions[i * 3] = pt.x;
+        positions[i * 3 + 1] = pt.y;
+        positions[i * 3 + 2] = pt.z;
+        zValues[i] = pt.z;
+
         if (obj.colorMode === 'z-axis') {
-          const t = zRange > 0 ? (zValues[i] - minZ) / zRange : 0.5;
+          const t = zRange > 0 ? (pt.z - minZ) / zRange : 0.5;
           const c = zAxisColor(t);
           colors[i * 3] = c.r;
           colors[i * 3 + 1] = c.g;
@@ -730,17 +798,16 @@
           colors[i * 3 + 1] = tc.g;
           colors[i * 3 + 2] = tc.b;
         } else if (obj.colorMode === 'intensity' && intensityOffset >= 0) {
-          const base = i * pointStep;
           const intensityField = fieldMap['intensity'];
           let intensity = 0;
           if (intensityField.datatype === 7) {
-            intensity = readFloat(rawData, base + intensityOffset, isBigendian);
+            intensity = readFloat(rawData, pt.base + intensityOffset, isBigendian);
           } else if (intensityField.datatype === 6) {
-            intensity = readUInt32(rawData, base + intensityOffset, isBigendian);
+            intensity = readUInt32(rawData, pt.base + intensityOffset, isBigendian);
           } else if (intensityField.datatype === 4) {
-            intensity = readUInt16(rawData, base + intensityOffset, isBigendian);
+            intensity = readUInt16(rawData, pt.base + intensityOffset, isBigendian);
           } else if (intensityField.datatype === 2) {
-            intensity = readUInt8(rawData, base + intensityOffset);
+            intensity = readUInt8(rawData, pt.base + intensityOffset);
           }
           const t = Math.min(1.0, Math.max(0.0, intensity));
           const c = intensityColor(t);
@@ -748,9 +815,8 @@
           colors[i * 3 + 1] = c.g;
           colors[i * 3 + 2] = c.b;
         } else if (obj.colorMode === 'rgb' && rgbOffset >= 0) {
-          const base = i * pointStep;
           if (hasRgbField) {
-            const rgbInt = readUInt32(rawData, base + rgbOffset, isBigendian);
+            const rgbInt = readUInt32(rawData, pt.base + rgbOffset, isBigendian);
             colors[i * 3] = ((rgbInt >> 16) & 0xff) / 255.0;
             colors[i * 3 + 1] = ((rgbInt >> 8) & 0xff) / 255.0;
             colors[i * 3 + 2] = (rgbInt & 0xff) / 255.0;
@@ -759,9 +825,9 @@
             const gField = fieldMap['g'];
             const bField = fieldMap['b'];
             if (rField && gField && bField) {
-              colors[i * 3] = readUInt8(rawData, base + rField.offset) / 255.0;
-              colors[i * 3 + 1] = readUInt8(rawData, base + gField.offset) / 255.0;
-              colors[i * 3 + 2] = readUInt8(rawData, base + bField.offset) / 255.0;
+              colors[i * 3] = readUInt8(rawData, pt.base + rField.offset) / 255.0;
+              colors[i * 3 + 1] = readUInt8(rawData, pt.base + gField.offset) / 255.0;
+              colors[i * 3 + 2] = readUInt8(rawData, pt.base + bField.offset) / 255.0;
             }
           }
         } else {
@@ -795,20 +861,17 @@
       const transform = lookupTransform(fixedFrame, obj.frameId);
       if (transform) {
         obj.points.position.set(
-          -transform.translation.y,
-          transform.translation.z,
-          transform.translation.x
+          transform.translation.x,
+          transform.translation.y,
+          transform.translation.z
         );
 
-        const rosQuat = new THREE.Quaternion(
+        obj.points.quaternion.set(
           transform.rotation.x,
           transform.rotation.y,
           transform.rotation.z,
           transform.rotation.w
         );
-        const rotQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, -Math.PI / 2));
-        const threeQuat = rotQuat.clone().multiply(rosQuat);
-        obj.points.quaternion.copy(threeQuat);
       }
     }
 
@@ -836,12 +899,12 @@
 
         let tfKey = from + '_' + to;
         let tf = tfTransforms[tfKey];
-        let isInverse = false;
+        let isInverse = true;
 
         if (!tf) {
           tfKey = to + '_' + from;
           tf = tfTransforms[tfKey];
-          isInverse = true;
+          isInverse = false;
         }
 
         if (!tf) {
@@ -1106,20 +1169,17 @@
         }
 
         axesGroup.position.set(
-          -transform.translation.y,
-          transform.translation.z,
-          transform.translation.x
+          transform.translation.x,
+          transform.translation.y,
+          transform.translation.z
         );
 
-        const rosQuat = new THREE.Quaternion(
+        axesGroup.quaternion.set(
           transform.rotation.x,
           transform.rotation.y,
           transform.rotation.z,
           transform.rotation.w
         );
-        const rotQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, -Math.PI / 2));
-        const threeQuat = rotQuat.clone().multiply(rosQuat);
-        axesGroup.quaternion.copy(threeQuat);
 
         axesGroup.visible = document.getElementById('show-tf').checked;
         rosRoot.add(axesGroup);
@@ -1204,20 +1264,20 @@
     }
 
     function resetCamera() {
-      camera.position.set(10, 10, 10);
+      camera.position.set(0, 0, 20);
       controls.target.set(0, 0, 0);
       controls.update();
     }
 
     function topView() {
-      camera.position.set(0, 30, 0.01);
+      camera.position.set(0, 0, 30);
       controls.target.set(0, 0, 0);
       controls.update();
     }
 
     function frontView() {
-      camera.position.set(0, 5, 30);
-      controls.target.set(0, 5, 0);
+      camera.position.set(0, -30, 5);
+      controls.target.set(0, 0, 5);
       controls.update();
     }
 
@@ -1274,6 +1334,43 @@
     if (savedIp) {
       document.getElementById('ros-ip').value = savedIp;
     }
+
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        connectROS();
+      }, 500);
+    });
+
+    let isFullscreen = false;
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().then(function() {
+          isFullscreen = true;
+          document.body.classList.add('fullscreen-mode');
+          document.getElementById('fullscreen-toggle').innerHTML = '&#9881;';
+          setTimeout(onWindowResize, 100);
+        }).catch(function(err) {
+          console.log('Fullscreen error:', err);
+        });
+      } else {
+        document.exitFullscreen().then(function() {
+          isFullscreen = false;
+          document.body.classList.remove('fullscreen-mode');
+          document.getElementById('fullscreen-toggle').innerHTML = '&#x26F6;';
+          setTimeout(onWindowResize, 100);
+        });
+      }
+    }
+
+    document.addEventListener('fullscreenchange', function() {
+      if (!document.fullscreenElement) {
+        isFullscreen = false;
+        document.body.classList.remove('fullscreen-mode');
+        document.getElementById('fullscreen-toggle').innerHTML = '&#x26F6;';
+        setTimeout(onWindowResize, 100);
+      }
+    });
   </script>
+  <button id="fullscreen-toggle" onclick="toggleFullscreen()">&#x26F6;</button>
 </body>
 </html>
