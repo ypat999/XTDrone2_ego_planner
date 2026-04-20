@@ -13,12 +13,12 @@ if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
     default_namespace = '/x500_depth_0/'
     use_sim_time = True
     use_sim_time_str = 'true'
-    super_lio_launch_file = 'gazebo_mid360_drone.launch.py'
+    super_lio_launch_file = 'gazebo_mid360_drone.py'
 else:
     default_namespace = '/'
     use_sim_time = False
     use_sim_time_str = 'false'  
-    super_lio_launch_file = 'Livox_mid360_drone.launch.py'
+    super_lio_launch_file = 'Livox_mid360_drone.py'
 
 
 def generate_launch_description():
@@ -305,6 +305,6 @@ exit 1
                 ]
             )
         )
-    # ld.add_action(ego_planner_event_handler)
+    ld.add_action(ego_planner_event_handler)
 
     return ld
