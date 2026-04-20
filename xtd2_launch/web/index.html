@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ROS2 PointCloud2 Web Viewer</title>
   <script src="libs/roslib.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="libs/three.min.js"></script>
+  <script src="libs/OrbitControls.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -218,7 +218,7 @@
       <div class="section-title">添加点云话题</div>
       <div class="row">
         <label>话题名:</label>
-        <input type="text" id="topic-name" value="/cloud_registered" placeholder="/pointcloud">
+        <input type="text" id="topic-name" value="/livox/lidar" placeholder="/pointcloud">
       </div>
       <div class="row">
         <label>消息类型:</label>
@@ -282,6 +282,15 @@
           <option value="odom">odom</option>
           <option value="base_link">base_link</option>
           <option value="world">world</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>坐标系:</label>
+        <select id="coord-system">
+          <option value="ros">ROS (X前Y左Z上)</option>
+          <option value="enu">ENU (X东Y北Z上)</option>
+          <option value="ned">NED (X北Y东Z下)</option>
+          <option value="raw">原始 (不转换)</option>
         </select>
       </div>
       <div class="checkbox-row">
@@ -382,7 +391,7 @@
       renderer.setPixelRatio(window.devicePixelRatio);
       container.insertBefore(renderer.domElement, container.firstChild);
 
-      controls = new OrbitControls(camera, renderer.domElement);
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.1;
       controls.rotateSpeed = 0.8;
@@ -393,7 +402,45 @@
       gridHelper = new THREE.GridHelper(100, 100, 0x444466, 0x222244);
       scene.add(gridHelper);
 
-      axesHelper = new THREE.AxesHelper(5);
+      axesHelper = new THREE.Group();
+      axesHelper.name = 'axesHelper';
+      const axisLength = 5;
+      const axisX = new THREE.ArrowHelper(
+        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0),
+        axisLength, 0xff0000, axisLength * 0.2, axisLength * 0.1
+      );
+      const axisY = new THREE.ArrowHelper(
+        new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0),
+        axisLength, 0x00ff00, axisLength * 0.2, axisLength * 0.1
+      );
+      const axisZ = new THREE.ArrowHelper(
+        new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0),
+        axisLength, 0x0000ff, axisLength * 0.2, axisLength * 0.1
+      );
+      axesHelper.add(axisX);
+      axesHelper.add(axisY);
+      axesHelper.add(axisZ);
+
+      function createAxisLabel(text, position, color) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 32;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = color;
+        ctx.font = 'bold 24px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, 32, 16);
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.SpriteMaterial({ map: texture });
+        const sprite = new THREE.Sprite(material);
+        sprite.position.copy(position);
+        sprite.scale.set(2, 1, 1);
+        return sprite;
+      }
+      axesHelper.add(createAxisLabel('X(F)', new THREE.Vector3(0, 0, axisLength + 1), '#ff0000'));
+      axesHelper.add(createAxisLabel('Y(L)', new THREE.Vector3(axisLength + 1, 0, 0), '#00ff00'));
+      axesHelper.add(createAxisLabel('Z(U)', new THREE.Vector3(0, axisLength + 1, 0), '#0000ff'));
       scene.add(axesHelper);
 
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -651,6 +698,8 @@
       const positions = new Float32Array(nPoints * 3);
       const colors = new Float32Array(nPoints * 3);
 
+      const coordSystem = document.getElementById('coord-system').value;
+
       let minZ = Infinity, maxZ = -Infinity;
       const zValues = new Float32Array(nPoints);
 
@@ -662,9 +711,20 @@
 
         if (!isFinite(x) || !isFinite(y) || !isFinite(z)) continue;
 
-        positions[i * 3] = x;
-        positions[i * 3 + 1] = y;
-        positions[i * 3 + 2] = z;
+        let px, py, pz;
+        if (coordSystem === 'ros') {
+          px = y; py = z; pz = x;
+        } else if (coordSystem === 'enu') {
+          px = x; py = z; pz = y;
+        } else if (coordSystem === 'ned') {
+          px = x; py = -z; pz = y;
+        } else {
+          px = x; py = y; pz = z;
+        }
+
+        positions[i * 3] = px;
+        positions[i * 3 + 1] = py;
+        positions[i * 3 + 2] = pz;
         zValues[i] = z;
 
         if (z < minZ) minZ = z;
@@ -750,8 +810,42 @@
 
       const transform = lookupTransform(fixedFrame, obj.frameId);
       if (transform) {
-        obj.points.position.set(transform.translation.x, transform.translation.y, transform.translation.z);
-        obj.points.quaternion.set(transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w);
+        const coordSystem = document.getElementById('coord-system').value;
+        let tx = transform.translation.x;
+        let ty = transform.translation.y;
+        let tz = transform.translation.z;
+
+        let px, py, pz;
+        if (coordSystem === 'ros') {
+          px = ty; py = tz; pz = tx;
+        } else if (coordSystem === 'enu') {
+          px = tx; py = tz; pz = ty;
+        } else if (coordSystem === 'ned') {
+          px = tx; py = -tz; pz = ty;
+        } else {
+          px = tx; py = ty; pz = tz;
+        }
+        obj.points.position.set(px, py, pz);
+
+        const q = new THREE.Quaternion(
+          transform.rotation.x,
+          transform.rotation.y,
+          transform.rotation.z,
+          transform.rotation.w
+        );
+        
+        if (coordSystem === 'ros') {
+          const rotAdjust = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0));
+          q.multiply(rotAdjust);
+        } else if (coordSystem === 'enu') {
+          const rotAdjust = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+          q.multiply(rotAdjust);
+        } else if (coordSystem === 'ned') {
+          const rotAdjust = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI, 0, 0));
+          q.multiply(rotAdjust);
+        }
+        
+        obj.points.quaternion.copy(q);
       }
     }
 
@@ -988,6 +1082,7 @@
 
     function updateAllTfAxes() {
       fixedFrame = document.getElementById('fixed-frame').value;
+      const coordSystem = document.getElementById('coord-system').value;
 
       for (const frameName in tfAxesObjects) {
         scene.remove(tfAxesObjects[frameName]);
@@ -1015,11 +1110,11 @@
           axisLength, 0xff0000, axisLength * 0.2, axisLength * 0.1
         );
         const axisY = new THREE.ArrowHelper(
-          new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0),
+          new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0),
           axisLength, 0x00ff00, axisLength * 0.2, axisLength * 0.1
         );
         const axisZ = new THREE.ArrowHelper(
-          new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0),
+          new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 0),
           axisLength, 0x0000ff, axisLength * 0.2, axisLength * 0.1
         );
 
@@ -1027,17 +1122,62 @@
         axesGroup.add(axisY);
         axesGroup.add(axisZ);
 
-        axesGroup.position.set(
-          transform.translation.x,
-          transform.translation.y,
-          transform.translation.z
-        );
-        axesGroup.quaternion.set(
+        if (childFrame === 'map' || childFrame === 'base_footprint') {
+          function createTfLabel(text, position, color) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = color;
+            ctx.font = 'bold 20px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 64, 16);
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({ map: texture });
+            const sprite = new THREE.Sprite(material);
+            sprite.position.copy(position);
+            sprite.scale.set(3, 0.75, 1);
+            return sprite;
+          }
+          axesGroup.add(createTfLabel(childFrame, new THREE.Vector3(0, axisLength + 0.5, 0), '#ffffff'));
+        }
+
+        let tx = transform.translation.x;
+        let ty = transform.translation.y;
+        let tz = transform.translation.z;
+
+        let px, py, pz;
+        if (coordSystem === 'ros') {
+          px = tx; py = tz; pz = -ty;
+        } else if (coordSystem === 'enu') {
+          px = tx; py = tz; pz = ty;
+        } else if (coordSystem === 'ned') {
+          px = tx; py = -tz; pz = ty;
+        } else {
+          px = tx; py = ty; pz = tz;
+        }
+        axesGroup.position.set(px, py, pz);
+
+        const q = new THREE.Quaternion(
           transform.rotation.x,
           transform.rotation.y,
           transform.rotation.z,
           transform.rotation.w
         );
+        
+        if (coordSystem === 'ros') {
+          const rotAdjust = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0));
+          q.multiply(rotAdjust);
+        } else if (coordSystem === 'enu') {
+          const rotAdjust = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+          q.multiply(rotAdjust);
+        } else if (coordSystem === 'ned') {
+          const rotAdjust = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI, 0, 0));
+          q.multiply(rotAdjust);
+        }
+        
+        axesGroup.quaternion.copy(q);
 
         axesGroup.visible = document.getElementById('show-tf').checked;
         scene.add(axesGroup);
@@ -1147,6 +1287,13 @@
       updateAllTfAxes();
     });
 
+    document.getElementById('coord-system').addEventListener('change', function () {
+      for (const topicKey in pointCloudObjects) {
+        applyTfToPointCloud(topicKey);
+      }
+      updateAllTfAxes();
+    });
+
     document.getElementById('bg-color').addEventListener('input', function () {
       scene.background = new THREE.Color(this.value);
     });
@@ -1159,7 +1306,34 @@
       if (axesHelper) axesHelper.visible = this.checked;
     });
 
-    initThreeJS();
+    function tryInitThreeJS() {
+      const loadingOverlay = document.getElementById('loading-overlay');
+      try {
+        if (typeof THREE === 'undefined') {
+          loadingOverlay.textContent = '错误: THREE.js 未加载';
+          loadingOverlay.style.color = '#ff4444';
+          console.error('THREE is undefined');
+          return;
+        }
+        if (typeof THREE.OrbitControls === 'undefined') {
+          loadingOverlay.textContent = '错误: OrbitControls 未加载';
+          loadingOverlay.style.color = '#ff4444';
+          console.error('OrbitControls is undefined');
+          return;
+        }
+        initThreeJS();
+      } catch (e) {
+        loadingOverlay.textContent = '初始化错误: ' + e.message;
+        loadingOverlay.style.color = '#ff4444';
+        console.error('initThreeJS error:', e);
+      }
+    }
+
+    if (document.readyState === 'complete') {
+      tryInitThreeJS();
+    } else {
+      window.addEventListener('load', tryInitThreeJS);
+    }
 
     const savedIp = localStorage.getItem('ros_hostname');
     if (savedIp) {

@@ -7,11 +7,9 @@ Panels:
         - /Global Options1
         - /TF1/Frames1
         - /TF1/Tree1
-        - /PointCloud2_lio1
         - /PointCloud2_lio1/Topic1
         - /PointCloud2_inflate1/Topic1
         - /PointCloud2_map1/Topic1
-        - /PoseWithCovariance1
       Splitter Ratio: 0.5799999833106995
     Tree Height: 824
   - Class: rviz_common/Selection
@@ -107,11 +105,11 @@ Visualization Manager:
       Class: rviz_default_plugins/PointCloud2
       Color: 255; 255; 255
       Color Transformer: Intensity
-      Decay Time: 1
-      Enabled: true
+      Decay Time: 10
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 156
+      Max Intensity: 150
       Min Color: 0; 0; 0
       Min Intensity: 10
       Name: PointCloud2_lio
@@ -129,12 +127,12 @@ Visualization Manager:
         Value: /lio/cloud_world
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Alpha: 0.20000000298023224
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 2.0003654956817627
-        Min Value: 0.0003654389292933047
+        Max Value: 2.2010087966918945
+        Min Value: -1.398991346359253
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -142,7 +140,7 @@ Visualization Manager:
       Color: 51; 209; 122
       Color Transformer: AxisColor
       Decay Time: 0
-      Enabled: false
+      Enabled: true
       Invert Rainbow: true
       Max Color: 38; 162; 105
       Max Intensity: 256
@@ -163,7 +161,7 @@ Visualization Manager:
         Value: /grid_map/occupancy_inflate
       Use Fixed Frame: true
       Use rainbow: true
-      Value: false
+      Value: true
     - Class: rviz_default_plugins/Marker
       Enabled: true
       Name: Marker_ego_traj
@@ -179,13 +177,13 @@ Visualization Manager:
       Value: true
     - Class: rviz_default_plugins/InteractiveMarkers
       Enable Transparency: true
-      Enabled: false
+      Enabled: true
       Interactive Markers Namespace: /goal_marker
       Name: InteractiveMarkers
       Show Axes: false
       Show Descriptions: true
       Show Visual Aids: false
-      Value: false
+      Value: true
     - Alpha: 1
       Axes Length: 1
       Axes Radius: 0.10000000149011612
@@ -380,25 +378,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 27.541893005371094
+      Distance: 9.37456226348877
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.2557232081890106
-        Y: 0.2999689280986786
-        Z: -1.674409031867981
+        X: -0.3184429705142975
+        Y: -0.8951635956764221
+        Z: 0.44657114148139954
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.9297984838485718
+      Pitch: 0.5897983908653259
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.1459232568740845
+      Yaw: 1.8591208457946777
     Saved: ~
 Window Geometry:
   Displays:
