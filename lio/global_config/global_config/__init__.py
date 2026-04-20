@@ -190,7 +190,7 @@ config_by_machine = {
         
         # ywj-B250-D3A主机配置 - Super-LIO
         'SUPER_LIO_BASE_CODE_PATH': '/home/ywj/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/Super-LIO/',
-        'SUPER_LIO_SAVE_MAP': False,  # 台式机离线开发，不保存地图
+        'SUPER_LIO_SAVE_MAP': True,  # 台式机离线开发，不保存地图
         'SUPER_LIO_SAVE_MAP_DIR': '/home/ywj/slam_data/pcd',
         
         #SC-PGO

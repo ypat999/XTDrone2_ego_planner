@@ -53,10 +53,24 @@ sudo apt install ros-humble-ros-gzgarden
 /home/ywj/git/xtd2_ws/XTDrone2_ego_planner/clear_background.sh
 ```
 
+### 配置系统权限
+```bash
+sudo nano /etc/security/limits.conf
+# 在文件的末尾（# End of file 之前）添加这几行：
+
+cat   hard    rtprio          99
+cat   soft    rtprio          99
+cat   hard    memlock         unlimited
+cat   soft    memlock         unlimited
+```
+
 ### 分步启动 / Step-by-Step Launch
 
 #### 1. 基础仿真环境
 ```bash
+# 单独启动雷达建图算法
+ros2 launch super_lio Livox_mid360_drone.py
+
 # 完整仿真及真机导航（根据node名称自动判断）
 ros2 launch xtd2_launch ros2_single_vehicle_demo_launch.py
 
