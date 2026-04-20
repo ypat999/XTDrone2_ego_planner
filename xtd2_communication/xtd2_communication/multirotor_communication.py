@@ -30,6 +30,7 @@ from transforms3d.euler import quat2euler
 from rclpy.qos import QoSProfile, qos_profile_sensor_data
 
 import argparse
+import platform
 
 from .coordinate_transform import CoordinateTransform
 
@@ -48,9 +49,27 @@ class MultirotorCommunication(Node):
 
         # 生成有效的节点名称（只包含字母数字和下划线）
         node_name = self.namespace.strip('/') + '_communication'
+
+
+        self.callback_stats = {
+            'timer_callback': {'count': 0, 'total_time': 0.0},
+            'vehicle_local_position_callback': {'count': 0, 'total_time': 0.0},
+            'vehicle_global_position_callback': {'count': 0, 'total_time': 0.0},
+            'vehicle_status_callback': {'count': 0, 'total_time': 0.0},
+            'px4_odom_callback': {'count': 0, 'total_time': 0.0},
+            'ros2_odom_callback': {'count': 0, 'total_time': 0.0},
+            'cmd_pose_local_ned_callback': {'count': 0, 'total_time': 0.0},
+            'cmd_pose_local_flu_callback': {'count': 0, 'total_time': 0.0},
+            'cmd_vel_ned_callback': {'count': 0, 'total_time': 0.0},
+            'cmd_vel_flu_callback': {'count': 0, 'total_time': 0.0},
+            'cmd_accel_ned_callback': {'count': 0, 'total_time': 0.0},
+            'cmd_accel_flu_callback': {'count': 0, 'total_time': 0.0},
+            'cmd_attitude_flu_callback': {'count': 0, 'total_time': 0.0},
+            'goal_marker_callback': {'count': 0, 'total_time': 0.0},
+        }
         
         # 检查主机名，设置 use_sim_time（与 tf_publisher 保持一致）
-        import platform
+
         self.hostname = platform.node()
         if self.hostname == 'ywj-B250-D3A' or self.hostname == 'DESKTOP-ypat':
             use_sim_time = True
@@ -152,22 +171,7 @@ class MultirotorCommunication(Node):
             self.vehicle_state_publisher = self.create_publisher(XTD2VehicleState, xtdrone2_topic_prefix + 'debug/vehicle_state', 10)
             self.debug_timer = self.create_timer(0.1, self.publish_vehicle_state)  # 10Hz
 
-        self.callback_stats = {
-            'timer_callback': {'count': 0, 'total_time': 0.0},
-            'vehicle_local_position_callback': {'count': 0, 'total_time': 0.0},
-            'vehicle_global_position_callback': {'count': 0, 'total_time': 0.0},
-            'vehicle_status_callback': {'count': 0, 'total_time': 0.0},
-            'px4_odom_callback': {'count': 0, 'total_time': 0.0},
-            'ros2_odom_callback': {'count': 0, 'total_time': 0.0},
-            'cmd_pose_local_ned_callback': {'count': 0, 'total_time': 0.0},
-            'cmd_pose_local_flu_callback': {'count': 0, 'total_time': 0.0},
-            'cmd_vel_ned_callback': {'count': 0, 'total_time': 0.0},
-            'cmd_vel_flu_callback': {'count': 0, 'total_time': 0.0},
-            'cmd_accel_ned_callback': {'count': 0, 'total_time': 0.0},
-            'cmd_accel_flu_callback': {'count': 0, 'total_time': 0.0},
-            'cmd_attitude_flu_callback': {'count': 0, 'total_time': 0.0},
-            'goal_marker_callback': {'count': 0, 'total_time': 0.0},
-        }
+        
         self.stats_start_time = time.time()
         self.stats_timer = self.create_timer(60.0, self.print_callback_stats)
 
