@@ -364,15 +364,15 @@
       </div>
       <div class="row">
         <label>体素大小:</label>
-        <input type="number" id="voxel-size" value="0.2" min="0" max="1" step="0.01" placeholder="0.1m">
+        <input type="number" id="voxel-size" value="0.5" min="0" max="1" step="0.01" placeholder="0.1m">
       </div>
       <div class="row">
         <label>最大点数:</label>
-        <input type="number" id="max-points" value="10000" min="1000" max="500000" step="1000">
+        <input type="number" id="max-points" value="2000" min="1000" max="500000" step="1000">
       </div>
       <div class="row">
         <label>帧消失(ms):</label>
-        <input type="number" id="frame-timeout" value="0" min="0" step="100" placeholder="0=永不消失">
+        <input type="number" id="frame-timeout" value="10000" min="0" step="100" placeholder="0=永不消失">
       </div>
       <div class="row">
         <label>着色模式:</label>
@@ -614,14 +614,20 @@
       const now = Date.now();
       for (const topicKey in pointCloudObjects) {
         const obj = pointCloudObjects[topicKey];
-        if (obj.timeoutMs > 0 && obj.lastUpdateTime > 0) {
-          const elapsed = now - obj.lastUpdateTime;
-          if (elapsed > obj.timeoutMs) {
-            obj.points.visible = false;
-          } else {
-            obj.points.visible = true;
-            const fadeRatio = 1.0 - (elapsed / obj.timeoutMs) * 0.5;
-            obj.points.material.opacity = Math.max(0.3, fadeRatio);
+        if (obj.timeoutMs > 0) {
+          for (let i = obj.frames.length - 1; i >= 0; i--) {
+            const frame = obj.frames[i];
+            const elapsed = now - frame.timestamp;
+            if (elapsed > obj.timeoutMs) {
+              rosRoot.remove(frame.points);
+              frame.points.geometry.dispose();
+              frame.points.material.dispose();
+              obj.frames.splice(i, 1);
+            } else {
+              frame.points.visible = true;
+              const fadeRatio = 1.0 - (elapsed / obj.timeoutMs) * 0.5;
+              frame.points.material.opacity = Math.max(0.3, fadeRatio);
+            }
           }
         }
       }
@@ -640,8 +646,10 @@
       totalPoints = 0;
       for (const topicKey in pointCloudObjects) {
         const obj = pointCloudObjects[topicKey];
-        if (obj.points && obj.points.geometry && obj.points.geometry.attributes.position) {
-          totalPoints += obj.points.geometry.attributes.position.count;
+        for (const frame of obj.frames) {
+          if (frame.points && frame.points.geometry && frame.points.geometry.attributes.position) {
+            totalPoints += frame.points.geometry.attributes.position.count;
+          }
         }
       }
       document.getElementById('point-count').textContent = '点数: ' + totalPoints.toLocaleString();
@@ -881,24 +889,11 @@
       const topicColorFinal = topicColor || TOPIC_COLORS[topicColorIndex % TOPIC_COLORS.length];
       topicColorIndex++;
 
-      const geometry = new THREE.BufferGeometry();
-      const material = new THREE.PointsMaterial({
-        size: pointSize,
-        vertexColors: true,
-        transparent: true,
-        opacity: 1.0,
-        sizeAttenuation: true
-      });
-
-      const points = new THREE.Points(geometry, material);
-      rosRoot.add(points);
-
       pointCloudObjects[topicName] = {
-        points: points,
+        frames: [],
         colorMode: colorMode,
         topicColor: topicColorFinal,
         timeoutMs: frameTimeout,
-        lastUpdateTime: 0,
         pointSize: pointSize,
         voxelSize: voxelSize,
         frameId: '',
@@ -961,9 +956,11 @@
         if (pointCloudObjects[topicName].useBackend) {
           sendBackendConfig('remove', { topic_name: topicName });
         }
-        rosRoot.remove(pointCloudObjects[topicName].points);
-        pointCloudObjects[topicName].points.geometry.dispose();
-        pointCloudObjects[topicName].points.material.dispose();
+        for (const frame of pointCloudObjects[topicName].frames) {
+          rosRoot.remove(frame.points);
+          frame.points.geometry.dispose();
+          frame.points.material.dispose();
+        }
         delete pointCloudObjects[topicName];
       }
 
@@ -974,8 +971,6 @@
       if (!pointCloudObjects[topicName]) return;
 
       const obj = pointCloudObjects[topicName];
-      obj.lastUpdateTime = Date.now();
-
       const frameId = message.header.frame_id.replace(/^\//, '');
       obj.frameId = frameId;
 
@@ -1106,42 +1101,59 @@
         }
       }
 
-      const geometry = obj.points.geometry;
+      const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-      geometry.attributes.position.needsUpdate = true;
-      geometry.attributes.color.needsUpdate = true;
 
-      applyTfToPointCloud(topicName);
+      const material = new THREE.PointsMaterial({
+        size: obj.pointSize,
+        vertexColors: true,
+        transparent: true,
+        opacity: 1.0,
+        sizeAttenuation: true
+      });
+
+      const points = new THREE.Points(geometry, material);
+      rosRoot.add(points);
+
+      const frameObj = {
+        points: points,
+        timestamp: Date.now(),
+        frameId: frameId
+      };
+
+      obj.frames.push(frameObj);
+
+      applyTfToPointCloud(frameObj, topicName);
     }
 
-    function applyTfToPointCloud(topicName) {
+    function applyTfToPointCloud(frameObj, topicName) {
       const obj = pointCloudObjects[topicName];
-      if (!obj || !obj.frameId) return;
+      if (!obj || !frameObj.frameId) return;
 
       if (obj.useBackend) {
-        obj.points.position.set(0, 0, 0);
-        obj.points.quaternion.set(0, 0, 0, 1);
+        frameObj.points.position.set(0, 0, 0);
+        frameObj.points.quaternion.set(0, 0, 0, 1);
         return;
       }
 
       fixedFrame = document.getElementById('fixed-frame').value;
 
-      if (obj.frameId === fixedFrame) {
-        obj.points.position.set(0, 0, 0);
-        obj.points.quaternion.set(0, 0, 0, 1);
+      if (frameObj.frameId === fixedFrame) {
+        frameObj.points.position.set(0, 0, 0);
+        frameObj.points.quaternion.set(0, 0, 0, 1);
         return;
       }
 
-      const transform = lookupTransform(fixedFrame, obj.frameId);
+      const transform = lookupTransform(fixedFrame, frameObj.frameId);
       if (transform) {
-        obj.points.position.set(
+        frameObj.points.position.set(
           transform.translation.x,
           transform.translation.y,
           transform.translation.z
         );
 
-        obj.points.quaternion.set(
+        frameObj.points.quaternion.set(
           transform.rotation.x,
           transform.rotation.y,
           transform.rotation.z,
@@ -1510,9 +1522,13 @@
         const obj = pointCloudObjects[topicName];
         if (!obj) continue;
 
-        const pointCount = obj.points.geometry.attributes.position
-          ? obj.points.geometry.attributes.position.count : 0;
-        const isActive = obj.lastUpdateTime > 0;
+        let pointCount = 0;
+        for (const frame of obj.frames) {
+          if (frame.points && frame.points.geometry && frame.points.geometry.attributes.position) {
+            pointCount += frame.points.geometry.attributes.position.count;
+          }
+        }
+        const isActive = obj.frames.length > 0;
         const timeoutText = obj.timeoutMs > 0 ? (obj.timeoutMs / 1000).toFixed(1) + 's' : '永不过期';
 
         html += '<div class="topic-item' + (isActive ? ' active' : '') + '">';
@@ -1522,6 +1538,7 @@
         html += '</div>';
         html += '<div class="topic-stats">';
         html += '点数: ' + pointCount.toLocaleString() + ' | ';
+        html += '帧数: ' + obj.frames.length + ' | ';
         html += 'Frame: ' + (obj.frameId || '-') + ' | ';
         html += '着色: ' + obj.colorMode + ' | ';
         html += '超时: ' + timeoutText;

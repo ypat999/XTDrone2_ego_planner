@@ -1,4 +1,5 @@
 import platform
+from sys import prefix
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription, TimerAction, RegisterEventHandler
 from launch.event_handlers import OnProcessExit
@@ -53,7 +54,7 @@ def generate_launch_description():
     # XRCE-DDS Agent #
     ##################
     xrce_dds_process = ExecuteProcess(
-        cmd=["MicroXRCEAgent udp4 -p 8888"],
+        cmd=["taskset", "-c", "0,1,2,3", "MicroXRCEAgent udp4 -p 8888"],
         output='screen',
         name='microxrceagent',
         shell=True
@@ -91,7 +92,8 @@ def generate_launch_description():
             "--allowarm", "true",
             "--namespace", LaunchConfiguration('namespace'),
             "--debug", "true"
-        ]
+        ],
+        prefix=['taskset -c 5,6'],   # 绑定 CPU 
     )
 
     ####################
@@ -101,7 +103,8 @@ def generate_launch_description():
         cmd=["ros2", "run", "xtd2_launch", "tf_publisher"],
         output='screen',
         name='tf_publisher',
-        shell=False
+        shell=False,
+        prefix=['taskset -c 0,1,2,3'],   # 绑定 CPU 
     )
 
     ##############################
@@ -135,7 +138,8 @@ def generate_launch_description():
         launch_arguments={
             'rviz': 'false',
             'use_sim_time': use_sim_time_str,
-        }.items()
+        }.items(),
+        prefix=['taskset -c 5,6'],   # 绑定 CPU 
     )
     
     #######################
@@ -151,7 +155,8 @@ def generate_launch_description():
             'namespace': LaunchConfiguration('namespace'),
             'drone_id': LaunchConfiguration('id'),
             'use_sim_time': use_sim_time_str,
-        }.items()
+        }.items(),
+        prefix=['taskset -c 5,6'],   # 绑定 CPU 
     )
 
     #######################
@@ -182,7 +187,8 @@ def generate_launch_description():
             'port': 9090,
             'address': '0.0.0.0',
         }],
-        output='screen'
+        output='screen',
+        prefix=['taskset -c 0,1,2,3'],   # 绑定 CPU 
     )
 
     rosapi_node = Node(
@@ -190,14 +196,15 @@ def generate_launch_description():
         executable='rosapi_node',
         name='rosapi_node',
         parameters=[{'use_sim_time': use_sim_time}],
-        output='screen'
+        output='screen',
+        prefix=['taskset -c 0,1,2,3'],   # 绑定 CPU 
     )
 
     #######################
     # Web Server         #
     #######################
     web_server = ExecuteProcess(
-        cmd=['python3', '-m', 'http.server', '8084'],
+        cmd=['taskset', '-c', '0,1,2,3', 'python3', '-m', 'http.server', '8084'],
         output='screen',
         name='web_server',
         shell=False,
@@ -215,7 +222,8 @@ def generate_launch_description():
         executable='web_pointcloud_bridge',
         name='web_pointcloud_bridge',
         parameters=[{'use_sim_time': use_sim_time}],
-        output='screen'
+        output='screen',
+        prefix=['taskset -c 0,1,2,3'],   # 绑定 CPU 
     )
 
     # 根据主机名决定启动哪些组件
