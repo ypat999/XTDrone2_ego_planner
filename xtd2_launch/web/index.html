@@ -19,12 +19,57 @@
     }
     #sidebar {
       width: 340px;
-      min-width: 340px;
+      min-width: 280px;
       background: #16213e;
       display: flex;
       flex-direction: column;
       border-right: 1px solid #0f3460;
       overflow-y: auto;
+      transition: transform 0.3s ease, width 0.3s ease;
+      z-index: 100;
+    }
+    #sidebar.hidden {
+      transform: translateX(-100%);
+      width: 0;
+      min-width: 0;
+      border: none;
+      pointer-events: none;
+    }
+    #sidebar.mobile-mode {
+      position: fixed;
+      left: 0;
+      top: 0;
+      height: 100vh;
+      width: 320px;
+      min-width: 280px;
+      max-width: 85vw;
+      box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+      z-index: 200;
+    }
+    #sidebar.mobile-mode.hidden {
+      transform: translateX(-100%);
+      pointer-events: none;
+    }
+    #sidebar-toggle {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      width: 40px;
+      height: 40px;
+      background: #e94560;
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 18px;
+      cursor: pointer;
+      z-index: 101;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    #sidebar-toggle:hover {
+      background: #ff6b8a;
     }
     #sidebar::-webkit-scrollbar { width: 6px; }
     #sidebar::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 3px; }
@@ -46,6 +91,7 @@
       align-items: center;
       margin-bottom: 6px;
       gap: 6px;
+      flex-wrap: wrap;
     }
     .row label {
       font-size: 12px;
@@ -54,6 +100,7 @@
     }
     .row input, .row select {
       flex: 1;
+      min-width: 0;
       background: #1a1a2e;
       color: #e0e0e0;
       border: 1px solid #0f3460;
@@ -84,6 +131,7 @@
       flex: 1;
       position: relative;
       overflow: hidden;
+      min-width: 0;
     }
     #viewer-container canvas { display: block; }
     #status-bar {
@@ -97,7 +145,9 @@
       color: #aaa;
       display: flex;
       justify-content: space-between;
+      flex-wrap: wrap;
       z-index: 10;
+      gap: 4px;
     }
     #fps-display { color: #44ff44; }
     #connection-status { color: #ff4444; }
@@ -115,6 +165,8 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 6px;
+      flex-wrap: wrap;
+      gap: 4px;
     }
     .topic-name {
       font-size: 12px;
@@ -138,6 +190,7 @@
       display: flex;
       gap: 4px;
       font-size: 11px;
+      flex-wrap: wrap;
     }
     .tf-axis { padding: 2px 6px; border-radius: 3px; }
     .tf-axis-x { background: #ff4444; }
@@ -153,6 +206,8 @@
       font-size: 11px;
       color: #aaa;
       z-index: 10;
+      max-width: 200px;
+      word-break: break-all;
     }
     .checkbox-row {
       display: flex;
@@ -219,20 +274,50 @@
     body.fullscreen-mode #viewer-container {
       width: 100vw;
     }
-    @media (max-width: 768px) {
-      #sidebar {
-        width: 100%;
-        min-width: 100%;
-        max-height: 40vh;
-        overflow-y: auto;
+    @media (max-width: 900px) {
+      #grid-info {
+        top: 60px;
       }
-      body.fullscreen-mode #sidebar {
-        display: none;
+      #status-bar {
+        font-size: 10px;
+        padding: 4px 8px;
+      }
+    }
+    @media (max-width: 600px) {
+      #sidebar.mobile-mode {
+        width: 100%;
+        max-width: 100%;
+      }
+      .section {
+        padding: 10px;
+      }
+      .section-title {
+        font-size: 12px;
+      }
+      .row label {
+        min-width: 60px;
+        font-size: 11px;
+      }
+      .row input, .row select {
+        font-size: 11px;
+        padding: 3px 6px;
+      }
+      .btn {
+        padding: 4px 10px;
+        font-size: 11px;
+      }
+      #fullscreen-toggle {
+        width: 44px;
+        height: 44px;
+        font-size: 18px;
+        bottom: 15px;
+        right: 15px;
       }
     }
   </style>
 </head>
 <body>
+  <button id="sidebar-toggle" onclick="toggleSidebar()">☰</button>
   <div id="sidebar">
     <div class="section">
       <div class="section-title">连接配置</div>
@@ -258,7 +343,9 @@
       <div class="section-title">添加点云话题</div>
       <div class="row">
         <label>话题名:</label>
-        <input type="text" id="topic-name" value="/livox/lidar" placeholder="/pointcloud">
+        <select id="topic-name" style="flex:1">
+          <option value="">-- 选择话题 --</option>
+        </select>
       </div>
       <div class="row">
         <label>消息类型:</label>
@@ -267,20 +354,21 @@
         </select>
       </div>
       <div class="row">
-        <label>QoS深度:</label>
-        <select id="qos-depth">
-          <option value="1">1 (Best Effort)</option>
-          <option value="5">5</option>
-          <option value="10" selected>10 (Default)</option>
-          <option value="50">50</option>
-        </select>
+        <label>后端处理:</label>
+        <input type="checkbox" id="use-backend" checked>
+        <span style="font-size:11px;color:#888;margin-left:5px;">服务端降采样+TF变换</span>
       </div>
       <div class="row">
-        <label>QoS策略:</label>
-        <select id="qos-reliability">
-          <option value="best_effort" selected>Best Effort</option>
-          <option value="reliable">Reliable</option>
-        </select>
+        <label>目标Frame:</label>
+        <input type="text" id="target-frame" value="map" placeholder="map">
+      </div>
+      <div class="row">
+        <label>体素大小:</label>
+        <input type="number" id="voxel-size" value="0.2" min="0" max="1" step="0.01" placeholder="0.1m">
+      </div>
+      <div class="row">
+        <label>最大点数:</label>
+        <input type="number" id="max-points" value="10000" min="1000" max="500000" step="1000">
       </div>
       <div class="row">
         <label>帧消失(ms):</label>
@@ -301,11 +389,7 @@
       </div>
       <div class="row">
         <label>点大小:</label>
-        <input type="range" class="point-size-slider" id="point-size" min="1" max="10" value="1" step="0.5">
-      </div>
-      <div class="row">
-        <label>体素大小:</label>
-        <input type="number" id="voxel-size" value="0.5" min="0" max="1" step="0.01" placeholder="0=不采样">
+        <input type="range" class="point-size-slider" id="point-size" min="0.1" max="10" value="0.5" step="0.1">
       </div>
       <div class="row">
         <button class="btn btn-success" onclick="addTopic()" style="flex:1">添加话题</button>
@@ -403,11 +487,14 @@
     let fps = 0;
     let totalPoints = 0;
     let animationId = null;
+    let backendConfigPub = null;
+    let backendStatusSub = null;
+    let useBackend = true;
 
     const DEFAULT_QOS = {
       depth: 10,
       durability: 'volatile',
-      reliability: 'reliable'
+      reliability: 'best_effort'
     };
 
     function initThreeJS() {
@@ -553,7 +640,7 @@
       totalPoints = 0;
       for (const topicKey in pointCloudObjects) {
         const obj = pointCloudObjects[topicKey];
-        if (obj.points && obj.points.geometry) {
+        if (obj.points && obj.points.geometry && obj.points.geometry.attributes.position) {
           totalPoints += obj.points.geometry.attributes.position.count;
         }
       }
@@ -581,6 +668,8 @@
         updateConnectionStatus(true);
         console.log('Connected to rosbridge at ws://' + ip + ':' + port);
         subscribeTf();
+        fetchPointCloud2Topics();
+        initBackendCommunication();
       });
 
       ros.on('error', function (error) {
@@ -616,6 +705,153 @@
       });
     }
 
+    function fetchPointCloud2Topics() {
+      if (!ros || !ros.isConnected) return;
+
+      const topicsService = new ROSLIB.Service({
+        ros: ros,
+        name: '/rosapi/topics_and_raw_types',
+        serviceType: 'rosapi_msgs/srv/TopicsAndRawTypes'
+      });
+
+      const request = new ROSLIB.ServiceRequest({});
+
+      topicsService.callService(request, function (result) {
+        const topicSelect = document.getElementById('topic-name');
+        topicSelect.innerHTML = '<option value="">-- 选择话题 --</option>';
+
+        const pointcloudTopics = [];
+        console.log('rosapi returned', result.topics.length, 'topics');
+        
+        for (let i = 0; i < result.topics.length; i++) {
+          const topic = result.topics[i];
+          const type = result.types[i];
+          if (type && (type === 'sensor_msgs/msg/PointCloud2' || type === 'sensor_msgs/PointCloud2')) {
+            pointcloudTopics.push(topic);
+          }
+        }
+
+        pointcloudTopics.sort();
+        for (const topic of pointcloudTopics) {
+          const option = document.createElement('option');
+          option.value = topic;
+          option.textContent = topic;
+          topicSelect.appendChild(option);
+        }
+
+        console.log('Found ' + pointcloudTopics.length + ' PointCloud2 topics:', pointcloudTopics);
+      }, function (error) {
+        console.warn('Failed to fetch topics with topics_and_raw_types, trying fallback:', error);
+        fetchPointCloud2TopicsFallback();
+      });
+    }
+
+    function fetchPointCloud2TopicsFallback() {
+      const topicsService = new ROSLIB.Service({
+        ros: ros,
+        name: '/rosapi/topics',
+        serviceType: 'rosapi_msgs/srv/Topics'
+      });
+
+      const request = new ROSLIB.ServiceRequest({});
+
+      topicsService.callService(request, function (result) {
+        const topicSelect = document.getElementById('topic-name');
+        topicSelect.innerHTML = '<option value="">-- 选择话题 --</option>';
+
+        const topics = result.topics || [];
+        console.log('Fallback: found', topics.length, 'topics');
+
+        const pointcloudTopics = [];
+        let pendingChecks = topics.length;
+
+        if (topics.length === 0) {
+          return;
+        }
+
+        topics.forEach(function (topic) {
+          const typeService = new ROSLIB.Service({
+            ros: ros,
+            name: '/rosapi/topic_type',
+            serviceType: 'rosapi_msgs/srv/TopicType'
+          });
+
+          typeService.callService({ topic: topic }, function (typeResult) {
+            const type = typeResult.type;
+            if (type && (type === 'sensor_msgs/msg/PointCloud2' || type === 'sensor_msgs/PointCloud2')) {
+              pointcloudTopics.push(topic);
+            }
+            pendingChecks--;
+            
+            if (pendingChecks === 0) {
+              pointcloudTopics.sort();
+              for (const t of pointcloudTopics) {
+                const option = document.createElement('option');
+                option.value = t;
+                option.textContent = t;
+                topicSelect.appendChild(option);
+              }
+              console.log('Fallback: found ' + pointcloudTopics.length + ' PointCloud2 topics:', pointcloudTopics);
+            }
+          }, function () {
+            pendingChecks--;
+            if (pendingChecks === 0) {
+              pointcloudTopics.sort();
+              for (const t of pointcloudTopics) {
+                const option = document.createElement('option');
+                option.value = t;
+                option.textContent = t;
+                topicSelect.appendChild(option);
+              }
+            }
+          });
+        });
+      }, function (error) {
+        console.warn('Failed to fetch topic list:', error);
+      });
+    }
+
+    function initBackendCommunication() {
+      backendConfigPub = new ROSLIB.Topic({
+        ros: ros,
+        name: '/web_pointcloud/config',
+        messageType: 'std_msgs/msg/String'
+      });
+
+      backendStatusSub = new ROSLIB.Topic({
+        ros: ros,
+        name: '/web_pointcloud/status',
+        messageType: 'std_msgs/msg/String'
+      });
+
+      backendStatusSub.subscribe(function (message) {
+        try {
+          const status = JSON.parse(message.data);
+          if (status.type === 'topic_list') {
+            console.log('Backend topic list:', status.topics);
+          }
+        } catch (e) {
+          console.warn('Failed to parse backend status:', e);
+        }
+      });
+
+      console.log('Backend communication initialized');
+    }
+
+    function sendBackendConfig(action, config) {
+      if (!backendConfigPub) return;
+
+      const msg = {
+        action: action,
+        ...config
+      };
+
+      const message = new ROSLIB.Message({
+        data: JSON.stringify(msg)
+      });
+      backendConfigPub.publish(message);
+    }
+
     function addTopic() {
       if (!ros || !ros.isConnected) {
         alert('请先连接到ROS');
@@ -628,14 +864,14 @@
         return;
       }
 
-      const msgType = document.getElementById('msg-type').value;
-      const qosDepth = parseInt(document.getElementById('qos-depth').value);
-      const qosReliability = document.getElementById('qos-reliability').value;
+      const useBackend = document.getElementById('use-backend').checked;
+      const targetFrame = document.getElementById('target-frame').value.trim() || 'map';
+      const voxelSize = parseFloat(document.getElementById('voxel-size').value) || 0.2;
+      const maxPoints = parseInt(document.getElementById('max-points').value) || 10000;
       const frameTimeout = parseInt(document.getElementById('frame-timeout').value) || 0;
       const colorMode = document.getElementById('color-mode').value;
       const topicColor = document.getElementById('topic-color').value;
       const pointSize = parseFloat(document.getElementById('point-size').value);
-      const voxelSize = parseFloat(document.getElementById('voxel-size').value) || 0;
 
       if (topicSubscriptions[topicName]) {
         alert('该话题已添加');
@@ -644,19 +880,6 @@
 
       const topicColorFinal = topicColor || TOPIC_COLORS[topicColorIndex % TOPIC_COLORS.length];
       topicColorIndex++;
-
-      const qos = {
-        depth: qosDepth,
-        durability: 'volatile',
-        reliability: qosReliability
-      };
-
-      const topic = new ROSLIB.Topic({
-        ros: ros,
-        name: topicName,
-        messageType: msgType,
-        qos: qos
-      });
 
       const geometry = new THREE.BufferGeometry();
       const material = new THREE.PointsMaterial({
@@ -678,14 +901,52 @@
         lastUpdateTime: 0,
         pointSize: pointSize,
         voxelSize: voxelSize,
-        frameId: ''
+        frameId: '',
+        useBackend: useBackend,
+        targetFrame: targetFrame,
+        maxPoints: maxPoints
       };
 
-      topic.subscribe(function (message) {
-        processPointCloud2(topicName, message);
-      });
+      if (useBackend) {
+        sendBackendConfig('add', {
+          topics: [{
+            topic_name: topicName,
+            target_frame: targetFrame,
+            voxel_size: voxelSize,
+            max_points: maxPoints,
+            color_mode: colorMode,
+            enabled: true
+          }]
+        });
 
-      topicSubscriptions[topicName] = topic;
+        const processedTopicName = topicName + '/web_processed';
+        const topic = new ROSLIB.Topic({
+          ros: ros,
+          name: processedTopicName,
+          messageType: 'sensor_msgs/msg/PointCloud2',
+          qos: { depth: 10, durability: 'volatile', reliability: 'reliable' }
+        });
+
+        topic.subscribe(function (message) {
+          processPointCloud2(topicName, message);
+        });
+
+        topicSubscriptions[topicName] = topic;
+        console.log('Subscribed to processed topic:', processedTopicName);
+      } else {
+        const topic = new ROSLIB.Topic({
+          ros: ros,
+          name: topicName,
+          messageType: 'sensor_msgs/msg/PointCloud2',
+          qos: { depth: 10, durability: 'volatile', reliability: 'best_effort' }
+        });
+
+        topic.subscribe(function (message) {
+          processPointCloud2(topicName, message);
+        });
+
+        topicSubscriptions[topicName] = topic;
+      }
 
       renderTopicList();
     }
@@ -697,6 +958,9 @@
       }
 
       if (pointCloudObjects[topicName]) {
+        if (pointCloudObjects[topicName].useBackend) {
+          sendBackendConfig('remove', { topic_name: topicName });
+        }
         rosRoot.remove(pointCloudObjects[topicName].points);
         pointCloudObjects[topicName].points.geometry.dispose();
         pointCloudObjects[topicName].points.material.dispose();
@@ -756,20 +1020,22 @@
       }
 
       let sampledPoints = tempPoints;
-      const voxelSize = obj.voxelSize;
 
-      if (voxelSize > 0) {
-        const voxelMap = new Map();
-        for (const pt of tempPoints) {
-          const vx = Math.floor(pt.x / voxelSize);
-          const vy = Math.floor(pt.y / voxelSize);
-          const vz = Math.floor(pt.z / voxelSize);
-          const key = `${vx},${vy},${vz}`;
-          if (!voxelMap.has(key)) {
-            voxelMap.set(key, pt);
+      if (!obj.useBackend) {
+        const voxelSize = obj.voxelSize;
+        if (voxelSize > 0) {
+          const voxelMap = new Map();
+          for (const pt of tempPoints) {
+            const vx = Math.floor(pt.x / voxelSize);
+            const vy = Math.floor(pt.y / voxelSize);
+            const vz = Math.floor(pt.z / voxelSize);
+            const key = `${vx},${vy},${vz}`;
+            if (!voxelMap.has(key)) {
+              voxelMap.set(key, pt);
+            }
           }
+          sampledPoints = Array.from(voxelMap.values());
         }
-        sampledPoints = Array.from(voxelMap.values());
       }
 
       const nSampled = sampledPoints.length;
@@ -777,8 +1043,11 @@
       const colors = new Float32Array(nSampled * 3);
       const zValues = new Float32Array(nSampled);
 
-      const zRange = maxZ - minZ;
       const tc = hexToRgb(obj.topicColor);
+
+      let transformQuat = null;
+      let transformPos = null;
+      const zRange = maxZ - minZ;
 
       for (let i = 0; i < nSampled; i++) {
         const pt = sampledPoints[i];
@@ -850,6 +1119,12 @@
       const obj = pointCloudObjects[topicName];
       if (!obj || !obj.frameId) return;
 
+      if (obj.useBackend) {
+        obj.points.position.set(0, 0, 0);
+        obj.points.quaternion.set(0, 0, 0, 1);
+        return;
+      }
+
       fixedFrame = document.getElementById('fixed-frame').value;
 
       if (obj.frameId === fixedFrame) {
@@ -899,26 +1174,26 @@
 
         let tfKey = from + '_' + to;
         let tf = tfTransforms[tfKey];
-        let isInverse = true;
+        let needInverse = false;
 
         if (!tf) {
           tfKey = to + '_' + from;
           tf = tfTransforms[tfKey];
-          isInverse = false;
+          needInverse = true;
         }
 
         if (!tf) {
           return null;
         }
 
-        if (isInverse) {
+        if (needInverse) {
           result = multiplyTransforms(result, invertTransform(tf));
         } else {
           result = multiplyTransforms(result, tf);
         }
       }
 
-      return result;
+      return invertTransform(result);
     }
 
     function findTfPath(targetFrame, sourceFrame, visited = new Set()) {
@@ -1021,16 +1296,16 @@
     function zAxisColor(t) {
       if (t < 0.25) {
         const s = t / 0.25;
-        return { r: 0, g: s, b: 1 };
+        return { r: 1, g: s, b: 0 };
       } else if (t < 0.5) {
         const s = (t - 0.25) / 0.25;
-        return { r: 0, g: 1, b: 1 - s };
+        return { r: 1 - s, g: 1, b: 0 };
       } else if (t < 0.75) {
         const s = (t - 0.5) / 0.25;
-        return { r: s, g: 1, b: 0 };
+        return { r: 0, g: 1, b: s };
       } else {
         const s = (t - 0.75) / 0.25;
-        return { r: 1, g: 1 - s, b: 0 };
+        return { r: 0, g: 1 - s, b: 1 };
       }
     }
 
@@ -1129,44 +1404,38 @@
 
         const axesGroup = new THREE.Group();
 
-        const axisLength = 0.5;
-        const axisX = new THREE.ArrowHelper(
-          new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0),
-          axisLength, 0xff0000, axisLength * 0.2, axisLength * 0.1
-        );
-        const axisY = new THREE.ArrowHelper(
-          new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0),
-          axisLength, 0x00ff00, axisLength * 0.2, axisLength * 0.1
-        );
-        const axisZ = new THREE.ArrowHelper(
-          new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0),
-          axisLength, 0x0000ff, axisLength * 0.2, axisLength * 0.1
-        );
+        const axisLength = 0.8;
+        const axisRadius = 0.03;
+        const headLength = 0.15;
+        const headRadius = 0.06;
 
-        axesGroup.add(axisX);
-        axesGroup.add(axisY);
-        axesGroup.add(axisZ);
+        function createThickAxis(direction, color) {
+          const group = new THREE.Group();
+          
+          const shaftGeometry = new THREE.CylinderGeometry(axisRadius, axisRadius, axisLength - headLength, 8);
+          const shaftMaterial = new THREE.MeshBasicMaterial({ color: color });
+          const shaft = new THREE.Mesh(shaftGeometry, shaftMaterial);
+          shaft.position.y = (axisLength - headLength) / 2;
+          group.add(shaft);
 
-        if (childFrame === 'map' || childFrame === 'base_footprint') {
-          function createTfLabel(text, position, color) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 128;
-            canvas.height = 32;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = color;
-            ctx.font = 'bold 20px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(text, 64, 16);
-            const texture = new THREE.CanvasTexture(canvas);
-            const material = new THREE.SpriteMaterial({ map: texture });
-            const sprite = new THREE.Sprite(material);
-            sprite.position.copy(position);
-            sprite.scale.set(3, 0.75, 1);
-            return sprite;
+          const headGeometry = new THREE.ConeGeometry(headRadius, headLength, 8);
+          const headMaterial = new THREE.MeshBasicMaterial({ color: color });
+          const head = new THREE.Mesh(headGeometry, headMaterial);
+          head.position.y = axisLength - headLength / 2;
+          group.add(head);
+
+          if (direction.x === 1) {
+            group.rotation.z = -Math.PI / 2;
+          } else if (direction.z === 1) {
+            group.rotation.x = Math.PI / 2;
           }
-          axesGroup.add(createTfLabel(childFrame, new THREE.Vector3(0, axisLength + 0.5, 0), '#ffffff'));
+
+          return group;
         }
+
+        axesGroup.add(createThickAxis(new THREE.Vector3(1, 0, 0), 0xff0000));
+        axesGroup.add(createThickAxis(new THREE.Vector3(0, 1, 0), 0x00ff00));
+        axesGroup.add(createThickAxis(new THREE.Vector3(0, 0, 1), 0x0000ff));
 
         axesGroup.position.set(
           transform.translation.x,
@@ -1324,11 +1593,35 @@
       }
     }
 
+    let isFullscreen = false;
+    let sidebarVisible = true;
+
     if (document.readyState === 'complete') {
       tryInitThreeJS();
     } else {
       window.addEventListener('load', tryInitThreeJS);
     }
+
+    function setupMobileSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const toggleBtn = document.getElementById('sidebar-toggle');
+      if (window.innerWidth <= 900) {
+        sidebar.classList.add('mobile-mode');
+        sidebar.classList.add('hidden');
+        toggleBtn.style.display = 'flex';
+        toggleBtn.innerHTML = '▶';
+        sidebarVisible = false;
+      } else {
+        sidebar.classList.remove('mobile-mode');
+        sidebar.classList.remove('hidden');
+        toggleBtn.style.display = 'none';
+        toggleBtn.innerHTML = '☰';
+        sidebarVisible = true;
+      }
+    }
+
+    setupMobileSidebar();
+    window.addEventListener('resize', setupMobileSidebar);
 
     const savedIp = localStorage.getItem('ros_hostname');
     if (savedIp) {
@@ -1341,8 +1634,52 @@
       }, 500);
     });
 
-    let isFullscreen = false;
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const toggleBtn = document.getElementById('sidebar-toggle');
+      sidebarVisible = !sidebarVisible;
+      
+      if (sidebarVisible) {
+        sidebar.classList.remove('hidden');
+        toggleBtn.innerHTML = '☰';
+      } else {
+        sidebar.classList.add('hidden');
+        toggleBtn.innerHTML = '▶';
+      }
+      
+      setTimeout(onWindowResize, 350);
+    }
+
+    function isIOS() {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }
+
     function toggleFullscreen() {
+      if (isIOS()) {
+        isFullscreen = !isFullscreen;
+        if (isFullscreen) {
+          document.body.classList.add('fullscreen-mode');
+          document.getElementById('fullscreen-toggle').innerHTML = '&#9881;';
+          const sidebar = document.getElementById('sidebar');
+          if (!sidebar.classList.contains('hidden')) {
+            sidebar.classList.add('hidden');
+            document.getElementById('sidebar-toggle').innerHTML = '▶';
+            sidebarVisible = false;
+          }
+          document.documentElement.style.overflow = 'hidden';
+          document.body.style.overflow = 'hidden';
+          window.scrollTo(0, 0);
+        } else {
+          document.body.classList.remove('fullscreen-mode');
+          document.getElementById('fullscreen-toggle').innerHTML = '&#x26F6;';
+          document.documentElement.style.overflow = '';
+          document.body.style.overflow = '';
+        }
+        setTimeout(onWindowResize, 100);
+        return;
+      }
+
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().then(function() {
           isFullscreen = true;
@@ -1351,6 +1688,10 @@
           setTimeout(onWindowResize, 100);
         }).catch(function(err) {
           console.log('Fullscreen error:', err);
+          isFullscreen = true;
+          document.body.classList.add('fullscreen-mode');
+          document.getElementById('fullscreen-toggle').innerHTML = '&#9881;';
+          setTimeout(onWindowResize, 100);
         });
       } else {
         document.exitFullscreen().then(function() {

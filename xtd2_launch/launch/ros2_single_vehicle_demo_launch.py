@@ -207,6 +207,17 @@ def generate_launch_description():
         ])
     )
 
+    #######################
+    # Web PointCloud Bridge #
+    #######################
+    web_pointcloud_bridge = Node(
+        package='xtd2_launch',
+        executable='web_pointcloud_bridge',
+        name='web_pointcloud_bridge',
+        parameters=[{'use_sim_time': use_sim_time}],
+        output='screen'
+    )
+
     # 根据主机名决定启动哪些组件
     ld = LaunchDescription([
         world_name_arg,
@@ -269,6 +280,7 @@ exit 1
     ld.add_action(rosbridge_node)
     ld.add_action(rosapi_node)
     ld.add_action(TimerAction(period=2.0, actions=[web_server]))
+    ld.add_action(TimerAction(period=3.0, actions=[web_pointcloud_bridge]))
     
 
     
