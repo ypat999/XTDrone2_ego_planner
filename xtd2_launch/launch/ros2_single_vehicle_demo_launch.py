@@ -138,8 +138,7 @@ def generate_launch_description():
         launch_arguments={
             'rviz': 'false',
             'use_sim_time': use_sim_time_str,
-        }.items(),
-        prefix=['taskset -c 5,6'],   # 绑定 CPU 
+        }.items()
     )
     
     #######################
@@ -155,8 +154,7 @@ def generate_launch_description():
             'namespace': LaunchConfiguration('namespace'),
             'drone_id': LaunchConfiguration('id'),
             'use_sim_time': use_sim_time_str,
-        }.items(),
-        prefix=['taskset -c 5,6'],   # 绑定 CPU 
+        }.items()
     )
 
     #######################

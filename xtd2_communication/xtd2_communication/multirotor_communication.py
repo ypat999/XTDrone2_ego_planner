@@ -16,6 +16,7 @@ import time
 from std_msgs.msg import String
 from geometry_msgs.msg import Pose, Twist, PoseStamped, PoseWithCovarianceStamped
 from px4_msgs.msg import TrajectorySetpoint, OffboardControlMode, VehicleCommand, VehicleLocalPosition, VehicleGlobalPosition, VehicleAttitudeSetpoint, VehicleStatus, VehicleOdometry
+from quadrotor_msgs.msg import PositionCommand
 from xtd2_msgs.srv import XTD2Cmd
 from xtd2_msgs.msg import XTD2VehicleState
 from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster, Buffer, TransformListener
@@ -60,6 +61,7 @@ class MultirotorCommunication(Node):
             'ros2_odom_callback': {'count': 0, 'total_time': 0.0},
             'cmd_pose_local_ned_callback': {'count': 0, 'total_time': 0.0},
             'cmd_pose_local_flu_callback': {'count': 0, 'total_time': 0.0},
+            'cmd_trajectory_flu_callback': {'count': 0, 'total_time': 0.0},
             'cmd_vel_ned_callback': {'count': 0, 'total_time': 0.0},
             'cmd_vel_flu_callback': {'count': 0, 'total_time': 0.0},
             'cmd_accel_ned_callback': {'count': 0, 'total_time': 0.0},
@@ -116,6 +118,7 @@ class MultirotorCommunication(Node):
         
         self.create_subscription(Pose, xtdrone2_topic_prefix + 'cmd_pose_local_ned', self.cmd_pose_local_ned_callback, 10)  # geometry_msgs/Pose
         self.create_subscription(PoseStamped, xtdrone2_topic_prefix + 'cmd_pose_local_flu', self.cmd_pose_local_flu_callback, 10)  # geometry_msgs/PoseStamped
+        self.create_subscription(PositionCommand, xtdrone2_topic_prefix + 'cmd_trajectory_flu', self.cmd_trajectory_flu_callback, 10)  # quadrotor_msgs/PositionCommand
         self.create_subscription(PoseStamped, xtdrone2_topic_prefix + 'cmd_vel_ned', self.cmd_vel_ned_callback, 10)  # geometry_msgs/PoseStamped
         self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_vel_flu', self.cmd_vel_flu_callback, 10)  # geometry_msgs/Twist
         self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_accel_ned', self.cmd_accel_ned_callback, 10)  # geometry_msgs/Twist
@@ -209,6 +212,9 @@ class MultirotorCommunication(Node):
             # 设置至少一个控制模式为True，否则PX4会拒绝offboard模式
             msg.position = True  # 设置为位置控制模式
             self.offboard_control_mode_pub.publish(msg)
+            if self.cmd:
+                self.cmd.timestamp = self.get_clock_microseconds()
+                self.dds_trajectory_setpoint_pub.publish(self.cmd)
             self.callback_stats['timer_callback']['count'] += 1
             self.callback_stats['timer_callback']['total_time'] += time.time() - start_time
             return
@@ -486,7 +492,7 @@ class MultirotorCommunication(Node):
         self.callback_stats['ros2_odom_callback']['total_time'] += time.time() - start_time
 
     def publish_px4_visual_odometry(self, msg: Odometry):
-        """转换并发布PX4 visual odometry (NED坐标系) - 直接转换 FLU -> NED，假设PX4 NED原点与ROS2 world位置重合"""
+        """转换并发布PX4 visual odometry (NED坐标系) - FLU -> NED，使用init_heading补偿"""
         try:
             px4_msg = VehicleOdometry()
             
@@ -610,7 +616,10 @@ class MultirotorCommunication(Node):
         cmd = TrajectorySetpoint()
         cmd.timestamp = self.get_clock_microseconds()
         cmd.position = [msg.position.x, msg.position.y, msg.position.z]
+        cmd.velocity = [math.nan, math.nan, math.nan]
+        cmd.acceleration = [math.nan, math.nan, math.nan]
         cmd.yaw = yaw
+        cmd.yawspeed = math.nan
         self.cmd = cmd
         self.callback_stats['cmd_pose_local_ned_callback']['count'] += 1
         self.callback_stats['cmd_pose_local_ned_callback']['total_time'] += time.time() - start_time
@@ -672,7 +681,10 @@ class MultirotorCommunication(Node):
             cmd.timestamp = self.get_clock_microseconds()
             cmd.position = [p_n, p_e, p_d]
             # transformed_yaw 已经是 NED 坐标系下的航向角，不需要额外补偿
+            cmd.velocity = [math.nan, math.nan, math.nan]
+            cmd.acceleration = [math.nan, math.nan, math.nan]
             cmd.yaw = transformed_yaw
+            cmd.yawspeed = math.nan
             self.cmd = cmd
             
         except Exception as tf_error:
@@ -694,6 +706,94 @@ class MultirotorCommunication(Node):
         self.callback_stats['cmd_pose_local_flu_callback']['count'] += 1
         self.callback_stats['cmd_pose_local_flu_callback']['total_time'] += time.time() - start_time
 
+    def cmd_trajectory_flu_callback(self, msg):
+        start_time = time.time()
+        if self.OFFBOARD_STATE == "DISABLED":
+            self.callback_stats['cmd_trajectory_flu_callback']['count'] += 1
+            self.callback_stats['cmd_trajectory_flu_callback']['total_time'] += time.time() - start_time
+            return
+        
+        self.OFFBOARD_STATE = "POSE_LOCAL_FLU"
+        
+        flu_x = msg.position.x
+        flu_y = msg.position.y
+        flu_z = msg.position.z
+        flu_vx = msg.velocity.x
+        flu_vy = msg.velocity.y
+        flu_vz = msg.velocity.z
+        flu_ax = msg.acceleration.x
+        flu_ay = msg.acceleration.y
+        flu_az = msg.acceleration.z
+        flu_yaw = msg.yaw
+        
+        try:
+            px4_odom_frame = self.namespace.lstrip('/') + 'px4_odom'
+            
+            world_to_px4odom = self.tf_buffer.lookup_transform(
+                px4_odom_frame,
+                'world',
+                rclpy.time.Time(),
+                timeout=rclpy.duration.Duration(seconds=1.0)
+            )
+            
+            q_tf = world_to_px4odom.transform.rotation
+            t_tf = world_to_px4odom.transform.translation
+            R = CoordinateTransform.create_rotation_matrix_from_quaternion(
+                q_tf.w, q_tf.x, q_tf.y, q_tf.z
+            )
+            
+            pos_world = np.array([flu_x, flu_y, flu_z])
+            pos_enu = R @ pos_world + np.array([t_tf.x, t_tf.y, t_tf.z])
+            p_n, p_e, p_d = CoordinateTransform.enu_to_ned_position(
+                float(pos_enu[0]), float(pos_enu[1]), float(pos_enu[2])
+            )
+            
+            half_yaw = flu_yaw / 2.0
+            yaw_quat_w = math.cos(half_yaw)
+            yaw_quat_x = 0.0
+            yaw_quat_y = 0.0
+            yaw_quat_z = math.sin(half_yaw)
+            
+            transformed_quat = CoordinateTransform.qmult(
+                q_tf.w, q_tf.x, q_tf.y, q_tf.z,
+                yaw_quat_w, yaw_quat_x, yaw_quat_y, yaw_quat_z
+            )
+            
+            ned_qw, ned_qx, ned_qy, ned_qz = CoordinateTransform.enu_to_ned_quaternion(
+                transformed_quat[0], transformed_quat[1], transformed_quat[2], transformed_quat[3]
+            )
+            
+            transformed_yaw = CoordinateTransform.heading_from_quaternion(
+                ned_qw, ned_qx, ned_qy, ned_qz
+            )
+            
+            vel_world = np.array([flu_vx, flu_vy, flu_vz])
+            vel_enu = R @ vel_world
+            v_n, v_e, v_d = CoordinateTransform.enu_to_ned_velocity(
+                float(vel_enu[0]), float(vel_enu[1]), float(vel_enu[2])
+            )
+            
+            acc_world = np.array([flu_ax, flu_ay, flu_az])
+            acc_enu = R @ acc_world
+            a_n, a_e, a_d = CoordinateTransform.enu_to_ned_acceleration(
+                float(acc_enu[0]), float(acc_enu[1]), float(acc_enu[2])
+            )
+            
+            cmd = TrajectorySetpoint()
+            cmd.timestamp = self.get_clock_microseconds()
+            cmd.position = [p_n, p_e, p_d]
+            cmd.velocity = [v_n, v_e, v_d]
+            cmd.acceleration = [a_n, a_e, a_d]
+            cmd.yaw = transformed_yaw
+            cmd.yawspeed = math.nan
+            self.cmd = cmd
+            
+        except Exception as tf_error:
+            self.get_logger().warning(f'TF transform failed in cmd_trajectory_flu: {str(tf_error)}')
+        
+        self.callback_stats['cmd_trajectory_flu_callback']['count'] += 1
+        self.callback_stats['cmd_trajectory_flu_callback']['total_time'] += time.time() - start_time
+
     def cmd_vel_ned_callback(self, msg):
         start_time = time.time()
         if self.OFFBOARD_STATE == "DISABLED":
@@ -701,7 +801,7 @@ class MultirotorCommunication(Node):
             self.callback_stats['cmd_vel_ned_callback']['total_time'] += time.time() - start_time
             return
         
-        self.OFFBOARD_STATE = "POSE_LOCAL_NED"
+        self.OFFBOARD_STATE = "VEL_NED"
         
         # 从 PoseStamped 中提取位置和姿态
         # 注意：这里虽然函数名是 cmd_vel_ned，但实际处理的是 PoseStamped（位置+姿态）
