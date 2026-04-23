@@ -524,15 +524,25 @@ class MultirotorCommunication(Node):
                 flu_qz = msg.pose.pose.orientation.z
                 px4_msg.q = CoordinateTransform.flu_enu_to_frd_ned_quaternion(flu_qw, flu_qx, flu_qy, flu_qz)
 
-            # 速度转换：FLU -> FRD
-            # 重要说明: Super-LIO 输出的 velocity 是 world frame (ENU)
-            # 但 ROS Odometry 规范 twist.linear 应该是 body frame
-            # 这里假设 Super-LIO 遵循规范，输出的是 body frame (FLU)
-            # vehicle_odometry.velocity 必须是 FRD body frame
-            flu_vx = msg.twist.twist.linear.x
-            flu_vy = msg.twist.twist.linear.y
-            flu_vz = msg.twist.twist.linear.z
-            px4_msg.velocity = CoordinateTransform.flu_to_frd_velocity(flu_vx, flu_vy, flu_vz)
+            # 速度转换：world frame -> FRD body frame
+            # Super-LIO 输出的 velocity 是世界坐标系（与位置同坐标系）
+            # PX4 vehicle_odometry.velocity 必须是 FRD body frame
+            # 转换链: world -> R^T -> FLU body -> FRD body
+            world_vx = msg.twist.twist.linear.x
+            world_vy = msg.twist.twist.linear.y
+            world_vz = msg.twist.twist.linear.z
+            
+            flu_qw = msg.pose.pose.orientation.w
+            flu_qx = msg.pose.pose.orientation.x
+            flu_qy = msg.pose.pose.orientation.y
+            flu_qz = msg.pose.pose.orientation.z
+            R_world_to_body = CoordinateTransform.create_rotation_matrix_from_quaternion(
+                flu_qw, flu_qx, flu_qy, flu_qz
+            ).T
+            body_vel = R_world_to_body @ np.array([world_vx, world_vy, world_vz])
+            px4_msg.velocity = CoordinateTransform.flu_to_frd_velocity(
+                float(body_vel[0]), float(body_vel[1]), float(body_vel[2])
+            )
 
             # 角速度转换：FLU -> FRD
             # ROS: angular velocity -> body frame (FLU)
