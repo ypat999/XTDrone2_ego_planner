@@ -481,7 +481,7 @@ class MultirotorCommunication(Node):
         #         self.get_logger().warning(f'Failed to transform odom from livox_frame to base_link: {e}')
         #         # 如果转换失败，仍然使用原始消息
         
-        # self.publish_px4_visual_odometry(msg)  # 不发布odom，减少影响
+        self.publish_px4_visual_odometry(msg)  # 不发布odom，减少影响
         self.callback_stats['ros2_odom_callback']['count'] += 1
         self.callback_stats['ros2_odom_callback']['total_time'] += time.time() - start_time
 
@@ -539,8 +539,8 @@ class MultirotorCommunication(Node):
             
             # 协方差 (简化处理)
             px4_msg.position_variance = [0.0001, 0.0001, 0.0001]
-            px4_msg.orientation_variance = [999.0, 999.0, 999.0]
-            px4_msg.velocity_variance = [999.0, 999.0, 999.0]
+            px4_msg.orientation_variance = [0.01, 0.01, 0.01]
+            px4_msg.velocity_variance = [0.01, 0.01, 0.01]
             
             # 质量指标
             px4_msg.quality = 100

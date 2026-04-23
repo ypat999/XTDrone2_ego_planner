@@ -663,7 +663,7 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
       RCLCPP_INFO(get_logger(), "First localization, using base threshold: %lf", effective_threshold);
     } else {
       // Subsequent localizations: use dynamic threshold based on current best score
-      effective_threshold = current_fitness_score_ * dynamic_threshold_factor_;
+      effective_threshold = std::min(current_fitness_score_ * dynamic_threshold_factor_, score_threshold_);
       RCLCPP_DEBUG(get_logger(), "Dynamic threshold: %lf (current score: %lf, factor: %lf)", 
                    effective_threshold, current_fitness_score_, dynamic_threshold_factor_);
     }
