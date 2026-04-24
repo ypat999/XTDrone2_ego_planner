@@ -14,7 +14,7 @@ PCLLocalization::PCLLocalization(const rclcpp::NodeOptions & options)
   declare_parameter("base_frame_id", "base_link");
   declare_parameter("enable_map_odom_tf", false);
   declare_parameter("registration_method", "NDT");
-  declare_parameter("score_threshold", 2.0);
+  declare_parameter("score_threshold", 0.0001);
   declare_parameter("ndt_resolution", 1.0);
   declare_parameter("ndt_step_size", 0.1);
   declare_parameter("ndt_max_iterations", 35);
@@ -675,11 +675,9 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
     return;
   }
   
-  // Update current fitness score if this is a better result
-  if (fitness_score < current_fitness_score_) {
-    current_fitness_score_ = fitness_score;
-    RCLCPP_INFO(get_logger(), "Updated current fitness score to: %lf", current_fitness_score_);
-  }
+  // Update current fitness score
+  current_fitness_score_ = fitness_score;
+  RCLCPP_INFO(get_logger(), "Updated current fitness score to: %lf", current_fitness_score_);
   
   Eigen::Matrix3d rot_mat = final_transformation.block<3, 3>(0, 0).cast<double>();
   Eigen::Quaterniond quat_eig(rot_mat);
