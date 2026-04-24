@@ -1,3 +1,4 @@
+import os
 import platform
 from sys import prefix
 from launch import LaunchDescription
@@ -20,6 +21,8 @@ else:
     use_sim_time = False
     use_sim_time_str = 'false'  
     super_lio_launch_file = 'Livox_mid360_drone.py'
+
+build_map_mode = os.environ.get('BUILD_MAP', '').lower() == 'true'
 
 
 def generate_launch_description():
@@ -312,15 +315,17 @@ exit 1
             )
         )
     else:
-        # 真实飞机环境       
+        # 真实飞机环境
+        on_exit_actions = [
+            ego_planner_launch,
+            super_lio_launch,
+        ]
+        if not build_map_mode:
+            on_exit_actions.append(lidar_localization_launch)
         ego_planner_event_handler = RegisterEventHandler(
             OnProcessExit(
                 target_action=wait_for_px4_odom,
-                on_exit=[
-                    ego_planner_launch,
-                    super_lio_launch,
-                    lidar_localization_launch
-                ]
+                on_exit=on_exit_actions
             )
         )
     ld.add_action(ego_planner_event_handler)

@@ -372,7 +372,7 @@
       </div>
       <div class="row">
         <label>帧消失(ms):</label>
-        <input type="number" id="frame-timeout" value="10000" min="0" step="100" placeholder="0=永不消失">
+        <input type="number" id="frame-timeout" value="10000" min="0" step="100" placeholder="0=立即被下一帧替换">
       </div>
       <div class="row">
         <label>着色模式:</label>
@@ -1122,6 +1122,15 @@
         frameId: frameId
       };
 
+      if (obj.timeoutMs === 0) {
+        for (const oldFrame of obj.frames) {
+          rosRoot.remove(oldFrame.points);
+          oldFrame.points.geometry.dispose();
+          oldFrame.points.material.dispose();
+        }
+        obj.frames = [];
+      }
+
       obj.frames.push(frameObj);
 
       applyTfToPointCloud(frameObj, topicName);
@@ -1529,7 +1538,7 @@
           }
         }
         const isActive = obj.frames.length > 0;
-        const timeoutText = obj.timeoutMs > 0 ? (obj.timeoutMs / 1000).toFixed(1) + 's' : '永不过期';
+        const timeoutText = obj.timeoutMs > 0 ? (obj.timeoutMs / 1000).toFixed(1) + 's' : '即时替换';
 
         html += '<div class="topic-item' + (isActive ? ' active' : '') + '">';
         html += '<div class="topic-header">';
