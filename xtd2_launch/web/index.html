@@ -510,7 +510,7 @@
       scene.add(rosRoot);
 
       camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 10000);
-      camera.position.set(0, 0, 20);
+      camera.position.set(10, 10, 10);
       camera.lookAt(0, 0, 0);
 
       renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -527,7 +527,6 @@
       controls.target.set(0, 0, 0);
 
       gridHelper = new THREE.GridHelper(100, 100, 0x444466, 0x222244);
-      gridHelper.rotation.x = Math.PI / 2;
       rosRoot.add(gridHelper);
 
       axesHelper = new THREE.Group();
@@ -538,11 +537,11 @@
         axisLength, 0xff0000, axisLength * 0.2, axisLength * 0.1
       );
       const axisY = new THREE.ArrowHelper(
-        new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0),
         axisLength, 0x00ff00, axisLength * 0.2, axisLength * 0.1
       );
       const axisZ = new THREE.ArrowHelper(
-        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0),
         axisLength, 0x0000ff, axisLength * 0.2, axisLength * 0.1
       );
       axesHelper.add(axisX);
@@ -567,8 +566,8 @@
         return sprite;
       }
       axesHelper.add(createAxisLabel('X', new THREE.Vector3(axisLength + 1, 0, 0), '#ff0000'));
-      axesHelper.add(createAxisLabel('Y', new THREE.Vector3(0, axisLength + 1, 0), '#00ff00'));
-      axesHelper.add(createAxisLabel('Z', new THREE.Vector3(0, 0, axisLength + 1), '#0000ff'));
+      axesHelper.add(createAxisLabel('Y', new THREE.Vector3(0, 0, axisLength + 1), '#00ff00'));
+      axesHelper.add(createAxisLabel('Z', new THREE.Vector3(0, axisLength + 1, 0), '#0000ff'));
       rosRoot.add(axesHelper);
 
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -1047,8 +1046,8 @@
       for (let i = 0; i < nSampled; i++) {
         const pt = sampledPoints[i];
         positions[i * 3] = pt.x;
-        positions[i * 3 + 1] = pt.y;
-        positions[i * 3 + 2] = pt.z;
+        positions[i * 3 + 1] = pt.z;
+        positions[i * 3 + 2] = pt.y;
         zValues[i] = pt.z;
 
         if (obj.colorMode === 'z-axis') {
@@ -1158,14 +1157,14 @@
       if (transform) {
         frameObj.points.position.set(
           transform.translation.x,
-          transform.translation.y,
-          transform.translation.z
+          transform.translation.z,
+          transform.translation.y
         );
 
         frameObj.points.quaternion.set(
           transform.rotation.x,
-          transform.rotation.y,
           transform.rotation.z,
+          transform.rotation.y,
           transform.rotation.w
         );
       }
@@ -1455,19 +1454,19 @@
         }
 
         axesGroup.add(createThickAxis(new THREE.Vector3(1, 0, 0), 0xff0000));
-        axesGroup.add(createThickAxis(new THREE.Vector3(0, 1, 0), 0x00ff00));
-        axesGroup.add(createThickAxis(new THREE.Vector3(0, 0, 1), 0x0000ff));
+        axesGroup.add(createThickAxis(new THREE.Vector3(0, 0, 1), 0x00ff00));
+        axesGroup.add(createThickAxis(new THREE.Vector3(0, 1, 0), 0x0000ff));
 
         axesGroup.position.set(
           transform.translation.x,
-          transform.translation.y,
-          transform.translation.z
+          transform.translation.z,
+          transform.translation.y
         );
 
         axesGroup.quaternion.set(
           transform.rotation.x,
-          transform.rotation.y,
           transform.rotation.z,
+          transform.rotation.y,
           transform.rotation.w
         );
 
@@ -1559,20 +1558,20 @@
     }
 
     function resetCamera() {
-      camera.position.set(0, 0, 20);
+      camera.position.set(10, 10, 10);
       controls.target.set(0, 0, 0);
       controls.update();
     }
 
     function topView() {
-      camera.position.set(0, 0, 30);
+      camera.position.set(0, 30, 0);
       controls.target.set(0, 0, 0);
       controls.update();
     }
 
     function frontView() {
-      camera.position.set(0, -30, 5);
-      controls.target.set(0, 0, 5);
+      camera.position.set(30, 5, 0);
+      controls.target.set(0, 5, 0);
       controls.update();
     }
 
