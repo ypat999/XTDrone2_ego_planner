@@ -537,12 +537,12 @@
         axisLength, 0xff0000, axisLength * 0.2, axisLength * 0.1
       );
       const axisY = new THREE.ArrowHelper(
-        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0),
-        axisLength, 0x00ff00, axisLength * 0.2, axisLength * 0.1
-      );
-      const axisZ = new THREE.ArrowHelper(
         new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0),
         axisLength, 0x0000ff, axisLength * 0.2, axisLength * 0.1
+      );
+      const axisZ = new THREE.ArrowHelper(
+        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0),
+        axisLength, 0x00ff00, axisLength * 0.2, axisLength * 0.1
       );
       axesHelper.add(axisX);
       axesHelper.add(axisY);

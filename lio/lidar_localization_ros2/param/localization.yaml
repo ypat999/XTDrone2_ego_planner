@@ -1,7 +1,7 @@
 /**:
     ros__parameters:
       registration_method: "NDT_OMP"   #"GICP_OMP" 
-      score_threshold: 0.1              # Lower threshold for better accuracy
+      score_threshold: 0.001              # Lower threshold for better accuracy
       ndt_resolution: 0.15               # Higher resolution for better accuracy
       ndt_step_size: 0.15               # Larger step size for better rotation convergence
       ndt_num_threads: 4                 # More threads for faster processing

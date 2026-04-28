@@ -124,8 +124,8 @@ def generate_launch_description():
             {'grid_map/map_size_x': map_size_x},  # 地图X轴大小
             {'grid_map/map_size_y': map_size_y},  # 地图Y轴大小
             {'grid_map/map_size_z': map_size_z},  # 地图Z轴大小
-            {'grid_map/local_update_range_x': 10.0},  # 局部更新范围X  10.0
-            {'grid_map/local_update_range_y': 15.0},  # 局部更新范围Y  15.0
+            {'grid_map/local_update_range_x': 8.0},  # 局部更新范围X  10.0
+            {'grid_map/local_update_range_y': 8.0},  # 局部更新范围Y  15.0
             {'grid_map/local_update_range_z': 8.0},  # 局部更新范围Z   8.0  
             {'grid_map/obstacles_inflation': 0.4},  # 障碍物膨胀半径 0.6
             {'grid_map/local_map_margin': 2},  # 局部地图边界
@@ -156,11 +156,11 @@ def generate_launch_description():
             {'grid_map/visualization_truncate_height': 40.0},  # 可视化截断高度
             {'grid_map/frame_id': 'world'},  # 地图坐标系
             
-            {'grid_map/reset_buffer_enabled': False},  # 重置缓冲区是否启用
+            {'grid_map/reset_buffer_enabled': True},  # 重置缓冲区是否启用
             {'grid_map/origin_safe_zone_enabled': True},  # 启用起始安全安全区域
-            {'grid_map/origin_safe_zone_size_x': 1.0},
-            {'grid_map/origin_safe_zone_size_y': 1.0},
-            {'grid_map/origin_safe_zone_size_z': 1.0},
+            {'grid_map/origin_safe_zone_size_x': 2.0},
+            {'grid_map/origin_safe_zone_size_y': 2.0},
+            {'grid_map/origin_safe_zone_size_z': 2.0},
             
             # 规划器参数
             {'planning/max_vel': max_vel},  # 最大速度
@@ -170,7 +170,7 @@ def generate_launch_description():
             # manager参数 - 确保与planner_manager兼容
             {'manager/max_vel': max_vel},
             {'manager/max_acc': max_acc},
-            {'manager/max_jerk': 10.0},  # 最大加加速度
+            {'manager/max_jerk': 1.0},  # 最大加加速度
             {'manager/control_points_distance': 0.5},  # 控制点距离
             {'manager/feasibility_tolerance': 0.05},  # 可行性容差
             {'manager/planning_horizon': 7.5},  # 规划视野
@@ -180,7 +180,7 @@ def generate_launch_description():
 
              # Trajectory optimization parameters - 轨迹优化参数
             {'optimization/lambda_smooth': 1.0},  # 平滑性权重
-            {'optimization/lambda_collision': 5.0},  # 碰撞避免权重
+            {'optimization/lambda_collision': 8.0},  # 碰撞避免权重
             {'optimization/lambda_feasibility': 0.5},  # 可行性权重
             {'optimization/lambda_fitness': 1.0},  # 适应性权重
             {'optimization/dist0': 0.5},  # 初始距离

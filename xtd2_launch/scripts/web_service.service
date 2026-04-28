@@ -1,0 +1,19 @@
+[Unit]
+Description=XTDrone2 Web Service
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=cat
+Group=cat
+WorkingDirectory=/home/cat/git/xtd2_ws
+Environment="ROS_DOMAIN_ID=0"
+ExecStart=/home/cat/git/xtd2_ws/XTDrone2_ego_planner/xtd2_launch/scripts/start_web_service.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
