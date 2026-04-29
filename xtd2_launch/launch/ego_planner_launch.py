@@ -97,6 +97,7 @@ def generate_launch_description():
             {'fsm/planning_horizon': 7.5},  # 规划视野
             {'fsm/planning_horizen_time': 5.0},  # 规划时间视野  5.0
             {'fsm/emergency_time': 1.0},  # 紧急情况处理时间
+            {'fsm/same_point_replan_time_threshold': 10.0},  # 相同目标点重规划时间阈值
             {'fsm/realworld_experiment': True},  # 仿真模式  False
             {'fsm/fail_safe': True},  # 启用安全保护
             {'fsm/frame_id': "world"},  # 目标坐标系frame_id
