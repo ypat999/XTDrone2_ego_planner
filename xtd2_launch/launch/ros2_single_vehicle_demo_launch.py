@@ -321,7 +321,7 @@ exit 1
             super_lio_launch,
         ]
         if not build_map_mode:
-            on_exit_actions.append(lidar_localization_launch)
+            on_exit_actions.append(TimerAction(period=5.0, actions=[lidar_localization_launch]))
         ego_planner_event_handler = RegisterEventHandler(
             OnProcessExit(
                 target_action=wait_for_px4_odom,

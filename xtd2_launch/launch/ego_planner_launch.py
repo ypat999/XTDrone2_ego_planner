@@ -92,7 +92,7 @@ def generate_launch_description():
             
             # FSM 参数
             {'fsm/flight_type': 1},  # PRESET_TARGET模式2
-            {'fsm/thresh_replan_time': 1.0},  # 重规划时间阈值  0.2
+            {'fsm/thresh_replan_time': 10.0},  # 重规划时间阈值  0.2
             {'fsm/thresh_no_replan_meter': 0.3},  # 重规划距离阈值
             {'fsm/planning_horizon': 7.5},  # 规划视野
             {'fsm/planning_horizen_time': 5.0},  # 规划时间视野  5.0
@@ -124,8 +124,8 @@ def generate_launch_description():
             {'grid_map/map_size_x': map_size_x},  # 地图X轴大小
             {'grid_map/map_size_y': map_size_y},  # 地图Y轴大小
             {'grid_map/map_size_z': map_size_z},  # 地图Z轴大小
-            {'grid_map/local_update_range_x': 8.0},  # 局部更新范围X  10.0
-            {'grid_map/local_update_range_y': 8.0},  # 局部更新范围Y  15.0
+            {'grid_map/local_update_range_x': 10.0},  # 局部更新范围X  10.0
+            {'grid_map/local_update_range_y': 16.0},  # 局部更新范围Y  15.0
             {'grid_map/local_update_range_z': 8.0},  # 局部更新范围Z   8.0  
             {'grid_map/obstacles_inflation': 0.4},  # 障碍物膨胀半径 0.6
             {'grid_map/local_map_margin': 2},  # 局部地图边界

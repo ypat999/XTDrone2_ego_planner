@@ -533,7 +533,7 @@
       axesHelper.name = 'axesHelper';
       const axisLength = 5;
       const axisX = new THREE.ArrowHelper(
-        new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0),
         axisLength, 0xff0000, axisLength * 0.2, axisLength * 0.1
       );
       const axisY = new THREE.ArrowHelper(
@@ -541,7 +541,7 @@
         axisLength, 0x0000ff, axisLength * 0.2, axisLength * 0.1
       );
       const axisZ = new THREE.ArrowHelper(
-        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0),
         axisLength, 0x00ff00, axisLength * 0.2, axisLength * 0.1
       );
       axesHelper.add(axisX);
@@ -565,8 +565,8 @@
         sprite.scale.set(2, 1, 1);
         return sprite;
       }
-      axesHelper.add(createAxisLabel('X', new THREE.Vector3(axisLength + 1, 0, 0), '#ff0000'));
-      axesHelper.add(createAxisLabel('Y', new THREE.Vector3(0, 0, axisLength + 1), '#00ff00'));
+      axesHelper.add(createAxisLabel('X', new THREE.Vector3(0, 0, axisLength + 1), '#ff0000'));
+      axesHelper.add(createAxisLabel('Y', new THREE.Vector3(axisLength + 1, 0, 0), '#00ff00'));
       axesHelper.add(createAxisLabel('Z', new THREE.Vector3(0, axisLength + 1, 0), '#0000ff'));
       rosRoot.add(axesHelper);
 
@@ -677,6 +677,18 @@
         subscribeTf();
         fetchPointCloud2Topics();
         initBackendCommunication();
+
+        setTimeout(function () {
+          addDefaultTopic('/grid_map/occupancy_inflate', {
+            useBackend: true,
+            targetFrame: 'map',
+            voxelSize: 0.5,
+            maxPoints: 2000,
+            frameTimeout: 10000,
+            colorMode: 'z-axis',
+            pointSize: 0.5
+          });
+        }, 500);
       });
 
       ros.on('error', function (error) {
@@ -843,6 +855,86 @@
       });
 
       console.log('Backend communication initialized');
+    }
+
+    function addDefaultTopic(topicName, options = {}) {
+      if (!ros || !ros.isConnected) {
+        console.warn('ROS not connected, cannot add default topic');
+        return;
+      }
+
+      if (topicSubscriptions[topicName]) {
+        console.log('Topic already subscribed:', topicName);
+        return;
+      }
+
+      const useBackend = options.useBackend !== undefined ? options.useBackend : true;
+      const targetFrame = options.targetFrame || 'map';
+      const voxelSize = options.voxelSize || 0.5;
+      const maxPoints = options.maxPoints || 2000;
+      const frameTimeout = options.frameTimeout !== undefined ? options.frameTimeout : 10000;
+      const colorMode = options.colorMode || 'z-axis';
+      const topicColor = options.topicColor || TOPIC_COLORS[topicColorIndex % TOPIC_COLORS.length];
+      const pointSize = options.pointSize || 0.5;
+
+      topicColorIndex++;
+
+      pointCloudObjects[topicName] = {
+        frames: [],
+        colorMode: colorMode,
+        topicColor: topicColor,
+        timeoutMs: frameTimeout,
+        pointSize: pointSize,
+        voxelSize: voxelSize,
+        frameId: '',
+        useBackend: useBackend,
+        targetFrame: targetFrame,
+        maxPoints: maxPoints
+      };
+
+      if (useBackend) {
+        sendBackendConfig('add', {
+          topics: [{
+            topic_name: topicName,
+            target_frame: targetFrame,
+            voxel_size: voxelSize,
+            max_points: maxPoints,
+            color_mode: colorMode,
+            enabled: true
+          }]
+        });
+
+        const processedTopicName = topicName + '/web_processed';
+        const topic = new ROSLIB.Topic({
+          ros: ros,
+          name: processedTopicName,
+          messageType: 'sensor_msgs/msg/PointCloud2',
+          qos: { depth: 10, durability: 'volatile', reliability: 'reliable' }
+        });
+
+        topic.subscribe(function (message) {
+          processPointCloud2(topicName, message);
+        });
+
+        topicSubscriptions[topicName] = topic;
+        console.log('Subscribed to default topic:', topicName, '(processed:', processedTopicName + ')');
+      } else {
+        const topic = new ROSLIB.Topic({
+          ros: ros,
+          name: topicName,
+          messageType: 'sensor_msgs/msg/PointCloud2',
+          qos: { depth: 10, durability: 'volatile', reliability: 'best_effort' }
+        });
+
+        topic.subscribe(function (message) {
+          processPointCloud2(topicName, message);
+        });
+
+        topicSubscriptions[topicName] = topic;
+        console.log('Subscribed to default topic:', topicName);
+      }
+
+      renderTopicList();
     }
 
     function sendBackendConfig(action, config) {
@@ -1045,9 +1137,9 @@
 
       for (let i = 0; i < nSampled; i++) {
         const pt = sampledPoints[i];
-        positions[i * 3] = pt.x;
+        positions[i * 3] = pt.y;
         positions[i * 3 + 1] = pt.z;
-        positions[i * 3 + 2] = pt.y;
+        positions[i * 3 + 2] = pt.x;
         zValues[i] = pt.z;
 
         if (obj.colorMode === 'z-axis') {
@@ -1156,15 +1248,15 @@
       const transform = lookupTransform(fixedFrame, frameObj.frameId);
       if (transform) {
         frameObj.points.position.set(
-          transform.translation.x,
+          transform.translation.y,
           transform.translation.z,
-          transform.translation.y
+          transform.translation.x
         );
 
         frameObj.points.quaternion.set(
-          transform.rotation.x,
-          transform.rotation.z,
           transform.rotation.y,
+          transform.rotation.z,
+          transform.rotation.x,
           transform.rotation.w
         );
       }
@@ -1458,15 +1550,15 @@
         axesGroup.add(createThickAxis(new THREE.Vector3(0, 1, 0), 0x0000ff));
 
         axesGroup.position.set(
-          transform.translation.x,
+          transform.translation.y,
           transform.translation.z,
-          transform.translation.y
+          transform.translation.x
         );
 
         axesGroup.quaternion.set(
-          transform.rotation.x,
-          transform.rotation.z,
           transform.rotation.y,
+          transform.rotation.z,
+          transform.rotation.x,
           transform.rotation.w
         );
 
