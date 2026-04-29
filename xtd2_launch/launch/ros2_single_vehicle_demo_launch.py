@@ -124,6 +124,8 @@ def generate_launch_description():
         launch_arguments={
             'rviz': 'false',
             'use_sim_time': use_sim_time_str,
+            'dynamic_removal': 'true' if build_map_mode else 'false',
+
         }.items()
     )
 
