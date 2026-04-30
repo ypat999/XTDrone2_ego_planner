@@ -866,12 +866,12 @@ PCLLocalization::SearchResult PCLLocalization::searchOptimalTransformation(
     return result;
   }
   
-  RCLCPP_INFO(get_logger(), "Performing two-stage search optimization with radius %lf m", search_radius_);
+  RCLCPP_DEBUG(this->get_logger(), "Performing two-stage search optimization with radius %lf m", search_radius_);
   if (enable_angle_search_) {
-    RCLCPP_INFO(get_logger(), "Angle search enabled: range %.3f rad (%.1f deg), %d steps", 
+    RCLCPP_DEBUG(this->get_logger(), "Angle search enabled: range %.3f rad (%.1f deg), %d steps", 
       angle_search_range_, angle_search_range_ * 180.0 / M_PI, angle_search_steps_);
   }
-  RCLCPP_INFO(get_logger(), "Z-axis search: %s", search_z_axis ? "enabled" : "disabled");
+  RCLCPP_DEBUG(this->get_logger(), "Z-axis search: %s", search_z_axis ? "enabled" : "disabled");
   
   // Extract initial position and rotation from transformation matrix
   Eigen::Vector3f initial_position = initial_guess.block<3,1>(0,3);
@@ -897,7 +897,7 @@ PCLLocalization::SearchResult PCLLocalization::searchOptimalTransformation(
     total_searches += (angle_search_steps_ - 1);
   }
   
-  RCLCPP_INFO(get_logger(), "Total search iterations (two-stage): %d", total_searches);
+  RCLCPP_DEBUG(this->get_logger(), "Total search iterations (two-stage): %d", total_searches);
   
   int search_count = 0;
   
@@ -1057,7 +1057,7 @@ PCLLocalization::SearchResult PCLLocalization::searchOptimalTransformation(
     best_fitness_score = registration_->getFitnessScore();
   }
   
-  RCLCPP_INFO(get_logger(), "Best fitness score after search: %lf", best_fitness_score);
+  RCLCPP_DEBUG(this->get_logger(), "Best fitness score after search: %lf", best_fitness_score);
   result.transformation = best_transformation;
   result.has_converged = best_has_converged;
   result.fitness_score = best_fitness_score;

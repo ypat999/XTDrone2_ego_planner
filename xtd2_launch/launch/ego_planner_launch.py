@@ -22,12 +22,12 @@ def generate_launch_description():
     namespace = LaunchConfiguration('namespace', default=default_namespace)
     drone_id = LaunchConfiguration('drone_id', default=0)
 
-    map_size_x = LaunchConfiguration('map_size_x', default=200.0)
-    map_size_y = LaunchConfiguration('map_size_y', default=200.0)
-    map_size_z = LaunchConfiguration('map_size_z', default=40.0)
+    map_size_x = LaunchConfiguration('map_size_x', default=500.0)
+    map_size_y = LaunchConfiguration('map_size_y', default=500.0)
+    map_size_z = LaunchConfiguration('map_size_z', default=20.0)
 
-    max_vel = LaunchConfiguration('max_vel', default=1.0)
-    max_acc = LaunchConfiguration('max_acc', default=0.2)
+    max_vel = LaunchConfiguration('max_vel', default=2.0)
+    max_acc = LaunchConfiguration('max_acc', default=0.5)
     
     # 根据主机名决定是否使用仿真时间
     if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
@@ -171,7 +171,7 @@ def generate_launch_description():
             # manager参数 - 确保与planner_manager兼容
             {'manager/max_vel': max_vel},
             {'manager/max_acc': max_acc},
-            {'manager/max_jerk': 1.0},  # 最大加加速度
+            {'manager/max_jerk': 10.0},  # 最大加加速度
             {'manager/control_points_distance': 0.5},  # 控制点距离
             {'manager/feasibility_tolerance': 0.05},  # 可行性容差
             {'manager/planning_horizon': 7.5},  # 规划视野
