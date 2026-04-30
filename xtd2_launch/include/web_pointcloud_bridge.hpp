@@ -24,6 +24,7 @@ struct PointCloudConfig {
     int max_points;
     std::string color_mode;
     bool enabled;
+    double max_height;
 };
 
 class WebPointCloudBridge : public rclcpp::Node {
