@@ -85,6 +85,7 @@ CallbackReturn PCLLocalization::on_activate(const rclcpp_lifecycle::State &)
   RCLCPP_INFO(get_logger(), "Activating");
 
   pose_pub_->on_activate();
+  map_odom_pose_pub_->on_activate();
   path_pub_->on_activate();
   initial_map_pub_->on_activate();
 
@@ -182,6 +183,7 @@ CallbackReturn PCLLocalization::on_deactivate(const rclcpp_lifecycle::State &)
   RCLCPP_INFO(get_logger(), "Deactivating");
 
   pose_pub_->on_deactivate();
+  map_odom_pose_pub_->on_deactivate();
   path_pub_->on_deactivate();
   initial_map_pub_->on_deactivate();
 
@@ -319,6 +321,10 @@ void PCLLocalization::initializePubSub()
 
   pose_pub_ = create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>(
     "pcl_pose",
+    rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
+
+  map_odom_pose_pub_ = create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>(
+    "lidar_localization_pose",
     rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
 
   path_pub_ = create_publisher<nav_msgs::msg::Path>(
@@ -734,6 +740,29 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
   map_to_odom_stamped.child_frame_id = odom_frame_id_;
   map_to_odom_stamped.transform = tf2::toMsg(map_to_odom_tf);
   static_broadcaster_.sendTransform(map_to_odom_stamped);
+
+  geometry_msgs::msg::PoseWithCovarianceStamped map_odom_pose_msg;
+  map_odom_pose_msg.header.stamp = msg->header.stamp;
+  map_odom_pose_msg.header.frame_id = global_frame_id_;
+  map_odom_pose_msg.pose.pose.position.x = map_to_odom_tf.getOrigin().x();
+  map_odom_pose_msg.pose.pose.position.y = map_to_odom_tf.getOrigin().y();
+  map_odom_pose_msg.pose.pose.position.z = map_to_odom_tf.getOrigin().z();
+  map_odom_pose_msg.pose.pose.orientation.x = map_to_odom_tf.getRotation().x();
+  map_odom_pose_msg.pose.pose.orientation.y = map_to_odom_tf.getRotation().y();
+  map_odom_pose_msg.pose.pose.orientation.z = map_to_odom_tf.getRotation().z();
+  map_odom_pose_msg.pose.pose.orientation.w = map_to_odom_tf.getRotation().w();
+  
+  for (int i = 0; i < 36; ++i) {
+    map_odom_pose_msg.pose.covariance[i] = 0.0;
+  }
+  map_odom_pose_msg.pose.covariance[0] = fitness_score;
+  map_odom_pose_msg.pose.covariance[7] = fitness_score;
+  map_odom_pose_msg.pose.covariance[14] = fitness_score;
+  map_odom_pose_msg.pose.covariance[21] = fitness_score;
+  map_odom_pose_msg.pose.covariance[28] = fitness_score;
+  map_odom_pose_msg.pose.covariance[35] = fitness_score;
+  
+  map_odom_pose_pub_->publish(map_odom_pose_msg);
 
   geometry_msgs::msg::PoseStamped::SharedPtr pose_stamped_ptr(new geometry_msgs::msg::PoseStamped);
   pose_stamped_ptr->header.stamp = msg->header.stamp;

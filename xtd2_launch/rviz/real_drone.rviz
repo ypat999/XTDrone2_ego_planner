@@ -29,7 +29,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: PointCloud2_lio
+    SyncSource: PointCloud2_inflate
 Visualization Manager:
   Class: ""
   Displays:
@@ -131,8 +131,8 @@ Visualization Manager:
     - Alpha: 0.20000000298023224
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 2.2010087966918945
-        Min Value: -1.398991346359253
+        Max Value: 2.4000000953674316
+        Min Value: -1.399999976158142
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -177,13 +177,13 @@ Visualization Manager:
       Value: true
     - Class: rviz_default_plugins/InteractiveMarkers
       Enable Transparency: true
-      Enabled: true
+      Enabled: false
       Interactive Markers Namespace: /goal_marker
       Name: InteractiveMarkers
       Show Axes: false
       Show Descriptions: true
       Show Visual Aids: false
-      Value: true
+      Value: false
     - Alpha: 1
       Axes Length: 1
       Axes Radius: 0.10000000149011612
@@ -393,10 +393,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5897983908653259
+      Pitch: 0.60979825258255
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.8591208457946777
+      Yaw: 4.322304725646973
     Saved: ~
 Window Geometry:
   Displays:
