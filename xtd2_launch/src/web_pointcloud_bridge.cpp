@@ -1,5 +1,6 @@
 #include "web_pointcloud_bridge.hpp"
 #include <pcl_conversions/pcl_conversions.h>
+#include <pcl/filters/passthrough.h>
 
 WebPointCloudBridge::WebPointCloudBridge()
     : Node("web_pointcloud_bridge")
@@ -45,6 +46,7 @@ void WebPointCloudBridge::processConfig(const nlohmann::json& config)
                 cfg.max_points = topic_config.value("max_points", 50000);
                 cfg.color_mode = topic_config.value("color_mode", "z-axis");
                 cfg.enabled = topic_config.value("enabled", true);
+                cfg.max_height = topic_config.value("max_height", 0.0);
 
                 if (!cfg.topic_name.empty()) {
                     addSubscription(cfg.topic_name, cfg);
@@ -61,6 +63,7 @@ void WebPointCloudBridge::processConfig(const nlohmann::json& config)
                 if (config.contains("max_points")) cfg.max_points = config["max_points"];
                 if (config.contains("color_mode")) cfg.color_mode = config["color_mode"];
                 if (config.contains("enabled")) cfg.enabled = config["enabled"];
+                if (config.contains("max_height")) cfg.max_height = config["max_height"];
             }
         } else if (action == "list") {
             nlohmann::json status;
@@ -74,6 +77,7 @@ void WebPointCloudBridge::processConfig(const nlohmann::json& config)
                 topic_info["max_points"] = cfg.max_points;
                 topic_info["color_mode"] = cfg.color_mode;
                 topic_info["enabled"] = cfg.enabled;
+                topic_info["max_height"] = cfg.max_height;
                 status["topics"].push_back(topic_info);
             }
             auto status_msg = std_msgs::msg::String();
@@ -201,6 +205,16 @@ sensor_msgs::msg::PointCloud2::SharedPtr WebPointCloudBridge::processPointCloud(
             pcl_cloud = filtered;
         }
 
+        if (config.max_height > 0.0 && pcl_cloud->size() > 0) {
+            pcl::PointCloud<pcl::PointXYZI>::Ptr height_filtered(new pcl::PointCloud<pcl::PointXYZI>);
+            pcl::PassThrough<pcl::PointXYZI> pass_filter;
+            pass_filter.setInputCloud(pcl_cloud);
+            pass_filter.setFilterFieldName("z");
+            pass_filter.setFilterLimits(0.0, config.max_height);
+            pass_filter.filter(*height_filtered);
+            pcl_cloud = height_filtered;
+        }
+
         if (config.max_points > 0 && static_cast<int>(pcl_cloud->size()) > config.max_points) {
             pcl::PointCloud<pcl::PointXYZI>::Ptr sampled(new pcl::PointCloud<pcl::PointXYZI>);
             float ratio = static_cast<float>(config.max_points) / pcl_cloud->size();
@@ -227,6 +241,16 @@ sensor_msgs::msg::PointCloud2::SharedPtr WebPointCloudBridge::processPointCloud(
             voxel_filter.setLeafSize(config.voxel_size, config.voxel_size, config.voxel_size);
             voxel_filter.filter(*filtered);
             pcl_cloud = filtered;
+        }
+
+        if (config.max_height > 0.0 && pcl_cloud->size() > 0) {
+            pcl::PointCloud<pcl::PointXYZ>::Ptr height_filtered(new pcl::PointCloud<pcl::PointXYZ>);
+            pcl::PassThrough<pcl::PointXYZ> pass_filter;
+            pass_filter.setInputCloud(pcl_cloud);
+            pass_filter.setFilterFieldName("z");
+            pass_filter.setFilterLimits(0.0, config.max_height);
+            pass_filter.filter(*height_filtered);
+            pcl_cloud = height_filtered;
         }
 
         if (config.max_points > 0 && static_cast<int>(pcl_cloud->size()) > config.max_points) {

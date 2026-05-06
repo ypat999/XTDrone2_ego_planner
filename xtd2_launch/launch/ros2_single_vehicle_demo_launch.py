@@ -124,6 +124,8 @@ def generate_launch_description():
         launch_arguments={
             'rviz': 'false',
             'use_sim_time': use_sim_time_str,
+            'dynamic_removal': 'true' if build_map_mode else 'false',
+
         }.items()
     )
 
@@ -176,56 +178,56 @@ def generate_launch_description():
         output='screen'
     )
 
-    #######################
-    # Rosbridge Server   #
-    #######################
-    rosbridge_node = Node(
-        package='rosbridge_server',
-        executable='rosbridge_websocket',
-        name='rosbridge_websocket',
-        parameters=[{
-            'use_sim_time': use_sim_time,
-            'port': 9090,
-            'address': '0.0.0.0',
-        }],
-        output='screen',
-        prefix=['taskset -c 0,1,2,3'],   # 绑定 CPU 
-    )
+    # #######################
+    # # Rosbridge Server   #
+    # #######################
+    # rosbridge_node = Node(
+    #     package='rosbridge_server',
+    #     executable='rosbridge_websocket',
+    #     name='rosbridge_websocket',
+    #     parameters=[{
+    #         'use_sim_time': use_sim_time,
+    #         'port': 9090,
+    #         'address': '0.0.0.0',
+    #     }],
+    #     output='screen',
+    #     prefix=['taskset -c 0,1,2,3'],   # 绑定 CPU 
+    # )
 
-    rosapi_node = Node(
-        package='rosapi',
-        executable='rosapi_node',
-        name='rosapi_node',
-        parameters=[{'use_sim_time': use_sim_time}],
-        output='screen',
-        prefix=['taskset -c 0,1,2,3'],   # 绑定 CPU 
-    )
+    # rosapi_node = Node(
+    #     package='rosapi',
+    #     executable='rosapi_node',
+    #     name='rosapi_node',
+    #     parameters=[{'use_sim_time': use_sim_time}],
+    #     output='screen',
+    #     prefix=['taskset -c 0,1,2,3'],   # 绑定 CPU 
+    # )
 
-    #######################
-    # Web Server         #
-    #######################
-    web_server = ExecuteProcess(
-        cmd=['taskset', '-c', '0,1,2,3', 'python3', '-m', 'http.server', '8084'],
-        output='screen',
-        name='web_server',
-        shell=False,
-        cwd=PathJoinSubstitution([
-            FindPackageShare('xtd2_launch'),
-            'web'
-        ])
-    )
+    # #######################
+    # # Web Server         #
+    # #######################
+    # web_server = ExecuteProcess(
+    #     cmd=['taskset', '-c', '0,1,2,3', 'python3', '-m', 'http.server', '8084'],
+    #     output='screen',
+    #     name='web_server',
+    #     shell=False,
+    #     cwd=PathJoinSubstitution([
+    #         FindPackageShare('xtd2_launch'),
+    #         'web'
+    #     ])
+    # )
 
-    #######################
-    # Web PointCloud Bridge #
-    #######################
-    web_pointcloud_bridge = Node(
-        package='xtd2_launch',
-        executable='web_pointcloud_bridge',
-        name='web_pointcloud_bridge',
-        parameters=[{'use_sim_time': use_sim_time}],
-        output='screen',
-        prefix=['taskset -c 0,1,2,3'],   # 绑定 CPU 
-    )
+    # #######################
+    # # Web PointCloud Bridge #
+    # #######################
+    # web_pointcloud_bridge = Node(
+    #     package='xtd2_launch',
+    #     executable='web_pointcloud_bridge',
+    #     name='web_pointcloud_bridge',
+    #     parameters=[{'use_sim_time': use_sim_time}],
+    #     output='screen',
+    #     prefix=['taskset -c 0,1,2,3'],   # 绑定 CPU 
+    # )
 
     # 根据主机名决定启动哪些组件
     ld = LaunchDescription([
@@ -285,11 +287,11 @@ exit 1
     
     ld.add_action(wait_for_px4_odom)  # 等待px4_odom_topic发布
     
-    # 启动Rosbridge和Web服务器
-    ld.add_action(rosbridge_node)
-    ld.add_action(rosapi_node)
-    ld.add_action(TimerAction(period=2.0, actions=[web_server]))
-    ld.add_action(TimerAction(period=3.0, actions=[web_pointcloud_bridge]))
+    # # 启动Rosbridge和Web服务器
+    # ld.add_action(rosbridge_node)
+    # ld.add_action(rosapi_node)
+    # ld.add_action(TimerAction(period=2.0, actions=[web_server]))
+    # ld.add_action(TimerAction(period=3.0, actions=[web_pointcloud_bridge]))
     
 
     
@@ -321,7 +323,7 @@ exit 1
             super_lio_launch,
         ]
         if not build_map_mode:
-            on_exit_actions.append(lidar_localization_launch)
+            on_exit_actions.append(TimerAction(period=5.0, actions=[lidar_localization_launch]))
         ego_planner_event_handler = RegisterEventHandler(
             OnProcessExit(
                 target_action=wait_for_px4_odom,

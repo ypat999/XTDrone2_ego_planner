@@ -22,12 +22,12 @@ def generate_launch_description():
     namespace = LaunchConfiguration('namespace', default=default_namespace)
     drone_id = LaunchConfiguration('drone_id', default=0)
 
-    map_size_x = LaunchConfiguration('map_size_x', default=200.0)
-    map_size_y = LaunchConfiguration('map_size_y', default=200.0)
-    map_size_z = LaunchConfiguration('map_size_z', default=40.0)
+    map_size_x = LaunchConfiguration('map_size_x', default=500.0)
+    map_size_y = LaunchConfiguration('map_size_y', default=500.0)
+    map_size_z = LaunchConfiguration('map_size_z', default=20.0)
 
-    max_vel = LaunchConfiguration('max_vel', default=1.0)
-    max_acc = LaunchConfiguration('max_acc', default=0.2)
+    max_vel = LaunchConfiguration('max_vel', default=2.0)
+    max_acc = LaunchConfiguration('max_acc', default=0.5)
     
     # 根据主机名决定是否使用仿真时间
     if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
@@ -92,11 +92,12 @@ def generate_launch_description():
             
             # FSM 参数
             {'fsm/flight_type': 1},  # PRESET_TARGET模式2
-            {'fsm/thresh_replan_time': 1.0},  # 重规划时间阈值  0.2
+            {'fsm/thresh_replan_time': 10.0},  # 重规划时间阈值  0.2
             {'fsm/thresh_no_replan_meter': 0.3},  # 重规划距离阈值
             {'fsm/planning_horizon': 7.5},  # 规划视野
             {'fsm/planning_horizen_time': 5.0},  # 规划时间视野  5.0
             {'fsm/emergency_time': 1.0},  # 紧急情况处理时间
+            {'fsm/same_point_replan_time_threshold': 10.0},  # 相同目标点重规划时间阈值
             {'fsm/realworld_experiment': True},  # 仿真模式  False
             {'fsm/fail_safe': True},  # 启用安全保护
             {'fsm/frame_id': "world"},  # 目标坐标系frame_id
@@ -125,7 +126,7 @@ def generate_launch_description():
             {'grid_map/map_size_y': map_size_y},  # 地图Y轴大小
             {'grid_map/map_size_z': map_size_z},  # 地图Z轴大小
             {'grid_map/local_update_range_x': 10.0},  # 局部更新范围X  10.0
-            {'grid_map/local_update_range_y': 15.0},  # 局部更新范围Y  15.0
+            {'grid_map/local_update_range_y': 16.0},  # 局部更新范围Y  15.0
             {'grid_map/local_update_range_z': 8.0},  # 局部更新范围Z   8.0  
             {'grid_map/obstacles_inflation': 0.4},  # 障碍物膨胀半径 0.6
             {'grid_map/local_map_margin': 2},  # 局部地图边界
@@ -156,11 +157,11 @@ def generate_launch_description():
             {'grid_map/visualization_truncate_height': 40.0},  # 可视化截断高度
             {'grid_map/frame_id': 'world'},  # 地图坐标系
             
-            {'grid_map/reset_buffer_enabled': False},  # 重置缓冲区是否启用
+            {'grid_map/reset_buffer_enabled': True},  # 重置缓冲区是否启用
             {'grid_map/origin_safe_zone_enabled': True},  # 启用起始安全安全区域
-            {'grid_map/origin_safe_zone_size_x': 1.0},
-            {'grid_map/origin_safe_zone_size_y': 1.0},
-            {'grid_map/origin_safe_zone_size_z': 1.0},
+            {'grid_map/origin_safe_zone_size_x': 2.0},
+            {'grid_map/origin_safe_zone_size_y': 2.0},
+            {'grid_map/origin_safe_zone_size_z': 2.0},
             
             # 规划器参数
             {'planning/max_vel': max_vel},  # 最大速度
@@ -180,7 +181,7 @@ def generate_launch_description():
 
              # Trajectory optimization parameters - 轨迹优化参数
             {'optimization/lambda_smooth': 1.0},  # 平滑性权重
-            {'optimization/lambda_collision': 5.0},  # 碰撞避免权重
+            {'optimization/lambda_collision': 8.0},  # 碰撞避免权重
             {'optimization/lambda_feasibility': 0.5},  # 可行性权重
             {'optimization/lambda_fitness': 1.0},  # 适应性权重
             {'optimization/dist0': 0.5},  # 初始距离
