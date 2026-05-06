@@ -101,3 +101,20 @@
   lazy: true
   direction: GZ_TO_ROS
 
+####################
+# Livox Mid360 Down#
+####################
+- ros_topic_name: "/livox_down/imu"
+  gz_topic_name: /livox_down/imu
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  lazy: true
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/livox_down/lidar"
+  gz_topic_name: /livox_down/lidar/points
+  ros_type_name: "sensor_msgs/msg/PointCloud2"
+  gz_type_name: "gz.msgs.PointCloudPacked"
+  lazy: true
+  direction: GZ_TO_ROS
+

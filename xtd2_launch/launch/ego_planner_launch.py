@@ -22,8 +22,8 @@ def generate_launch_description():
     namespace = LaunchConfiguration('namespace', default=default_namespace)
     drone_id = LaunchConfiguration('drone_id', default=0)
 
-    map_size_x = LaunchConfiguration('map_size_x', default=500.0)
-    map_size_y = LaunchConfiguration('map_size_y', default=500.0)
+    map_size_x = LaunchConfiguration('map_size_x', default=250.0)
+    map_size_y = LaunchConfiguration('map_size_y', default=250.0)
     map_size_z = LaunchConfiguration('map_size_z', default=20.0)
 
     max_vel = LaunchConfiguration('max_vel', default=2.0)
@@ -33,7 +33,7 @@ def generate_launch_description():
     if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
         default_use_sim_time = 'true'
         odom_world_topic = '/x500_depth_0/odometry'
-        grid_map_cloud_topic = '/livox/lidar'  #'/x500_depth_0/StereoOV7251/pointcloud'
+        grid_map_cloud_topic = '/livox_down/lidar'  #'/x500_depth_0/StereoOV7251/pointcloud'
         grid_map_pose_topic = '/x500_depth_0/StereoOV7251/pose'
     else:
         default_use_sim_time = 'false'
@@ -92,8 +92,8 @@ def generate_launch_description():
             
             # FSM 参数
             {'fsm/flight_type': 1},  # PRESET_TARGET模式2
-            {'fsm/thresh_replan_time': 10.0},  # 重规划时间阈值  0.2
-            {'fsm/thresh_no_replan_meter': 0.3},  # 重规划距离阈值
+            {'fsm/thresh_replan_time': 1.0},  # 重规划时间阈值  0.2
+            {'fsm/thresh_no_replan_meter': 1.0},  # 重规划距离阈值 0.3
             {'fsm/planning_horizon': 7.5},  # 规划视野
             {'fsm/planning_horizen_time': 5.0},  # 规划时间视野  5.0
             {'fsm/emergency_time': 1.0},  # 紧急情况处理时间

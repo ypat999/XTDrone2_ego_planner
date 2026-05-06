@@ -28,8 +28,8 @@ build_map_mode = os.environ.get('BUILD_MAP', '').lower() == 'true'
 def generate_launch_description():
     world_name_arg = DeclareLaunchArgument('world_name', 
                     # default_value='aruco', 
-                    # default_value='tugbot_warehouse',
-                    default_value='ego',
+                    default_value='tugbot_warehouse',
+                    # default_value='ego',
 
                     description='Name of the world to launch (without .sdf)')
     model_name_arg = DeclareLaunchArgument('model_name', default_value='gz_x500_depth', description='Name of the model to spawn')
@@ -76,8 +76,8 @@ def generate_launch_description():
             ]),
             launch_arguments={
                 'world_name': LaunchConfiguration('world_name'),
-                'model': 'gz_x500_depth',
-                'id': '0',
+                'model': LaunchConfiguration('model_name'),
+                'id': LaunchConfiguration('id'),
                 'namespace': LaunchConfiguration('namespace'),
             }.items()
         )

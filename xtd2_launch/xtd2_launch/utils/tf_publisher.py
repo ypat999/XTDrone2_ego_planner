@@ -357,6 +357,21 @@ class TfPublisher(Node):
             t.transform.rotation.w = qw
             tfs.append(t)
 
+            # x500_depth_0/livox_down_frame/mid360_down_lidar
+            t = TransformStamped()
+            t.header.stamp = now
+            t.header.frame_id = self.namespace.lstrip('/') + 'base_link'
+            t.child_frame_id = self.namespace.lstrip('/') + 'livox_down_frame/mid360_down_lidar'
+            t.transform.translation.x = 0.1  # 0.1 0 0.30 0 -0.5236 3.1415926
+            t.transform.translation.y = 0.0
+            t.transform.translation.z = 0.2
+            qx, qy, qz, qw = self.euler_to_quaternion(0, 150, 0)
+            t.transform.rotation.x = qx
+            t.transform.rotation.y = qy
+            t.transform.rotation.z = qz
+            t.transform.rotation.w = qw
+            tfs.append(t)
+
         # # 真机环境下添加mid360到base_link的TF变换
         # else:
         #     t = TransformStamped()
