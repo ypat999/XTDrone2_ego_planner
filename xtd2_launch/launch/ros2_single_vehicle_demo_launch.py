@@ -319,8 +319,8 @@ exit 1
     else:
         # 真实飞机环境
         on_exit_actions = [
-            ego_planner_launch,
             super_lio_launch,
+            ego_planner_launch,
         ]
         if not build_map_mode:
             on_exit_actions.append(TimerAction(period=5.0, actions=[lidar_localization_launch]))

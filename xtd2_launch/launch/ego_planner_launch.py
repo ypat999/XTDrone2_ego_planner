@@ -151,10 +151,10 @@ def generate_launch_description():
             {'grid_map/min_ray_length': 0.5},
             {'grid_map/max_ray_length': 30.0},
 
-            {'grid_map/virtual_ceil_height': 40.0},  # 虚拟天花板高度
+            {'grid_map/virtual_ceil_height': 30.0},  # 虚拟天花板高度
             {'grid_map/pose_type': 1},  # 位姿类型
             {'grid_map/show_occ_time': False},  # 显示占用时间
-            {'grid_map/visualization_truncate_height': 40.0},  # 可视化截断高度
+            {'grid_map/visualization_truncate_height': 9.0},  # 可视化截断高度
             {'grid_map/frame_id': 'world'},  # 地图坐标系
             
             {'grid_map/reset_buffer_enabled': True},  # 重置缓冲区是否启用
@@ -213,6 +213,13 @@ def generate_launch_description():
             {'use_sim_time': use_sim_time},
             {'traj_server/time_forward': 1.0},
             {'ros_ns': namespace},
+            # Safe zone descent参数
+            {'safe_zone_descent/enabled': True},
+            {'safe_zone_descent/speed': 0.5},
+            {'safe_zone_descent/zone_size_x': 2.0},
+            {'safe_zone_descent/zone_size_y': 2.0},
+            {'safe_zone_descent/zone_size_z': 2.0},
+            {'safe_zone_descent/position_threshold': 0.05},
         ],
         remappings=[
             # ('position_cmd', 'position_cmd'),
