@@ -94,6 +94,9 @@ ros2 launch xtd2_launch ego_planner_launch.py
 
 # 启动RViz可视化
 ros2 launch ego_planner rviz.launch.py
+
+# 发布目标点
+ros2 topic pub --once /goal_pose_3d geometry_msgs/msg/PoseStamped '{header: {stamp: now, frame_id: "map"}, pose: {position: {x: 0.0, y: 0.0, z: 0.0}, orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}}}'
 ```
 
 #### 4. 点云数据

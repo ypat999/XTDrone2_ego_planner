@@ -215,7 +215,7 @@ def generate_launch_description():
             {'ros_ns': namespace},
             # Safe zone descent参数
             {'safe_zone_descent/enabled': True},
-            {'safe_zone_descent/speed': 0.5},
+            {'safe_zone_descent/speed': 0.2},
             {'safe_zone_descent/zone_size_x': 2.0},
             {'safe_zone_descent/zone_size_y': 2.0},
             {'safe_zone_descent/zone_size_z': 2.0},

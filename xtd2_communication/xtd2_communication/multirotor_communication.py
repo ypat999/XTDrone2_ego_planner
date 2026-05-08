@@ -244,6 +244,7 @@ class MultirotorCommunication(Node):
                 self.dds_trajectory_setpoint_pub.publish(self.cmd)
             elif self.OFFBOARD_STATE == "ATTITUDE_FLU":
                 self.dds_vehicle_attitude_setpoint_pub.publish(self.cmd)
+            # self.cmd = None  # Clear the command after publishing
         
         # Always publish the offboard control mode (heartbeat)
         msg.timestamp = self.get_clock_microseconds()  
@@ -1238,24 +1239,24 @@ class MultirotorCommunication(Node):
         
         # 检测状态变化：从飞行状态变为降落状态
         if self.was_flying and is_landing and is_armed:
-            # 首次检测到降落，先切换到hold模式，再切换回降落模式
-            
+            # 首次检测到降落，停止offboard控制并切换到降落模式
             if self.landed_time is None:
-                # self.get_logger().info(f'检测到无人机降落，nav_state={nav_state}, 高度={current_altitude:.2f}m，切换到hold模式...')
-                # self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 4)
-                # time.sleep(2)
-                # self.get_logger().info(f'检测到无人机降落，nav_state={nav_state}，切换回降落模式...')
-                # self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 21)
+                # 检测到进入降落模式，停止offboard控制输出
+                if self.OFFBOARD_STATE != "DISABLED":
+                    self.get_logger().info('PX4进入降落模式(nav_state=18)，停止offboard控制输出')
+                    self.OFFBOARD_STATE = "DISABLED"
+                
+                self.get_logger().info(f'检测到无人机降落，nav_state={nav_state}, 高度={current_altitude:.2f}m')
                 self.landed_time = self.get_clock().now()
             else:
                 # 检查降落确认时间（3秒）
                 elapsed_time = (self.get_clock().now() - self.landed_time).nanoseconds / 1e9
                 if elapsed_time >= 3.0:
-                    self.get_logger().info(f'检测到无人机降落，nav_state={nav_state}，切换降落模式...')
-                    self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 21)
                     self.get_logger().info('等待确认无人机降落，发送解除arm...')
                     self.disarm()
-                    # self.landed_time = None
+                    self.get_logger().info(f'检测到无人机降落，nav_state={nav_state}，切换降落模式...')
+                    self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 21)
+                    self.landed_time = None
         elif is_flying:
             # 无人机在飞行状态，重置降落计时器
             self.landed_time = None
