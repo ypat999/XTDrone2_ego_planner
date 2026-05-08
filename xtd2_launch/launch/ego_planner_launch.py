@@ -311,9 +311,9 @@ def generate_launch_description():
             # Safe zone descent参数
             {'safe_zone_descent/enabled': True},
             {'safe_zone_descent/speed': 0.2},
-            {'safe_zone_descent/zone_size_x': 2.0},
-            {'safe_zone_descent/zone_size_y': 2.0},
-            {'safe_zone_descent/zone_size_z': 2.0},
+            {'safe_zone_descent/zone_size_x': 1.0},
+            {'safe_zone_descent/zone_size_y': 1.0},
+            {'safe_zone_descent/zone_size_z': 1.0},
             {'safe_zone_descent/position_threshold': 0.05},
         ],
         remappings=[
