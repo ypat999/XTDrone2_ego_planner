@@ -495,6 +495,13 @@
     let backendStatusSub = null;
     let useBackend = true;
 
+    let trajectoryGroup = null;
+    let trajMarkerSub = null;
+    let goalArrow = null;
+    let goalPoseSub = null;
+    let lastTrajectoryData = null;
+    let lastGoalPoseData = null;
+
     const DEFAULT_QOS = {
       depth: 10,
       durability: 'volatile',
@@ -693,6 +700,11 @@
             pointSize: 0.5
           });
         }, 500);
+
+        setTimeout(function () {
+          subscribeTrajectoryMarker();
+          subscribeGoalPose();
+        }, 800);
       });
 
       ros.on('error', function (error) {
@@ -714,6 +726,10 @@
         for (const topicKey in tfSubscriptions) {
           tfSubscriptions[topicKey].unsubscribe();
         }
+        if (trajMarkerSub) { trajMarkerSub.unsubscribe(); trajMarkerSub = null; }
+        if (goalPoseSub) { goalPoseSub.unsubscribe(); goalPoseSub = null; }
+        if (trajectoryGroup) { rosRoot.remove(trajectoryGroup); disposeGroupRecursive(trajectoryGroup); trajectoryGroup = null; }
+        if (goalArrow) { rosRoot.remove(goalArrow); goalArrow.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }); goalArrow = null; }
         ros.close();
         ros = null;
         updateConnectionStatus(false);
@@ -859,6 +875,195 @@
       });
 
       console.log('Backend communication initialized');
+    }
+
+    function subscribeTrajectoryMarker() {
+      if (!ros || !ros.isConnected) return;
+
+      trajMarkerSub = new ROSLIB.Topic({
+        ros: ros,
+        name: '/optimal_list',
+        messageType: 'visualization_msgs/msg/Marker',
+        qos: { depth: 5, durability: 'volatile', reliability: 'reliable' }
+      });
+
+      trajMarkerSub.subscribe(function (message) {
+        if (!message || !message.points || message.points.length === 0) return;
+
+        var rosPoints = [];
+        for (var i = 0; i < message.points.length; i++) {
+          rosPoints.push({
+            x: message.points[i].x,
+            y: message.points[i].y,
+            z: message.points[i].z
+          });
+        }
+
+        updateTrajectory(rosPoints, message.header.frame_id);
+      });
+
+      console.log('Subscribed to /optimal_list (trajectory marker)');
+    }
+
+    function subscribeGoalPose() {
+      if (!ros || !ros.isConnected) return;
+
+      goalPoseSub = new ROSLIB.Topic({
+        ros: ros,
+        name: '/goal_pose_3d',
+        messageType: 'geometry_msgs/msg/PoseStamped',
+        qos: { depth: 5, durability: 'volatile', reliability: 'reliable' }
+      });
+
+      goalPoseSub.subscribe(function (message) {
+        if (!message || !message.pose) return;
+
+        updateGoalPose(
+          message.pose.position.x,
+          message.pose.position.y,
+          message.pose.position.z,
+          message.pose.orientation.x,
+          message.pose.orientation.y,
+          message.pose.orientation.z,
+          message.pose.orientation.w,
+          message.header.frame_id
+        );
+      });
+
+      console.log('Subscribed to /goal_pose_3d');
+    }
+
+    function rosToThree(pos) {
+      return new THREE.Vector3(pos.y, pos.z, pos.x);
+    }
+
+    function updateTrajectory(points, frameId) {
+      lastTrajectoryData = { points: points, frameId: frameId };
+
+      if (trajectoryGroup) {
+        rosRoot.remove(trajectoryGroup);
+        disposeGroupRecursive(trajectoryGroup);
+        trajectoryGroup = null;
+      }
+
+      if (!points || points.length < 2) return;
+
+      trajectoryGroup = new THREE.Group();
+      trajectoryGroup.name = 'ego_trajectory';
+
+      var tfApplied = applyFrameTransform(trajectoryGroup, frameId);
+
+      var lineRadius = 0.08;
+      var whiteMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+      for (var i = 0; i < points.length - 1; i++) {
+        var p1 = rosToThree(points[i]);
+        var p2 = rosToThree(points[i + 1]);
+        var dir = new THREE.Vector3().subVectors(p2, p1);
+        var len = dir.length();
+        if (len < 0.001) continue;
+
+        var mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+        var cylGeo = new THREE.CylinderGeometry(lineRadius, lineRadius, len, 8);
+        var cyl = new THREE.Mesh(cylGeo, whiteMaterial);
+        cyl.position.copy(mid);
+        cyl.quaternion.setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          dir.normalize()
+        );
+        trajectoryGroup.add(cyl);
+      }
+
+      rosRoot.add(trajectoryGroup);
+      console.log('Trajectory updated: ' + points.length + ' points');
+    }
+
+    function updateGoalPose(px, py, pz, ox, oy, oz, ow, frameId) {
+      lastGoalPoseData = { px: px, py: py, pz: pz, ox: ox, oy: oy, oz: oz, ow: ow, frameId: frameId };
+
+      if (goalArrow) {
+        rosRoot.remove(goalArrow);
+        goalArrow.traverse(function (c) {
+          if (c.geometry) c.geometry.dispose();
+          if (c.material) c.material.dispose();
+        });
+        goalArrow = null;
+      }
+
+      goalArrow = new THREE.Group();
+      goalArrow.name = 'goal_arrow';
+
+      var pos = rosToThree({ x: px, y: py, z: pz });
+      goalArrow.position.copy(pos);
+
+      var rosQuat = new THREE.Quaternion(ox, oy, oz, ow);
+      var euler = new THREE.Euler().setFromQuaternion(rosQuat, 'ZYX');
+      var threeQuat = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(euler.y, euler.z, euler.x, 'ZYX')
+      );
+      goalArrow.quaternion.copy(threeQuat);
+
+      applyFrameTransform(goalArrow, frameId);
+
+      var arrowLen = 1.2;
+      var shaftRadius = 0.06;
+      var headLen = 0.3;
+      var headRadius = 0.15;
+      var redColor = 0xff1900;
+
+      var shaftGeo = new THREE.CylinderGeometry(shaftRadius, shaftRadius, arrowLen - headLen, 8);
+      var shaftMat = new THREE.MeshBasicMaterial({ color: redColor });
+      var shaft = new THREE.Mesh(shaftGeo, shaftMat);
+      shaft.position.y = (arrowLen - headLen) / 2;
+      goalArrow.add(shaft);
+
+      var headGeo = new THREE.ConeGeometry(headRadius, headLen, 8);
+      var headMat = new THREE.MeshBasicMaterial({ color: redColor });
+      var head = new THREE.Mesh(headGeo, headMat);
+      head.position.y = arrowLen - headLen / 2;
+      goalArrow.add(head);
+
+      rosRoot.add(goalArrow);
+      console.log('Goal pose updated: (' + px.toFixed(2) + ', ' + py.toFixed(2) + ', ' + pz.toFixed(2) + ')');
+    }
+
+    function applyFrameTransform(group, frameId) {
+      if (!frameId) return false;
+
+      var cleanFrame = frameId.replace(/^\//, '');
+      var currentFixedFrame = document.getElementById('fixed-frame').value;
+
+      if (cleanFrame === currentFixedFrame) return false;
+
+      var transform = lookupTransform(currentFixedFrame, cleanFrame);
+      if (!transform) return false;
+
+      group.position.set(
+        transform.translation.y,
+        transform.translation.z,
+        transform.translation.x
+      );
+      group.quaternion.set(
+        transform.rotation.y,
+        transform.rotation.z,
+        transform.rotation.x,
+        transform.rotation.w
+      );
+
+      return true;
+    }
+
+    function disposeGroupRecursive(group) {
+      group.traverse(function (child) {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach(function (m) { m.dispose(); });
+          } else {
+            child.material.dispose();
+          }
+        }
+      });
     }
 
     function addDefaultTopic(topicName, options = {}) {
@@ -1486,6 +1691,17 @@
           applyTfToPointCloud(topicKey);
         }
 
+        if (lastTrajectoryData) {
+          updateTrajectory(lastTrajectoryData.points, lastTrajectoryData.frameId);
+        }
+        if (lastGoalPoseData) {
+          updateGoalPose(
+            lastGoalPoseData.px, lastGoalPoseData.py, lastGoalPoseData.pz,
+            lastGoalPoseData.ox, lastGoalPoseData.oy, lastGoalPoseData.oz, lastGoalPoseData.ow,
+            lastGoalPoseData.frameId
+          );
+        }
+
         renderTfTree();
       }
 
@@ -1680,6 +1896,16 @@
         applyTfToPointCloud(topicKey);
       }
       updateAllTfAxes();
+      if (lastTrajectoryData) {
+        updateTrajectory(lastTrajectoryData.points, lastTrajectoryData.frameId);
+      }
+      if (lastGoalPoseData) {
+        updateGoalPose(
+          lastGoalPoseData.px, lastGoalPoseData.py, lastGoalPoseData.pz,
+          lastGoalPoseData.ox, lastGoalPoseData.oy, lastGoalPoseData.oz, lastGoalPoseData.ow,
+          lastGoalPoseData.frameId
+        );
+      }
     });
 
     document.getElementById('bg-color').addEventListener('input', function () {
