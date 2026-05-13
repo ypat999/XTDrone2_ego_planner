@@ -241,15 +241,16 @@ sensor_msgs::msg::PointCloud2::SharedPtr WebPointCloudBridge::processPointCloud(
         if (config.use_deduplication && config.voxel_size > 0.0) {
             pcl::PointCloud<pcl::PointXYZI>::Ptr deduplicated(new pcl::PointCloud<pcl::PointXYZI>);
             double voxel_size = config.voxel_size;
-            int grid_x = static_cast<int>(std::ceil(200.0 / voxel_size));
+            int grid_half = static_cast<int>(std::ceil(100.0 / voxel_size));
+            int grid_x = grid_half * 2;
             int grid_y = grid_x;
-            double max_z = config.max_height > 0.0 ? config.max_height * 2.0 : 100.0;
-            int grid_z = static_cast<int>(std::ceil(max_z / voxel_size));
+            double max_z = config.max_height > 0.0 ? config.max_height : 50.0;
+            int grid_z = static_cast<int>(std::ceil(max_z * 2.0 / voxel_size));
             
             for (const auto& point : pcl_cloud->points) {
-                int ix = static_cast<int>(std::floor(point.x / voxel_size));
-                int iy = static_cast<int>(std::floor(point.y / voxel_size));
-                int iz = static_cast<int>(std::floor(point.z / voxel_size));
+                int ix = static_cast<int>(std::floor(point.x / voxel_size)) + grid_half;
+                int iy = static_cast<int>(std::floor(point.y / voxel_size)) + grid_half;
+                int iz = static_cast<int>(std::floor(point.z / voxel_size)) + static_cast<int>(grid_z / 2);
                 
                 if (ix < 0 || ix >= grid_x || iy < 0 || iy >= grid_y || iz < 0 || iz >= grid_z) {
                     continue;
@@ -307,15 +308,16 @@ sensor_msgs::msg::PointCloud2::SharedPtr WebPointCloudBridge::processPointCloud(
         if (config.use_deduplication && config.voxel_size > 0.0) {
             pcl::PointCloud<pcl::PointXYZ>::Ptr deduplicated(new pcl::PointCloud<pcl::PointXYZ>);
             double voxel_size = config.voxel_size;
-            int grid_x = static_cast<int>(std::ceil(200.0 / voxel_size));
+            int grid_half = static_cast<int>(std::ceil(100.0 / voxel_size));
+            int grid_x = grid_half * 2;
             int grid_y = grid_x;
-            double max_z = config.max_height > 0.0 ? config.max_height * 2.0 : 100.0;
-            int grid_z = static_cast<int>(std::ceil(max_z / voxel_size));
+            double max_z = config.max_height > 0.0 ? config.max_height : 50.0;
+            int grid_z = static_cast<int>(std::ceil(max_z * 2.0 / voxel_size));
             
             for (const auto& point : pcl_cloud->points) {
-                int ix = static_cast<int>(std::floor(point.x / voxel_size));
-                int iy = static_cast<int>(std::floor(point.y / voxel_size));
-                int iz = static_cast<int>(std::floor(point.z / voxel_size));
+                int ix = static_cast<int>(std::floor(point.x / voxel_size)) + grid_half;
+                int iy = static_cast<int>(std::floor(point.y / voxel_size)) + grid_half;
+                int iz = static_cast<int>(std::floor(point.z / voxel_size)) + static_cast<int>(grid_z / 2);
                 
                 if (ix < 0 || ix >= grid_x || iy < 0 || iy >= grid_y || iz < 0 || iz >= grid_z) {
                     continue;
