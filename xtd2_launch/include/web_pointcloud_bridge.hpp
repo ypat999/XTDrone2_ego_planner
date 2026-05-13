@@ -15,6 +15,7 @@
 #include <string>
 #include <memory>
 #include <mutex>
+#include <unordered_set>
 #include <nlohmann/json.hpp>
 
 struct PointCloudConfig {
@@ -25,6 +26,8 @@ struct PointCloudConfig {
     std::string color_mode;
     bool enabled;
     double max_height;
+    bool use_deduplication;
+    std::unordered_set<int> sent_voxels;
 };
 
 class WebPointCloudBridge : public rclcpp::Node {
@@ -40,7 +43,7 @@ private:
     void removeSubscription(const std::string& topic_name);
     sensor_msgs::msg::PointCloud2::SharedPtr processPointCloud(
         const sensor_msgs::msg::PointCloud2::SharedPtr& input,
-        const PointCloudConfig& config);
+        PointCloudConfig& config);
     void publishProcessedCloud(
         const sensor_msgs::msg::PointCloud2::SharedPtr& cloud,
         const std::string& original_topic);

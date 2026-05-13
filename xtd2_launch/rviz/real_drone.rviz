@@ -5,6 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
+        - /TF1
         - /TF1/Frames1
         - /TF1/Tree1
         - /PointCloud2_lio1/Topic1
@@ -29,7 +30,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: PointCloud2_inflate
+    SyncSource: PointCloud2_lio
 Visualization Manager:
   Class: ""
   Displays:
@@ -55,7 +56,7 @@ Visualization Manager:
       Enabled: true
       Frame Timeout: 15
       Frames:
-        All Enabled: false
+        All Enabled: true
         base_footprint:
           Value: true
         base_link:
@@ -67,10 +68,6 @@ Visualization Manager:
         map:
           Value: true
         odom:
-          Value: true
-        px4_odom:
-          Value: true
-        px4_odom_body:
           Value: true
         world:
           Value: true
@@ -88,10 +85,7 @@ Visualization Manager:
               imu:
                 livox_frame:
                   base_link:
-                    px4_odom_body:
-                      {}
-              px4_odom:
-                {}
+                    {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -106,10 +100,10 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: Intensity
       Decay Time: 10
-      Enabled: false
+      Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 150
+      Max Intensity: 162
       Min Color: 0; 0; 0
       Min Intensity: 10
       Name: PointCloud2_lio
@@ -127,11 +121,11 @@ Visualization Manager:
         Value: /lio/cloud_world
       Use Fixed Frame: true
       Use rainbow: true
-      Value: false
+      Value: true
     - Alpha: 0.20000000298023224
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 2.4000000953674316
+        Max Value: 2.5999999046325684
         Min Value: -1.399999976158142
         Value: true
       Axis: Z
@@ -246,8 +240,8 @@ Visualization Manager:
     - Alpha: 0.10000000149011612
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 12.861915588378906
-        Min Value: -0.33060067892074585
+        Max Value: 2.1260995864868164
+        Min Value: -1.4494266510009766
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -317,7 +311,7 @@ Visualization Manager:
           Scale: 1
           Value: true
         Value: true
-      Enabled: true
+      Enabled: false
       Head Length: 0.30000001192092896
       Head Radius: 0.10000000149011612
       Name: PoseWithCovariance
@@ -331,7 +325,7 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /pcl_pose
-      Value: true
+      Value: false
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -378,25 +372,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 9.37456226348877
+      Distance: 17.505462646484375
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.3184429705142975
-        Y: -0.8951635956764221
-        Z: 0.44657114148139954
+        X: -0.013881923630833626
+        Y: -0.1710532307624817
+        Z: 0.009991500526666641
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.60979825258255
+      Pitch: 0.7847973704338074
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 4.322304725646973
+      Yaw: 2.309143543243408
     Saved: ~
 Window Geometry:
   Displays:

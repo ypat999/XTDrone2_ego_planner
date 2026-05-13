@@ -472,10 +472,41 @@ void PCLLocalization::odomReceived(const nav_msgs::msg::Odometry::ConstSharedPtr
   }
   
   if (!corrent_pose_with_cov_stamped_ptr_) {
-    RCLCPP_WARN(get_logger(), "corrent_pose_with_cov_stamped_ptr_ is null, ignoring odom data until initial pose is set");
+    RCLCPP_WARN(get_logger(), "corrent_pose_with_cov_stamped_ptr_ is null, attempting to initialize from odom data");
     
-    // 等待1秒
-    rclcpp::sleep_for(std::chrono::seconds(1));
+    auto initial_pose = std::make_shared<geometry_msgs::msg::PoseWithCovarianceStamped>();
+    initial_pose->header = msg->header;
+    initial_pose->header.frame_id = global_frame_id_;
+    initial_pose->pose.pose = msg->pose.pose;
+    
+    for (int i = 0; i < 36; ++i) {
+      initial_pose->pose.covariance[i] = 0.0;
+    }
+    initial_pose->pose.covariance[0] = 1.0;
+    initial_pose->pose.covariance[7] = 1.0;
+    initial_pose->pose.covariance[14] = 1.0;
+    initial_pose->pose.covariance[21] = 0.1;
+    initial_pose->pose.covariance[28] = 0.1;
+    initial_pose->pose.covariance[35] = 0.1;
+    
+    initialpose_recieved_ = true;
+    corrent_pose_with_cov_stamped_ptr_ = initial_pose;
+    
+    last_localization_x_ = initial_pose->pose.pose.position.x;
+    last_localization_y_ = initial_pose->pose.pose.position.y;
+    last_localization_z_ = initial_pose->pose.pose.position.z;
+    first_localization_done_ = false;
+    
+    RCLCPP_INFO(get_logger(), "Initialized pose from odom: x=%.3f, y=%.3f, z=%.3f",
+                initial_pose->pose.pose.position.x,
+                initial_pose->pose.pose.position.y,
+                initial_pose->pose.pose.position.z);
+    
+    pose_pub_->publish(*corrent_pose_with_cov_stamped_ptr_);
+    
+    if(last_scan_ptr_) {
+      cloudReceived(last_scan_ptr_);
+    }
     
     return;
   }

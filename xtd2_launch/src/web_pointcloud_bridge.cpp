@@ -47,6 +47,8 @@ void WebPointCloudBridge::processConfig(const nlohmann::json& config)
                 cfg.color_mode = topic_config.value("color_mode", "z-axis");
                 cfg.enabled = topic_config.value("enabled", true);
                 cfg.max_height = topic_config.value("max_height", 0.0);
+                cfg.use_deduplication = (cfg.topic_name == "/grid_map/occupancy_inflate");
+                cfg.sent_voxels.clear();
 
                 if (!cfg.topic_name.empty()) {
                     addSubscription(cfg.topic_name, cfg);
@@ -58,12 +60,33 @@ void WebPointCloudBridge::processConfig(const nlohmann::json& config)
             std::string topic_name = config["topic_name"];
             if (configs_.count(topic_name)) {
                 PointCloudConfig& cfg = configs_[topic_name];
-                if (config.contains("target_frame")) cfg.target_frame = config["target_frame"];
-                if (config.contains("voxel_size")) cfg.voxel_size = config["voxel_size"];
-                if (config.contains("max_points")) cfg.max_points = config["max_points"];
-                if (config.contains("color_mode")) cfg.color_mode = config["color_mode"];
-                if (config.contains("enabled")) cfg.enabled = config["enabled"];
-                if (config.contains("max_height")) cfg.max_height = config["max_height"];
+                bool params_changed = false;
+                if (config.contains("target_frame")) {
+                    cfg.target_frame = config["target_frame"];
+                    params_changed = true;
+                }
+                if (config.contains("voxel_size")) {
+                    cfg.voxel_size = config["voxel_size"];
+                    params_changed = true;
+                }
+                if (config.contains("max_points")) {
+                    cfg.max_points = config["max_points"];
+                    params_changed = true;
+                }
+                if (config.contains("color_mode")) {
+                    cfg.color_mode = config["color_mode"];
+                }
+                if (config.contains("enabled")) {
+                    cfg.enabled = config["enabled"];
+                }
+                if (config.contains("max_height")) {
+                    cfg.max_height = config["max_height"];
+                    params_changed = true;
+                }
+                if (params_changed && cfg.use_deduplication) {
+                    cfg.sent_voxels.clear();
+                    RCLCPP_INFO(this->get_logger(), "Cleared deduplication cache for %s due to parameter change", topic_name.c_str());
+                }
             }
         } else if (action == "list") {
             nlohmann::json status;
@@ -154,7 +177,7 @@ void WebPointCloudBridge::pointCloudCallback(
 
 sensor_msgs::msg::PointCloud2::SharedPtr WebPointCloudBridge::processPointCloud(
     const sensor_msgs::msg::PointCloud2::SharedPtr& input,
-    const PointCloudConfig& config)
+    PointCloudConfig& config)
 {
     sensor_msgs::msg::PointCloud2::SharedPtr transformed_cloud;
     
@@ -196,7 +219,35 @@ sensor_msgs::msg::PointCloud2::SharedPtr WebPointCloudBridge::processPointCloud(
         pcl::PointCloud<pcl::PointXYZI>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZI>);
         pcl::fromROSMsg(*transformed_cloud, *pcl_cloud);
 
-        if (config.voxel_size > 0.0 && pcl_cloud->size() > 0) {
+        if (config.use_deduplication && config.voxel_size > 0.0) {
+            pcl::PointCloud<pcl::PointXYZI>::Ptr deduplicated(new pcl::PointCloud<pcl::PointXYZI>);
+            double voxel_size = config.voxel_size;
+            int grid_x = static_cast<int>(std::ceil(200.0 / voxel_size));
+            int grid_y = grid_x;
+            double max_z = config.max_height > 0.0 ? config.max_height * 2.0 : 100.0;
+            int grid_z = static_cast<int>(std::ceil(max_z / voxel_size));
+            
+            for (const auto& point : pcl_cloud->points) {
+                int ix = static_cast<int>(std::floor(point.x / voxel_size));
+                int iy = static_cast<int>(std::floor(point.y / voxel_size));
+                int iz = static_cast<int>(std::floor(point.z / voxel_size));
+                
+                if (ix < 0 || ix >= grid_x || iy < 0 || iy >= grid_y || iz < 0 || iz >= grid_z) {
+                    continue;
+                }
+                
+                int idx = ix + iy * grid_x + iz * grid_x * grid_y;
+                
+                if (config.sent_voxels.find(idx) == config.sent_voxels.end()) {
+                    config.sent_voxels.insert(idx);
+                    deduplicated->points.push_back(point);
+                }
+            }
+            deduplicated->width = deduplicated->points.size();
+            deduplicated->height = 1;
+            deduplicated->is_dense = pcl_cloud->is_dense;
+            pcl_cloud = deduplicated;
+        } else if (config.voxel_size > 0.0 && pcl_cloud->size() > 0) {
             pcl::PointCloud<pcl::PointXYZI>::Ptr filtered(new pcl::PointCloud<pcl::PointXYZI>);
             pcl::VoxelGrid<pcl::PointXYZI> voxel_filter;
             voxel_filter.setInputCloud(pcl_cloud);
@@ -234,7 +285,35 @@ sensor_msgs::msg::PointCloud2::SharedPtr WebPointCloudBridge::processPointCloud(
         pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>);
         pcl::fromROSMsg(*transformed_cloud, *pcl_cloud);
 
-        if (config.voxel_size > 0.0 && pcl_cloud->size() > 0) {
+        if (config.use_deduplication && config.voxel_size > 0.0) {
+            pcl::PointCloud<pcl::PointXYZ>::Ptr deduplicated(new pcl::PointCloud<pcl::PointXYZ>);
+            double voxel_size = config.voxel_size;
+            int grid_x = static_cast<int>(std::ceil(200.0 / voxel_size));
+            int grid_y = grid_x;
+            double max_z = config.max_height > 0.0 ? config.max_height * 2.0 : 100.0;
+            int grid_z = static_cast<int>(std::ceil(max_z / voxel_size));
+            
+            for (const auto& point : pcl_cloud->points) {
+                int ix = static_cast<int>(std::floor(point.x / voxel_size));
+                int iy = static_cast<int>(std::floor(point.y / voxel_size));
+                int iz = static_cast<int>(std::floor(point.z / voxel_size));
+                
+                if (ix < 0 || ix >= grid_x || iy < 0 || iy >= grid_y || iz < 0 || iz >= grid_z) {
+                    continue;
+                }
+                
+                int idx = ix + iy * grid_x + iz * grid_x * grid_y;
+                
+                if (config.sent_voxels.find(idx) == config.sent_voxels.end()) {
+                    config.sent_voxels.insert(idx);
+                    deduplicated->points.push_back(point);
+                }
+            }
+            deduplicated->width = deduplicated->points.size();
+            deduplicated->height = 1;
+            deduplicated->is_dense = pcl_cloud->is_dense;
+            pcl_cloud = deduplicated;
+        } else if (config.voxel_size > 0.0 && pcl_cloud->size() > 0) {
             pcl::PointCloud<pcl::PointXYZ>::Ptr filtered(new pcl::PointCloud<pcl::PointXYZ>);
             pcl::VoxelGrid<pcl::PointXYZ> voxel_filter;
             voxel_filter.setInputCloud(pcl_cloud);
