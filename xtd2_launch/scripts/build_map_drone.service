@@ -14,6 +14,9 @@ ExecStart=/home/cat/git/xtd2_ws/XTDrone2_ego_planner/xtd2_launch/scripts/start_s
 ExecStop=/home/cat/git/xtd2_ws/XTDrone2_ego_planner/xtd2_launch/scripts/stop_single_vehicle_demo.sh
 Restart=always
 RestartSec=10
+TimeoutStopSec=10
+KillMode=control-group
+SendSIGKILL=yes
 StandardOutput=journal
 StandardError=journal
 
