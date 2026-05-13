@@ -9,6 +9,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
 from geometry_msgs.msg import TransformStamped, PoseStamped, Pose
 from nav_msgs.msg import Odometry
+import math
 
 
 class TfPublisher(Node):
@@ -77,6 +78,11 @@ class TfPublisher(Node):
                 PoseStamped,
                 self.namespace + 'StereoOV7251/pose',
                 10
+            )
+            self.mid360_down_odom_publisher = self.create_publisher(
+                Odometry,
+                self.namespace + 'livox_down_frame/mid360_down_lidar/odometry',
+                10
             ) 
         else:
         # 真机环境下创建mid360/pose发布器
@@ -111,6 +117,7 @@ class TfPublisher(Node):
         # 模拟环境下发布相机位姿
         if self.is_sim:
             self.publish_camera_pose(msg)
+            self.publish_mid360_down_odom(msg)
         else: 
         # 真机环境下发布mid360/pose
             self.publish_mid360_pose(msg)
@@ -210,6 +217,75 @@ class TfPublisher(Node):
         
         # 发布mid360位姿
         self.mid360_pose_publisher.publish(mid360_pose)
+
+    def publish_mid360_down_odom(self, odom_msg: Odometry):
+        """从 base_link odometry 推算 mid360_down 雷达 odometry 并发布
+
+        将 /x500_depth_0/odometry (world -> base_footprint) 通过静态 TF
+        (base_link -> livox_down_frame/mid360_down_lidar) 变换为
+        odom -> mid360_down_lidar 的 odometry。
+        """
+        
+        # print("publish_mid360_down_odom")
+
+        mid360_down_odom = Odometry()
+        mid360_down_odom.header.stamp = odom_msg.header.stamp
+        mid360_down_odom.header.frame_id = '/x500_depth_0/odom'
+        mid360_down_odom.child_frame_id = '/x500_depth_0/livox_down_frame/mid360_down_lidar'
+
+        # 静态 TF: base_link -> livox_down_frame/mid360_down_lidar
+        # translation: (0.1, 0, 0.2)  rotation: euler(0°, 150°, 0°)
+        offset_x, offset_y, offset_z = 0.1, 0.0, 0.2
+        qx_s, qy_s, qz_s, qw_s = self.euler_to_quaternion(0, 150, 0)
+
+        qx = odom_msg.pose.pose.orientation.x
+        qy = odom_msg.pose.pose.orientation.y
+        qz = odom_msg.pose.pose.orientation.z
+        qw = odom_msg.pose.pose.orientation.w
+
+        # 将静态偏移旋转到世界坐标系 (base_footprint -> base_link 为 identity，直接用 yaw 旋转)
+        yaw = math.atan2(2.0 * (qw * qz + qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz))
+        rx = offset_x * math.cos(yaw) - offset_y * math.sin(yaw)
+        ry = offset_x * math.sin(yaw) + offset_y * math.cos(yaw)
+        rz = offset_z
+
+        # 位置: world_pos_mid360 = world_pos_base + R_world_base * offset
+        mid360_down_odom.pose.pose.position.x = odom_msg.pose.pose.position.x + rx
+        mid360_down_odom.pose.pose.position.y = odom_msg.pose.pose.position.y + ry
+        mid360_down_odom.pose.pose.position.z = odom_msg.pose.pose.position.z + rz
+
+        # 朝向: q_result = q_odom * q_static  (world -> base * base -> mid360 = world -> mid360)
+        w = qw * qw_s - qx * qx_s - qy * qy_s - qz * qz_s
+        x = qw * qx_s + qx * qw_s + qy * qz_s - qz * qy_s
+        y = qw * qy_s - qx * qz_s + qy * qw_s + qz * qx_s
+        z = qw * qz_s + qx * qy_s - qy * qx_s + qz * qw_s
+        mid360_down_odom.pose.pose.orientation.x = x
+        mid360_down_odom.pose.pose.orientation.y = y
+        mid360_down_odom.pose.pose.orientation.z = z
+        mid360_down_odom.pose.pose.orientation.w = w
+
+        # 速度变换: 将 base_footprint 系的速度旋转到 mid360_down 系
+        # R_s 为 pitch(150°) 的旋转矩阵，R_s^T = pitch(-150°)
+        pitch_s = math.radians(150)
+        cos_p = math.cos(pitch_s)
+        sin_p = math.sin(pitch_s)
+
+        vx = odom_msg.twist.twist.linear.x
+        vy = odom_msg.twist.twist.linear.y
+        vz = odom_msg.twist.twist.linear.z
+        mid360_down_odom.twist.twist.linear.x = cos_p * vx - sin_p * vz
+        mid360_down_odom.twist.twist.linear.y = vy
+        mid360_down_odom.twist.twist.linear.z = sin_p * vx + cos_p * vz
+
+        wx = odom_msg.twist.twist.angular.x
+        wy = odom_msg.twist.twist.angular.y
+        wz = odom_msg.twist.twist.angular.z
+        mid360_down_odom.twist.twist.angular.x = cos_p * wx - sin_p * wz
+        mid360_down_odom.twist.twist.angular.y = wy
+        mid360_down_odom.twist.twist.angular.z = sin_p * wx + cos_p * wz
+
+        self.mid360_down_odom_publisher.publish(mid360_down_odom)
+        # print("published_mid360_down_odom")
 
     def euler_to_quaternion(self, roll, pitch, yaw):
         """将欧拉角（角度）转换为四元数
