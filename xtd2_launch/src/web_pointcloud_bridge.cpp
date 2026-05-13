@@ -15,7 +15,17 @@ WebPointCloudBridge::WebPointCloudBridge()
 
     status_pub_ = this->create_publisher<std_msgs::msg::String>(
         "/web_pointcloud/status",
-        rclcpp::QoS(10).reliability(rclcpp::ReliabilityPolicy::BestEffort));    
+        rclcpp::QoS(10).reliability(rclcpp::ReliabilityPolicy::BestEffort));
+
+    PointCloudConfig default_config;
+    default_config.topic_name = "/grid_map/occupancy_inflate";
+    default_config.target_frame = "map";
+    default_config.voxel_size = 0.5;
+    default_config.max_points = 2000;
+    default_config.color_mode = "z-axis";
+    default_config.enabled = true;
+    default_config.max_height = 0.0;
+    addSubscription(default_config.topic_name, default_config);
 
     RCLCPP_INFO(this->get_logger(), "Web PointCloud Bridge initialized");
 }
@@ -115,6 +125,15 @@ void WebPointCloudBridge::addSubscription(const std::string& topic_name, const P
     if (subscriptions_.count(topic_name)) {
         RCLCPP_WARN(this->get_logger(), "Subscription for %s already exists, updating config", topic_name.c_str());
         configs_[topic_name] = config;
+        
+        if (!publishers_.count(topic_name)) {
+            std::string output_topic = topic_name + "/web_processed";
+            auto pub = this->create_publisher<sensor_msgs::msg::PointCloud2>(
+                output_topic,
+                rclcpp::QoS(10).reliability(rclcpp::ReliabilityPolicy::BestEffort));
+            publishers_[topic_name] = pub;
+            RCLCPP_INFO(this->get_logger(), "Created publisher for existing subscription: %s", output_topic.c_str());
+        }
         return;
     }
 

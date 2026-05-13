@@ -690,15 +690,39 @@
         initBackendCommunication();
 
         setTimeout(function () {
-          addDefaultTopic('/grid_map/occupancy_inflate', {
+          console.log('Subscribing to default topic: /grid_map/occupancy_inflate/web_processed');
+          const topicName = '/grid_map/occupancy_inflate';
+          const processedTopicName = topicName + '/web_processed';
+
+          pointCloudObjects[topicName] = {
+            frames: [],
+            colorMode: 'z-axis',
+            topicColor: TOPIC_COLORS[topicColorIndex % TOPIC_COLORS.length],
+            timeoutMs: 10000,
+            pointSize: 0.5,
+            voxelSize: 0.5,
+            frameId: '',
             useBackend: true,
             targetFrame: 'map',
-            voxelSize: 0.5,
             maxPoints: 2000,
-            frameTimeout: 10000,
-            colorMode: 'z-axis',
-            pointSize: 0.5
+            maxHeight: 0.0
+          };
+          topicColorIndex++;
+
+          const topic = new ROSLIB.Topic({
+            ros: ros,
+            name: processedTopicName,
+            messageType: 'sensor_msgs/msg/PointCloud2',
+            qos: { depth: 10, durability: 'volatile', reliability: 'reliable' }
           });
+
+          topic.subscribe(function (message) {
+            processPointCloud2(topicName, message);
+          });
+
+          topicSubscriptions[topicName] = topic;
+          console.log('Subscribed to default topic:', topicName, '(processed:', processedTopicName + ')');
+          renderTopicList();
         }, 500);
 
         setTimeout(function () {
@@ -1081,6 +1105,7 @@
       const targetFrame = options.targetFrame || 'map';
       const voxelSize = options.voxelSize || 0.5;
       const maxPoints = options.maxPoints || 2000;
+      const maxHeight = options.maxHeight !== undefined ? options.maxHeight : 0.0;
       const frameTimeout = options.frameTimeout !== undefined ? options.frameTimeout : 10000;
       const colorMode = options.colorMode || 'z-axis';
       const topicColor = options.topicColor || TOPIC_COLORS[topicColorIndex % TOPIC_COLORS.length];
@@ -1098,7 +1123,8 @@
         frameId: '',
         useBackend: useBackend,
         targetFrame: targetFrame,
-        maxPoints: maxPoints
+        maxPoints: maxPoints,
+        maxHeight: maxHeight
       };
 
       if (useBackend) {
@@ -1212,6 +1238,7 @@
             target_frame: targetFrame,
             voxel_size: voxelSize,
             max_points: maxPoints,
+            max_height: maxHeight,
             color_mode: colorMode,
             enabled: true
           }]
@@ -1768,8 +1795,8 @@
           return group;
         }
 
-        axesGroup.add(createThickAxis(new THREE.Vector3(1, 0, 0), 0xff0000));
-        axesGroup.add(createThickAxis(new THREE.Vector3(0, 0, 1), 0x00ff00));
+        axesGroup.add(createThickAxis(new THREE.Vector3(0, 0, 1), 0xff0000));
+        axesGroup.add(createThickAxis(new THREE.Vector3(1, 0, 0), 0x00ff00));
         axesGroup.add(createThickAxis(new THREE.Vector3(0, 1, 0), 0x0000ff));
 
         axesGroup.position.set(
