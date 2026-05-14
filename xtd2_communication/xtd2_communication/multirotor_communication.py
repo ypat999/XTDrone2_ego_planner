@@ -448,47 +448,58 @@ class MultirotorCommunication(Node):
             return
         self.last_ros2_odom_time = current_time
         
-        # 保存 LIO odometry 用于高度判断
+        # 保存 LIO odometry 用于高度判断 (livox_frame 原始高度)
         self.cur_lio_vehicle_odometry = msg
         
-        # 检查 odom 消息的 frame_id，如果是 livox_frame，则转换到 base_link 坐标系
-        # if self.hostname != 'ywj-B250-D3A' and self.hostname != 'DESKTOP-ypat':
-        #     try:
-        #         # 使用 TF 将 odom 从 livox_frame 转换到 base_link
-        #         # 使用 rclpy.time.Time() 获取最新的实时变换，而不是从 buffer 中查找静态变换
-        #         msg.header.frame_id = 'livox_frame'
-        #         transform = self.tf_buffer.lookup_transform(
-        #             'livox_frame',
-        #             'base_link',
-        #             rclpy.time.Time(),
-        #             timeout=rclpy.duration.Duration(seconds=1.0)
-        #         )
+        # 将 livox_frame 位置转换为 base_link 位置
+        # /lio/odom 发布的是 livox_frame 在世界系下的位姿 (含30°倾斜)
+        # PX4 需要 base_link 在世界系下的位姿
+        # 公式: p_base_world = R_world_livox * t_livox_base + p_livox_world
+        # 其中 t_livox_base 是 base_link 原点在 livox_frame 下的坐标 (来自静态TF)
+        msg_for_px4 = msg
+        if self.hostname != 'ywj-B250-D3A' and self.hostname != 'DESKTOP-ypat':
+            if not hasattr(self, '_livox_to_base_t') or self._livox_to_base_t is None:
+                try:
+                    tf_lb = self.tf_buffer.lookup_transform(
+                        'livox_frame', 'base_link',
+                        rclpy.time.Time(),
+                        timeout=rclpy.duration.Duration(seconds=0.5)
+                    )
+                    self._livox_to_base_t = np.array([
+                        tf_lb.transform.translation.x,
+                        tf_lb.transform.translation.y,
+                        tf_lb.transform.translation.z
+                    ])
+                    self.get_logger().info(
+                        f'Cached livox->base_link translation: {self._livox_to_base_t.tolist()}'
+                    )
+                except Exception as e:
+                    self.get_logger().warning(f'Failed to lookup livox->base_link TF: {e}')
+                    self._livox_to_base_t = None
+            
+            if self._livox_to_base_t is not None:
+                R_wl = CoordinateTransform.create_rotation_matrix_from_quaternion(
+                    msg.pose.pose.orientation.w,
+                    msg.pose.pose.orientation.x,
+                    msg.pose.pose.orientation.y,
+                    msg.pose.pose.orientation.z
+                )
+                p_livox = np.array([
+                    msg.pose.pose.position.x,
+                    msg.pose.pose.position.y,
+                    msg.pose.pose.position.z
+                ])
+                p_base = R_wl @ self._livox_to_base_t + p_livox
                 
-        #         # 转换位置
-        #         odom_transformed = tf2_geometry_msgs.do_transform_pose(msg.pose.pose, transform)
-        #         msg.header.frame_id = 'world'
-
-        #         transform = self.tf_buffer.lookup_transform(
-        #             'world',
-        #             'base_link',
-        #             rclpy.time.Time(),
-        #             timeout=rclpy.duration.Duration(seconds=1.0)
-        #         )
-                
-        #         # 转换位置
-        #         odom_transformed = tf2_geometry_msgs.do_transform_pose(msg.pose.pose, transform)
-                
-        #         # 更新消息的位置和姿态
-        #         msg.pose.pose = odom_transformed
-        #         msg.header.frame_id = 'base_link'
-                
-        #         self.get_logger().debug('Transformed odom from livox_frame to base_link')
-                
-        #     except Exception as e:
-        #         self.get_logger().warning(f'Failed to transform odom from livox_frame to base_link: {e}')
-        #         # 如果转换失败，仍然使用原始消息
+                msg_for_px4 = Odometry()
+                msg_for_px4.header = msg.header
+                msg_for_px4.pose.pose.position.x = float(p_base[0])
+                msg_for_px4.pose.pose.position.y = float(p_base[1])
+                msg_for_px4.pose.pose.position.z = float(p_base[2])
+                msg_for_px4.pose.pose.orientation = msg.pose.pose.orientation
+                msg_for_px4.twist = msg.twist
         
-        self.publish_px4_visual_odometry(msg)  # 不发布odom，减少影响
+        self.publish_px4_visual_odometry(msg_for_px4)
         self.callback_stats['ros2_odom_callback']['count'] += 1
         self.callback_stats['ros2_odom_callback']['total_time'] += time.time() - start_time
 
