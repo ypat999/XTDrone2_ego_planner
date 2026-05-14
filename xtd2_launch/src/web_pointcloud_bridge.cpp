@@ -25,7 +25,12 @@ WebPointCloudBridge::WebPointCloudBridge()
     default_config.color_mode = "z-axis";
     default_config.enabled = true;
     default_config.max_height = 0.0;
+    default_config.last_msg_time = this->now();
     addSubscription(default_config.topic_name, default_config);
+
+    timer_ = this->create_wall_timer(
+        std::chrono::seconds(1),
+        std::bind(&WebPointCloudBridge::checkTimeoutAndClearCache, this));
 
     RCLCPP_INFO(this->get_logger(), "Web PointCloud Bridge initialized");
 }
@@ -125,6 +130,7 @@ void WebPointCloudBridge::addSubscription(const std::string& topic_name, const P
     if (subscriptions_.count(topic_name)) {
         RCLCPP_WARN(this->get_logger(), "Subscription for %s already exists, updating config", topic_name.c_str());
         configs_[topic_name] = config;
+        configs_[topic_name].last_msg_time = this->now();
         
         if (!publishers_.count(topic_name)) {
             std::string output_topic = topic_name + "/web_processed";
@@ -138,6 +144,7 @@ void WebPointCloudBridge::addSubscription(const std::string& topic_name, const P
     }
 
     configs_[topic_name] = config;
+    configs_[topic_name].last_msg_time = this->now();
 
     rclcpp::SubscriptionOptions sub_options;
     sub_options.qos_overriding_options = rclcpp::QosOverridingOptions({
@@ -187,6 +194,7 @@ void WebPointCloudBridge::pointCloudCallback(
     }
 
     auto& config = configs_[topic_name];
+    config.last_msg_time = this->now();
     auto processed = processPointCloud(msg, config);
     
     if (processed) {
@@ -382,6 +390,30 @@ void WebPointCloudBridge::publishProcessedCloud(
 {
     if (publishers_.count(original_topic)) {
         publishers_[original_topic]->publish(*cloud);
+    }
+}
+
+void WebPointCloudBridge::checkTimeoutAndClearCache()
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    auto current_time = this->now();
+    const double timeout_seconds = 10.0;
+    
+    for (auto& [topic_name, config] : configs_) {
+        if (config.use_deduplication) {
+            auto time_since_last_msg = (current_time - config.last_msg_time).seconds();
+            
+            if (time_since_last_msg > timeout_seconds) {
+                if (!config.sent_voxels.empty()) {
+                    size_t cache_size = config.sent_voxels.size();
+                    config.sent_voxels.clear();
+                    RCLCPP_INFO(this->get_logger(), 
+                        "Cleared cache for %s due to timeout (%.1f seconds), cache size was: %zu",
+                        topic_name.c_str(), time_since_last_msg, cache_size);
+                }
+            }
+        }
     }
 }
 

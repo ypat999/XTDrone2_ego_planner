@@ -1038,13 +1038,15 @@
       var shaftGeo = new THREE.CylinderGeometry(shaftRadius, shaftRadius, arrowLen - headLen, 8);
       var shaftMat = new THREE.MeshBasicMaterial({ color: redColor });
       var shaft = new THREE.Mesh(shaftGeo, shaftMat);
-      shaft.position.y = (arrowLen - headLen) / 2;
+      shaft.position.z = (arrowLen - headLen) / 2;
+      shaft.rotation.x = Math.PI / 2;
       goalArrow.add(shaft);
 
       var headGeo = new THREE.ConeGeometry(headRadius, headLen, 8);
       var headMat = new THREE.MeshBasicMaterial({ color: redColor });
       var head = new THREE.Mesh(headGeo, headMat);
-      head.position.y = arrowLen - headLen / 2;
+      head.position.z = arrowLen - headLen / 2;
+      head.rotation.x = Math.PI / 2;
       goalArrow.add(head);
 
       rosRoot.add(goalArrow);

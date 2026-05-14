@@ -28,6 +28,7 @@ struct PointCloudConfig {
     double max_height;
     bool use_deduplication;
     std::unordered_set<int> sent_voxels;
+    rclcpp::Time last_msg_time;
 };
 
 class WebPointCloudBridge : public rclcpp::Node {
@@ -47,6 +48,7 @@ private:
     void publishProcessedCloud(
         const sensor_msgs::msg::PointCloud2::SharedPtr& cloud,
         const std::string& original_topic);
+    void checkTimeoutAndClearCache();
 
     std::map<std::string, PointCloudConfig> configs_;
     std::map<std::string, rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr> subscriptions_;
