@@ -13,3 +13,12 @@
 	url = https://github.com/ypat999/Super-LIO.git
 
 
+[submodule "lio/lidar_localization_ros2"]
+	path = lio/lidar_localization_ros2
+	url = https://github.com/ypat999/lidar_localization_ros2.git
+[submodule "lio/livox_ros_driver2"]
+	path = lio/livox_ros_driver2
+	url = https://github.com/Livox-SDK/livox_ros_driver2.git
+[submodule "lio/ndt_omp_ros2"]
+	path = lio/ndt_omp_ros2
+	url = https://github.com/rsasaki0109/ndt_omp_ros2.git
