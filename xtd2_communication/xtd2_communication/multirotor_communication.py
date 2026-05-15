@@ -295,12 +295,12 @@ class MultirotorCommunication(Node):
         self.last_px4_odom_time = current_time
         
         # PX4 odometry 表示无人机在 NED 坐标系中的位置
-        # 我们需要发布 base_link -> px4_odom 的相对变换
-        # 这个变换表示 px4_odom 在 base_link 坐标系中的位置
+        # 我们需要发布 base_footprint -> px4_odom 的相对变换
+        # 这个变换表示 px4_odom 在 base_footprint 坐标系中的位置
         self.cur_vehicle_odometry = msg
 
-        # 读取 world->base_link 的 tf
-        base_link_frame = self.namespace.lstrip('/') + 'base_link'
+        # 读取 world->base_footprint 的 tf
+        base_footprint_frame = self.namespace.lstrip('/') + 'base_footprint'
         px4_odom_frame = self.namespace.lstrip('/') + 'px4_odom'
 
         # 转换坐标系：NED -> ENU (位置)
@@ -353,17 +353,17 @@ class MultirotorCommunication(Node):
         self.last_valid_enu_position = enu_position.copy()
         
 
-        # 发布 base_link -> px4_odom tf (相对变换)
+        # 发布 base_footprint -> px4_odom tf (相对变换)
         # PX4 odometry 表示无人机在 NED 坐标系中的位置
-        # 我们需要取逆变换来表示 px4_odom 在 base_link 中的位置
+        # 我们需要取逆变换来表示 px4_odom 在 base_footprint 中的位置
         t = TransformStamped()
         # 使用当前仿真时间戳（确保与 tf_publisher 时间同步）
         t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = self.namespace.lstrip('/') + 'base_link'
+        t.header.frame_id = self.namespace.lstrip('/') + 'base_footprint'
         t.child_frame_id = self.namespace.lstrip('/') + 'px4_odom_body'
 
         # 计算逆变换：使用工具函数
-        # base_link -> px4_odom 的逆变换 = base_link -> world
+        # base_footprint -> px4_odom 的逆变换 = base_footprint -> world
         inv_pos, inv_quat = CoordinateTransform.inverse_transform(
             enu_position[0], enu_position[1], enu_position[2],
             enu_orientation[0], enu_orientation[1], enu_orientation[2], enu_orientation[3]
@@ -387,7 +387,7 @@ class MultirotorCommunication(Node):
         # 读取 world->e 的 tf，并发布 world->px4_odom 的静态 tf
         try:
             # 计算 world->px4_odom 的变换
-            # world->px4_odom = world->base_link * base_link->px4_odom
+            # world->px4_odom = world->base_footprint * base_footprint->px4_odom
             # 
 
             try:
@@ -399,7 +399,7 @@ class MultirotorCommunication(Node):
                 # )
                 world_to_base = self.tf_buffer.lookup_transform(
                     'world',
-                    base_link_frame,
+                    base_footprint_frame,
                     rclpy.time.Time(),
                     timeout=rclpy.duration.Duration(seconds=2.0)
                 )
@@ -465,47 +465,47 @@ class MultirotorCommunication(Node):
         # 公式: p_base_world = R_world_livox * t_livox_base + p_livox_world
         # 其中 t_livox_base 是 base_link 原点在 livox_frame 下的坐标 (来自静态TF)
         msg_for_px4 = msg
-        if self.hostname != 'ywj-B250-D3A' and self.hostname != 'DESKTOP-ypat':
-            if not hasattr(self, '_livox_to_base_t') or self._livox_to_base_t is None:
-                try:
-                    tf_lb = self.tf_buffer.lookup_transform(
-                        'livox_frame', 'base_link',
-                        rclpy.time.Time(),
-                        timeout=rclpy.duration.Duration(seconds=0.5)
-                    )
-                    self._livox_to_base_t = np.array([
-                        tf_lb.transform.translation.x,
-                        tf_lb.transform.translation.y,
-                        tf_lb.transform.translation.z
-                    ])
-                    self.get_logger().info(
-                        f'Cached livox->base_link translation: {self._livox_to_base_t.tolist()}'
-                    )
-                except Exception as e:
-                    self.get_logger().warning(f'Failed to lookup livox->base_link TF: {e}')
-                    self._livox_to_base_t = None
+        # if self.hostname != 'ywj-B250-D3A' and self.hostname != 'DESKTOP-ypat':
+        #     if not hasattr(self, '_livox_to_base_t') or self._livox_to_base_t is None:
+        #         try:
+        #             tf_lb = self.tf_buffer.lookup_transform(
+        #                 'livox_frame', 'base_link',
+        #                 rclpy.time.Time(),
+        #                 timeout=rclpy.duration.Duration(seconds=0.5)
+        #             )
+        #             self._livox_to_base_t = np.array([
+        #                 tf_lb.transform.translation.x,
+        #                 tf_lb.transform.translation.y,
+        #                 tf_lb.transform.translation.z
+        #             ])
+        #             self.get_logger().info(
+        #                 f'Cached livox->base_link translation: {self._livox_to_base_t.tolist()}'
+        #             )
+        #         except Exception as e:
+        #             self.get_logger().warning(f'Failed to lookup livox->base_link TF: {e}')
+        #             self._livox_to_base_t = None
             
-            if self._livox_to_base_t is not None:
-                R_wl = CoordinateTransform.create_rotation_matrix_from_quaternion(
-                    msg.pose.pose.orientation.w,
-                    msg.pose.pose.orientation.x,
-                    msg.pose.pose.orientation.y,
-                    msg.pose.pose.orientation.z
-                )
-                p_livox = np.array([
-                    msg.pose.pose.position.x,
-                    msg.pose.pose.position.y,
-                    msg.pose.pose.position.z
-                ])
-                p_base = R_wl @ self._livox_to_base_t + p_livox
+        #     if self._livox_to_base_t is not None:
+        #         R_wl = CoordinateTransform.create_rotation_matrix_from_quaternion(
+        #             msg.pose.pose.orientation.w,
+        #             msg.pose.pose.orientation.x,
+        #             msg.pose.pose.orientation.y,
+        #             msg.pose.pose.orientation.z
+        #         )
+        #         p_livox = np.array([
+        #             msg.pose.pose.position.x,
+        #             msg.pose.pose.position.y,
+        #             msg.pose.pose.position.z
+        #         ])
+        #         p_base = R_wl @ self._livox_to_base_t + p_livox
                 
-                msg_for_px4 = Odometry()
-                msg_for_px4.header = msg.header
-                msg_for_px4.pose.pose.position.x = float(p_base[0])
-                msg_for_px4.pose.pose.position.y = float(p_base[1])
-                msg_for_px4.pose.pose.position.z = float(p_base[2])
-                msg_for_px4.pose.pose.orientation = msg.pose.pose.orientation
-                msg_for_px4.twist = msg.twist
+        #         msg_for_px4 = Odometry()
+        #         msg_for_px4.header = msg.header
+        #         msg_for_px4.pose.pose.position.x = float(p_base[0])
+        #         msg_for_px4.pose.pose.position.y = float(p_base[1])
+        #         msg_for_px4.pose.pose.position.z = float(p_base[2])
+        #         msg_for_px4.pose.pose.orientation = msg.pose.pose.orientation
+        #         msg_for_px4.twist = msg.twist
         
         self.publish_px4_visual_odometry(msg_for_px4)
         self.callback_stats['ros2_odom_callback']['count'] += 1

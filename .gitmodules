@@ -6,7 +6,7 @@
 [submodule "ego-planner-swarm"]
 	path = xtd2_third_party_pkgs/motion_planning/ego-planner-swarm
 	url = https://github.com/ypat999/ego-planner-swarm.git
-	branch = ros2_version
+	branch = master
 
 [submodule "Super-LIO"]
 	path = lio/Super-LIO
