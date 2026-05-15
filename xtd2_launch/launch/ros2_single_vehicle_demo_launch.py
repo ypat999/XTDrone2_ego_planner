@@ -94,7 +94,8 @@ def generate_launch_description():
             "--id", LaunchConfiguration('id'),
             "--allowarm", "true",
             "--namespace", LaunchConfiguration('namespace'),
-            "--debug", "true"
+            "--debug", "true",
+            "--require-pcl-pose", "true" if not use_sim_time else "false",
         ],
         prefix=['taskset -c 5,6'],   # 绑定 CPU 
     )

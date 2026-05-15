@@ -1,4 +1,4 @@
-[submodule "xtd2_third_party_pkgs/px4_msgs"]
+[submodule "px4_msgs"]
 	path = xtd2_third_party_pkgs/px4_msgs
 	url = https://github.com/PX4/px4_msgs.git
 	branch = release/1.15
@@ -7,6 +7,9 @@
 	path = xtd2_third_party_pkgs/motion_planning/ego-planner-swarm
 	url = https://github.com/ypat999/ego-planner-swarm.git
 	branch = ros2_version
-[submodule "lio/Super-LIO"]
+
+[submodule "Super-LIO"]
 	path = lio/Super-LIO
 	url = https://github.com/ypat999/Super-LIO.git
+
+

@@ -36,7 +36,7 @@ import platform
 from .coordinate_transform import CoordinateTransform
 
 class MultirotorCommunication(Node):
-    def __init__(self, model, id, namespace="", debug=False, allowarm=False):
+    def __init__(self, model, id, namespace="", debug=False, allowarm=False, require_pcl_pose=False):
         
         if model.startswith("gz_"):  # 删除gz_前缀
             model = model[3:]
@@ -45,6 +45,7 @@ class MultirotorCommunication(Node):
         self.id = int(id)
         self.debug = debug
         self.allowarm = allowarm
+        self.require_pcl_pose = require_pcl_pose
 
         self.namespace = namespace if namespace else f'{model}_{id}'
 
@@ -158,6 +159,13 @@ class MultirotorCommunication(Node):
         print(f"Allow Arm: {self.allowarm}")
         if self.allowarm:
             self.create_subscription(PoseStamped, '/goal_pose_3d', self.goal_marker_callback, 10)
+        
+        # PCL pose subscription for arm safety check
+        self.pcl_pose_received = False
+        self.pcl_pose_valid = False
+        if self.require_pcl_pose:
+            self.create_subscription(PoseStamped, '/pcl_pose', self.pcl_pose_callback, 10)
+            self.get_logger().info('require_pcl_pose enabled: arm will be blocked until valid /pcl_pose is received')
         
         # Gazebo odometry subscription for PX4 visual odometry
         self.create_subscription(
@@ -618,6 +626,17 @@ class MultirotorCommunication(Node):
         self.callback_stats['goal_marker_callback']['count'] += 1
         self.callback_stats['goal_marker_callback']['total_time'] += time.time() - start_time
     
+    def pcl_pose_callback(self, msg):
+        self.pcl_pose_received = True
+        if abs(msg.pose.position.x) > 1e-5:
+            if not self.pcl_pose_valid:
+                self.get_logger().info(f'/pcl_pose received with valid position x={msg.pose.position.x:.4f}, arm is now allowed')
+            self.pcl_pose_valid = True
+        else:
+            if self.pcl_pose_valid:
+                self.get_logger().warn(f'/pcl_pose position.x={msg.pose.position.x:.6f} is near zero, arm will be blocked')
+            self.pcl_pose_valid = False
+
     def get_clock_microseconds(self):
         t_ = self.get_clock().now().seconds_nanoseconds()
         return int(t_[0]*1e6 + t_[1]/1000)
@@ -1035,7 +1054,9 @@ class MultirotorCommunication(Node):
         self.vehicle_command_publisher.publish(msg)
 
     def arm(self):
-        # TODO：Check if the vehicle is already armed
+        if self.require_pcl_pose and not self.pcl_pose_valid:
+            self.get_logger().warn('Arm blocked: /pcl_pose not received or position.x is near zero')
+            return
         self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0)
         self.get_logger().info('Arm command send')
     
@@ -1336,11 +1357,12 @@ def main():
     parser.add_argument('--allowarm', type=str_to_bool, help='Allow arm command', required=False, default=False)
     parser.add_argument('--namespace', type=str, help='ROS namespace, {{model}}_{{id}} by default', required=False, default="")
     parser.add_argument('--debug', action='store_true', help='Enable debug mode to publish vehicle state', required=False, default=False)
+    parser.add_argument('--require-pcl-pose', type=str_to_bool, help='Require valid /pcl_pose before allowing arm', required=False, default=False)
     
 
     args, unknown = parser.parse_known_args()
 
-    multirotor_communication = MultirotorCommunication(args.model, args.id, args.namespace, args.debug, args.allowarm)
+    multirotor_communication = MultirotorCommunication(args.model, args.id, args.namespace, args.debug, args.allowarm, args.require_pcl_pose)
     rclpy.spin(multirotor_communication)
     multirotor_communication.destroy_node()
     rclpy.shutdown()

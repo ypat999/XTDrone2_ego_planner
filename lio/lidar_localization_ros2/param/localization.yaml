@@ -40,7 +40,7 @@
       enable_search_optimization: true   # Enable two-stage search for optimal localization（启用两阶段搜索优化）
       
       # New parameters for map downsampling（地图降采样参数）
-      map_downsample_leaf_size: 1.0       # Leaf size for map downsampling in meters（地图降采样的leaf大小，单位：米）
+      map_downsample_leaf_size: 0.5       # Leaf size for map downsampling in meters（地图降采样的leaf大小，单位：米）
       
       # New parameters for Z-axis search（Z轴搜索参数）
       enable_z_axis_search: true        # Enable Z-axis search for all triggers（启用Z轴搜索，对所有触发类型生效）
@@ -62,3 +62,6 @@
       # New parameters for dynamic score threshold mechanism
       enable_dynamic_threshold: true     # Enable dynamic threshold mechanism（启用动态阈值机制）
       dynamic_threshold_factor: 2.0      # Factor for dynamic threshold (new score must be <= current * factor)（动态阈值因子）
+      
+      # Initial localization accumulation（初始定位多帧叠加参数）
+      initial_localization_accumulate_frames: 10  # Number of frames to accumulate for initial localization（初始定位叠加帧数，mid360非重复扫描建议10帧以上）

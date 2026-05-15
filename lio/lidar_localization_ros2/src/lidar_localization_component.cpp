@@ -61,6 +61,7 @@ PCLLocalization::PCLLocalization(const rclcpp::NodeOptions & options)
   // New parameters for dynamic score threshold mechanism
   declare_parameter("enable_dynamic_threshold", true);
   declare_parameter("dynamic_threshold_factor", 2.0);
+  declare_parameter("initial_localization_accumulate_frames", 10);
 }
 
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
@@ -113,6 +114,8 @@ CallbackReturn PCLLocalization::on_activate(const rclcpp_lifecycle::State &)
     last_localization_y_ = initial_pose_y_;
     last_localization_z_ = initial_pose_z_;
     first_localization_done_ = false;  // Force first localization on next cloud
+    accumulated_cloud_ptr_->clear();
+    accumulated_frame_count_ = 0;
 
     initialPoseReceived(msg);
   }
@@ -279,6 +282,7 @@ void PCLLocalization::initializeParameters()
   // New parameters for dynamic score threshold mechanism
   get_parameter("enable_dynamic_threshold", enable_dynamic_threshold_);
   get_parameter("dynamic_threshold_factor", dynamic_threshold_factor_);
+  get_parameter("initial_localization_accumulate_frames", initial_localization_accumulate_frames_);
 
   RCLCPP_INFO(get_logger(),"global_frame_id: %s", global_frame_id_.c_str());
   RCLCPP_INFO(get_logger(),"odom_frame_id: %s", odom_frame_id_.c_str());
@@ -313,6 +317,7 @@ void PCLLocalization::initializeParameters()
   RCLCPP_INFO(get_logger(),"angle_search_steps: %d", angle_search_steps_);
   RCLCPP_INFO(get_logger(),"enable_dynamic_threshold: %d", enable_dynamic_threshold_);
   RCLCPP_INFO(get_logger(),"dynamic_threshold_factor: %lf", dynamic_threshold_factor_);
+  RCLCPP_INFO(get_logger(),"initial_localization_accumulate_frames: %d", initial_localization_accumulate_frames_);
 }
 
 void PCLLocalization::initializePubSub()
@@ -428,6 +433,8 @@ void PCLLocalization::initialPoseReceived(const geometry_msgs::msg::PoseWithCova
   last_localization_y_ = msg->pose.pose.position.y;
   last_localization_z_ = msg->pose.pose.position.z;
   first_localization_done_ = false;  // Force first localization on next cloud
+  accumulated_cloud_ptr_->clear();
+  accumulated_frame_count_ = 0;
   
   pose_pub_->publish(*corrent_pose_with_cov_stamped_ptr_);
 
@@ -496,6 +503,8 @@ void PCLLocalization::odomReceived(const nav_msgs::msg::Odometry::ConstSharedPtr
     last_localization_y_ = initial_pose->pose.pose.position.y;
     last_localization_z_ = initial_pose->pose.pose.position.z;
     first_localization_done_ = false;
+    accumulated_cloud_ptr_->clear();
+    accumulated_frame_count_ = 0;
     
     RCLCPP_INFO(get_logger(), "Initialized pose from odom: x=%.3f, y=%.3f, z=%.3f",
                 initial_pose->pose.pose.position.x,
@@ -658,8 +667,24 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
   }
   pcl::PointCloud<pcl::PointXYZI>::Ptr tmp_ptr(new pcl::PointCloud<pcl::PointXYZI>(tmp));
   
-  // Use single frame directly for registration
   pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_for_registration = tmp_ptr;
+
+  if (!first_localization_done_ && initial_localization_accumulate_frames_ > 1) {
+    *accumulated_cloud_ptr_ += *tmp_ptr;
+    accumulated_frame_count_++;
+
+    if (accumulated_frame_count_ < initial_localization_accumulate_frames_) {
+      RCLCPP_INFO(get_logger(), "Accumulating frames for initial localization: %d/%d (points: %lu)",
+                  accumulated_frame_count_, initial_localization_accumulate_frames_,
+                  accumulated_cloud_ptr_->size());
+      last_scan_ptr_ = msg;
+      return;
+    }
+
+    RCLCPP_INFO(get_logger(), "Accumulated %d frames for initial localization, total points: %lu",
+                accumulated_frame_count_, accumulated_cloud_ptr_->size());
+    cloud_for_registration = accumulated_cloud_ptr_;
+  }
   
   registration_->setInputSource(cloud_for_registration);
 
@@ -730,6 +755,8 @@ void PCLLocalization::cloudReceived(const sensor_msgs::msg::PointCloud2::ConstSh
   // Mark first localization as done after successful pose update
   if (!first_localization_done_) {
     first_localization_done_ = true;
+    accumulated_cloud_ptr_->clear();
+    accumulated_frame_count_ = 0;
     RCLCPP_INFO(get_logger(), "First localization completed successfully");
   }
     

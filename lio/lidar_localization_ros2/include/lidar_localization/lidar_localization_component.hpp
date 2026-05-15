@@ -151,7 +151,10 @@ public:
   double last_localization_x_{0.0};
   double last_localization_y_{0.0};
   double last_localization_z_{0.0};
-  bool first_localization_done_{false};  // Track if first localization is done
+  bool first_localization_done_{false};
+  int initial_localization_accumulate_frames_{10};
+  pcl::PointCloud<pcl::PointXYZI>::Ptr accumulated_cloud_ptr_{new pcl::PointCloud<pcl::PointXYZI>};
+  int accumulated_frame_count_{0};
   
   // Angle search optimization parameters
   bool enable_angle_search_{true};       // Enable angle search for better rotation convergence
