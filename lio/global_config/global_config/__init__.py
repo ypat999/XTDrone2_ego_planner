@@ -56,7 +56,7 @@ config_by_machine = {
         
         # RK3588主机配置 - Livox MID360
         'LIVOX_MID360_CONFIG': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config_tilt.json',
-        'LIVOX_MID360_CONFIG_NO_TILT': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config.json',
+        'LIVOX_MID360_CONFIG_NO_TILT': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config_drone.json',
     },
     'jqr001': {
         # jqr001主机配置 - LIO-SAM
@@ -81,8 +81,8 @@ config_by_machine = {
         'DEFAULT_USE_SIM_TIME': True,
         
         # jqr001主机配置 - Livox MID360
-        'LIVOX_MID360_CONFIG': '/home/ywj/projects/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config.json',
-        'LIVOX_MID360_CONFIG_NO_TILT': '/home/ywj/projects/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config.json',
+        'LIVOX_MID360_CONFIG': '/home/ywj/projects/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config_drone.json',
+        'LIVOX_MID360_CONFIG_NO_TILT': '/home/ywj/projects/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config_drone.json',
     },
     'DESKTOP-4LS1SSN': {
         # DESKTOP-4LS1SSN主机配置 - LIO-SAM
@@ -159,8 +159,8 @@ config_by_machine = {
         'DEFAULT_USE_SIM_TIME': False,
         
         # lubancat主机配置 - Livox MID360
-        'LIVOX_MID360_CONFIG': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config.json',
-        'LIVOX_MID360_CONFIG_NO_TILT': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config.json',
+        'LIVOX_MID360_CONFIG': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config_drone.json',
+        'LIVOX_MID360_CONFIG_NO_TILT': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config_drone.json',
     },
     'ywj-B250-D3A': {
         # ywj-B250-D3A主机配置 - LIO-SAM
@@ -222,8 +222,8 @@ default_config = {
     'DEFAULT_USE_SIM_TIME': True,
     
     # Livox MID360 默认配置
-    'LIVOX_MID360_CONFIG': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config.json',
-    'LIVOX_MID360_CONFIG_NO_TILT': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config.json',
+    'LIVOX_MID360_CONFIG': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config_drone.json',
+    'LIVOX_MID360_CONFIG_NO_TILT': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config_drone.json',
 }
 
 # 根据当前主机名选择配置
