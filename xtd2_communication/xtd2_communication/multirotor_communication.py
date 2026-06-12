@@ -164,7 +164,7 @@ class MultirotorCommunication(Node):
         self.pcl_pose_received = False
         self.pcl_pose_valid = False
         if self.require_pcl_pose:
-            self.create_subscription(PoseStamped, '/pcl_pose', self.pcl_pose_callback, 10)
+            self.create_subscription(PoseWithCovarianceStamped, '/pcl_pose', self.pcl_pose_callback, 10)
             self.get_logger().info('require_pcl_pose enabled: arm will be blocked until valid /pcl_pose is received')
         
         # Gazebo odometry subscription for PX4 visual odometry
@@ -628,13 +628,13 @@ class MultirotorCommunication(Node):
     
     def pcl_pose_callback(self, msg):
         self.pcl_pose_received = True
-        if abs(msg.pose.position.x) > 1e-5:
+        if abs(msg.pose.pose.position.x) > 1e-5:
             if not self.pcl_pose_valid:
-                self.get_logger().info(f'/pcl_pose received with valid position x={msg.pose.position.x:.4f}, arm is now allowed')
+                self.get_logger().info(f'/pcl_pose received with valid position x={msg.pose.pose.position.x:.4f}, arm is now allowed')
             self.pcl_pose_valid = True
         else:
             if self.pcl_pose_valid:
-                self.get_logger().warn(f'/pcl_pose position.x={msg.pose.position.x:.6f} is near zero, arm will be blocked')
+                self.get_logger().warn(f'/pcl_pose position.x={msg.pose.pose.position.x:.6f} is near zero, arm will be blocked')
             self.pcl_pose_valid = False
 
     def get_clock_microseconds(self):
