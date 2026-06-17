@@ -25,3 +25,6 @@
 [submodule "Livox-SDK2"]
 	path = lio/Livox-SDK2
 	url = https://github.com/Livox-SDK/Livox-SDK2.git
+[submodule "lio/lidar_localization_ros2"]
+	path = lio/lidar_localization_ros2
+	url = https://github.com/ypat999/lidar_localization_ros2.git
