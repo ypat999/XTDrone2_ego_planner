@@ -401,7 +401,7 @@ class MultirotorCommunication(Node):
                     'world',
                     base_footprint_frame,
                     rclpy.time.Time(),
-                    timeout=rclpy.duration.Duration(seconds=2.0)
+                    timeout=rclpy.duration.Duration(seconds=5.0)
                 )
 
                 world_to_px4 = self.multiply_transforms(world_to_base, t)
@@ -1195,8 +1195,13 @@ class MultirotorCommunication(Node):
             return
         
         # 已解锁，检查是否需要起飞
-        if not is_takeoff and not is_flying and not is_landing:
-            self.get_logger().info('无人机未起飞，执行起飞...')
+        # 注意：不使用 not is_takeoff 条件，因为 nav_state=17(TAKEOFF) 可能来自系统启动时遗留的状态
+        # 但无人机实际高度为0，并未起飞。此时应重新发送起飞指令。
+        if not is_flying and not is_landing:
+            if is_takeoff:
+                self.get_logger().info('无人机处于TAKEOFF状态但未离地(nav_state=17)，重新发送起飞指令...')
+            else:
+                self.get_logger().info('无人机未起飞，执行起飞...')
             self.takeoff()
             self.get_logger().info('等待起飞完成...')
             return
