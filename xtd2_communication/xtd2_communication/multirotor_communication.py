@@ -1189,8 +1189,10 @@ class MultirotorCommunication(Node):
         
         # 已经在offboard模式，检查是否需要解锁
         if not is_armed:
-            self.get_logger().info('无人机未解锁，执行解锁...')
-            self.arm()
+            if not self._should_skip_command('arm'):
+                self.get_logger().info('无人机未解锁，执行解锁...')
+                self.arm()
+                self._last_command_sent = {'type': 'arm', 'time': self.get_clock().now()}
             self.get_logger().info('等待解锁完成...')
             return
         
@@ -1198,19 +1200,23 @@ class MultirotorCommunication(Node):
         # 注意：不使用 not is_takeoff 条件，因为 nav_state=17(TAKEOFF) 可能来自系统启动时遗留的状态
         # 但无人机实际高度为0，并未起飞。此时应重新发送起飞指令。
         if not is_flying and not is_landing:
-            if is_takeoff:
-                self.get_logger().info('无人机处于TAKEOFF状态但未离地(nav_state=17)，重新发送起飞指令...')
-            else:
-                self.get_logger().info('无人机未起飞，执行起飞...')
-            self.takeoff()
+            if not self._should_skip_command('takeoff'):
+                if is_takeoff:
+                    self.get_logger().info('无人机处于TAKEOFF状态但未离地(nav_state=17)，重新发送起飞指令...')
+                else:
+                    self.get_logger().info('无人机未起飞，执行起飞...')
+                self.takeoff()
+                self._last_command_sent = {'type': 'takeoff', 'time': self.get_clock().now()}
             self.get_logger().info('等待起飞完成...')
             return
         
         if not is_offboard and not is_landing and is_flying:
-            self.get_logger().info('已起飞，最后切换到offboard模式...')
-            self.OFFBOARD_STATE = "ENABLED"
-            self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 6)
-            self.get_logger().info('offboard模式切换完成')
+            if not self._should_skip_command('offboard'):
+                self.get_logger().info('已起飞，最后切换到offboard模式...')
+                self.OFFBOARD_STATE = "ENABLED"
+                self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 6)
+                self._last_command_sent = {'type': 'offboard', 'time': self.get_clock().now()}
+                self.get_logger().info('offboard模式切换完成')
             return
         
         # 所有条件满足，切换到egoplanner控制
@@ -1218,6 +1224,16 @@ class MultirotorCommunication(Node):
             self.get_logger().info('无人机已准备就绪，可以接收egoplanner控制指令')
             self.auto_switch_enabled = False  # 重置标志
             self.auto_switch_completed = True  # 设置完成标志
+
+    def _should_skip_command(self, cmd_type):
+        """检查是否需要跳过发送指令（避免重复发送）"""
+        if not hasattr(self, '_last_command_sent'):
+            return False
+        last = self._last_command_sent
+        if last['type'] != cmd_type:
+            return False
+        elapsed = (self.get_clock().now() - last['time']).nanoseconds / 1e9
+        return elapsed < 2.0
 
     def check_auto_switch_progress(self):
         """检查自动切换进度，确保状态转换完成"""
@@ -1244,10 +1260,11 @@ class MultirotorCommunication(Node):
                 self.auto_switch_enabled = False
                 return
         
-        # 每1秒重新检查一次状态
+        # 使用0.2秒检查间隔（定时器已经是20Hz/0.05s）
+        check_interval = 0.2
         if hasattr(self, '_last_check_time'):
             elapsed = (self.get_clock().now() - self._last_check_time).nanoseconds / 1e9
-            if elapsed < 1:
+            if elapsed < check_interval:
                 return
         
         self._last_check_time = self.get_clock().now()
