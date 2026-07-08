@@ -79,7 +79,7 @@ class MultirotorCommunication(Node):
             odom_topic = self.namespace + 'odometry'
         else:
             use_sim_time = False
-            odom_topic = "/lio/odom"
+            odom_topic = "/lio/robo/odom"
             
         super().__init__(node_name, parameter_overrides=[
             rclpy.Parameter('use_sim_time', rclpy.Parameter.Type.BOOL, use_sim_time)
@@ -117,21 +117,23 @@ class MultirotorCommunication(Node):
         print(f"XTDrone2 Topic Prefix: {xtdrone2_topic_prefix}")
         print(f"DDS Topic Prefix: {dds_topic_prefix}")
         
-        self.create_subscription(Pose, xtdrone2_topic_prefix + 'cmd_pose_local_ned', self.cmd_pose_local_ned_callback, 10)  # geometry_msgs/Pose
-        self.create_subscription(PoseStamped, xtdrone2_topic_prefix + 'cmd_pose_local_flu', self.cmd_pose_local_flu_callback, 10)  # geometry_msgs/PoseStamped
-        self.create_subscription(PositionCommand, xtdrone2_topic_prefix + 'cmd_trajectory_flu', self.cmd_trajectory_flu_callback, 10)  # quadrotor_msgs/PositionCommand
-        self.create_subscription(PoseStamped, xtdrone2_topic_prefix + 'cmd_vel_ned', self.cmd_vel_ned_callback, 10)  # geometry_msgs/PoseStamped
-        self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_vel_flu', self.cmd_vel_flu_callback, 10)  # geometry_msgs/Twist
-        self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_accel_ned', self.cmd_accel_ned_callback, 10)  # geometry_msgs/Twist
-        self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_accel_flu', self.cmd_accel_flu_callback, 10)  # geometry_msgs/Twist
-        self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_attitude_flu', self.cmd_attitude_flu_callback, 10)  # geometry_msgs/Pose
+        self.create_subscription(Pose, xtdrone2_topic_prefix + 'cmd_pose_local_ned', self.cmd_pose_local_ned_callback, 1)  # geometry_msgs/Pose
+        self.create_subscription(PoseStamped, xtdrone2_topic_prefix + 'cmd_pose_local_flu', self.cmd_pose_local_flu_callback, 1)  # geometry_msgs/PoseStamped
+        self.create_subscription(PositionCommand, xtdrone2_topic_prefix + 'cmd_trajectory_flu', self.cmd_trajectory_flu_callback, 1)  # quadrotor_msgs/PositionCommand
+        self.create_subscription(PoseStamped, xtdrone2_topic_prefix + 'cmd_vel_ned', self.cmd_vel_ned_callback, 1)  # geometry_msgs/PoseStamped
+        self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_vel_flu', self.cmd_vel_flu_callback, 1)  # geometry_msgs/Twist
+        self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_accel_ned', self.cmd_accel_ned_callback, 1)  # geometry_msgs/Twist
+        self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_accel_flu', self.cmd_accel_flu_callback, 1)  # geometry_msgs/Twist
+        self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_attitude_flu', self.cmd_attitude_flu_callback, 1)  # geometry_msgs/Pose
         self.cmd_server = self.create_service(XTD2Cmd, xtdrone2_topic_prefix + 'cmd', self.cmd_callback)
 
         # DDS Interface
-        self.create_subscription(VehicleLocalPosition, dds_topic_prefix + 'fmu/out/vehicle_local_position', self.vehicle_local_position_callback, QoSProfile(depth=10, reliability=qos_profile_sensor_data.reliability))
-        self.create_subscription(VehicleGlobalPosition, dds_topic_prefix + 'fmu/out/vehicle_global_position', self.vehicle_global_position_callback, QoSProfile(depth=10, reliability=qos_profile_sensor_data.reliability))
-        self.create_subscription(VehicleStatus, dds_topic_prefix + 'fmu/out/vehicle_status', self.vehicle_status_callback, QoSProfile(depth=10, reliability=qos_profile_sensor_data.reliability))
-        self.create_subscription(VehicleOdometry, dds_topic_prefix + 'fmu/out/vehicle_odometry', self.px4_odom_callback, QoSProfile(depth=10, reliability=rclpy.qos.ReliabilityPolicy.BEST_EFFORT, durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL))
+        self.create_subscription(VehicleLocalPosition, dds_topic_prefix + 'fmu/out/vehicle_local_position', self.vehicle_local_position_callback, QoSProfile(depth=1, reliability=qos_profile_sensor_data.reliability))
+        self.create_subscription(VehicleGlobalPosition, dds_topic_prefix + 'fmu/out/vehicle_global_position', self.vehicle_global_position_callback, QoSProfile(depth=1, reliability=qos_profile_sensor_data.reliability))
+        self.create_subscription(VehicleStatus, dds_topic_prefix + 'fmu/out/vehicle_status', 
+            self.vehicle_status_callback, 
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE))  # 改用RELIABLE确保数据到达
+        self.create_subscription(VehicleOdometry, dds_topic_prefix + 'fmu/out/vehicle_odometry', self.px4_odom_callback, QoSProfile(depth=1, reliability=rclpy.qos.ReliabilityPolicy.BEST_EFFORT, durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL))
         self.vehicle_command_publisher = self.create_publisher(VehicleCommand, dds_topic_prefix + 'fmu/in/vehicle_command', 10)
         self.offboard_control_mode_pub = self.create_publisher(OffboardControlMode, dds_topic_prefix + 'fmu/in/offboard_control_mode', 10)
         self.dds_trajectory_setpoint_pub = self.create_publisher(TrajectorySetpoint, dds_topic_prefix + 'fmu/in/trajectory_setpoint', 10)
@@ -278,7 +280,21 @@ class MultirotorCommunication(Node):
 
     def vehicle_status_callback(self, msg):
         start_time = time.time()
+        
+        # 打印时间戳和状态变化（调试延迟）
+        old_arming_state = self.vehicle_status.arming_state if self.vehicle_status else None
+        old_nav_state = self.vehicle_status.nav_state if self.vehicle_status else None
+        
         self.vehicle_status = msg
+        
+        # 状态变化时打印（减少日志量）
+        if old_arming_state != msg.arming_state or old_nav_state != msg.nav_state:
+            self.get_logger().info(
+                f'[VehicleStatus更新] arming_state: {old_arming_state}->{msg.arming_state}, '
+                f'nav_state: {old_nav_state}->{msg.nav_state}, '
+                f'延迟: {time.time()-start_time:.3f}s'
+            )
+        
         self.callback_stats['vehicle_status_callback']['count'] += 1
         self.callback_stats['vehicle_status_callback']['total_time'] += time.time() - start_time
 
@@ -460,7 +476,7 @@ class MultirotorCommunication(Node):
         self.cur_lio_vehicle_odometry = msg
         
         # 将 livox_frame 位置转换为 base_link 位置
-        # /lio/odom 发布的是 livox_frame 在世界系下的位姿 (含30°倾斜)
+        # /lio/robo/odom 发布的是 base_link 在世界系下的位姿
         # PX4 需要 base_link 在世界系下的位姿
         # 公式: p_base_world = R_world_livox * t_livox_base + p_livox_world
         # 其中 t_livox_base 是 base_link 原点在 livox_frame 下的坐标 (来自静态TF)
