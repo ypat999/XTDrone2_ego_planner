@@ -5,9 +5,9 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /TF1
         - /TF1/Frames1
         - /TF1/Tree1
+        - /PointCloud2_lio1
         - /PointCloud2_lio1/Topic1
         - /PointCloud2_inflate1/Topic1
         - /PointCloud2_map1/Topic1
@@ -99,13 +99,13 @@ Visualization Manager:
       Class: rviz_default_plugins/PointCloud2
       Color: 255; 255; 255
       Color Transformer: Intensity
-      Decay Time: 10
+      Decay Time: 1
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 162
+      Max Intensity: 150
       Min Color: 0; 0; 0
-      Min Intensity: 10
+      Min Intensity: 0
       Name: PointCloud2_lio
       Position Transformer: XYZ
       Selectable: false
@@ -125,7 +125,7 @@ Visualization Manager:
     - Alpha: 0.20000000298023224
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 2.5999999046325684
+        Max Value: 2.4000000953674316
         Min Value: -1.399999976158142
         Value: true
       Axis: Z
@@ -134,7 +134,7 @@ Visualization Manager:
       Color: 51; 209; 122
       Color Transformer: AxisColor
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: true
       Max Color: 38; 162; 105
       Max Intensity: 256
@@ -155,7 +155,7 @@ Visualization Manager:
         Value: /grid_map/occupancy_inflate
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Class: rviz_default_plugins/Marker
       Enabled: true
       Name: Marker_ego_traj
@@ -240,8 +240,8 @@ Visualization Manager:
     - Alpha: 0.10000000149011612
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 2.1260995864868164
-        Min Value: -1.4494266510009766
+        Max Value: 3.8128268718719482
+        Min Value: -0.09895527362823486
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -329,7 +329,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: map
+    Fixed Frame: world
     Frame Rate: 30
   Name: root
   Tools:
@@ -372,25 +372,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 17.505462646484375
+      Distance: 15.58854866027832
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.013881923630833626
-        Y: -0.1710532307624817
-        Z: 0.009991500526666641
+        X: -1.0188910961151123
+        Y: -0.08300605416297913
+        Z: -0.9943270087242126
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7847973704338074
+      Pitch: 0.8632462024688721
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 2.309143543243408
+      Yaw: 0.6759845614433289
     Saved: ~
 Window Geometry:
   Displays:

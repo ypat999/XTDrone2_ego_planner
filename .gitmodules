@@ -20,7 +20,7 @@
 
 [submodule "lio/ndt_omp_ros2"]
 	path = lio/ndt_omp_ros2
-	url = https://github.com/rsasaki0109/ndt_omp_ros2.git
+	url = https://github.com/ypat999/ndt_omp_ros2.git
 
 [submodule "Livox-SDK2"]
 	path = lio/Livox-SDK2

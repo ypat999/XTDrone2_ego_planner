@@ -388,7 +388,7 @@ echo /xtdrone2/x500_depth_0/cmd_pose_local_ned
 1. **点云显示异常**: 检查TF关系和相机模型配置
 2. **仿真启动失败**: 确认Gazebo版本和模型路径
 3. **规划失败**: 检查ego planner参数配置和传感器数据
-
+4. **PX4滤波调参**: https://mbot1.blog.csdn.net/article/details/130223159    /  ros2 run plotjuggler plotjuggler
 ## 近期重要更新记录
 
 ### 2026-02-28 - 系统配置优化与TF修复
