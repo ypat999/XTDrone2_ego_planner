@@ -28,12 +28,20 @@ import sys
 import math
 import numpy as np
 from transforms3d.euler import quat2euler
-from rclpy.qos import QoSProfile, qos_profile_sensor_data
+from rclpy.qos import QoSProfile, qos_profile_sensor_data, ReliabilityPolicy, DurabilityPolicy
 
 import argparse
 import platform
 
 from .coordinate_transform import CoordinateTransform
+
+# PX4 DDS 话题的统一兼容 QoS 配置
+# 注意：PX4 使用 TRANSIENT_LOCAL，所以订阅者也必须用 TRANSIENT_LOCAL 才能匹配
+PX4_COMPATIBLE_QOS = QoSProfile(
+    depth=10,
+    reliability=ReliabilityPolicy.BEST_EFFORT,
+    durability=DurabilityPolicy.TRANSIENT_LOCAL
+)
 
 class MultirotorCommunication(Node):
     def __init__(self, model, id, namespace="", debug=False, allowarm=False, require_pcl_pose=False):
@@ -50,7 +58,7 @@ class MultirotorCommunication(Node):
         self.namespace = namespace if namespace else f'{model}_{id}'
 
         # 生成有效的节点名称（只包含字母数字和下划线）
-        node_name = self.namespace.strip('/') + '_communication'
+        node_name = self.namespace.strip('/') + 'communication'
 
 
         self.callback_stats = {
@@ -127,13 +135,11 @@ class MultirotorCommunication(Node):
         self.create_subscription(Twist, xtdrone2_topic_prefix + 'cmd_attitude_flu', self.cmd_attitude_flu_callback, 1)  # geometry_msgs/Pose
         self.cmd_server = self.create_service(XTD2Cmd, xtdrone2_topic_prefix + 'cmd', self.cmd_callback)
 
-        # DDS Interface
-        self.create_subscription(VehicleLocalPosition, dds_topic_prefix + 'fmu/out/vehicle_local_position', self.vehicle_local_position_callback, QoSProfile(depth=1, reliability=qos_profile_sensor_data.reliability))
-        self.create_subscription(VehicleGlobalPosition, dds_topic_prefix + 'fmu/out/vehicle_global_position', self.vehicle_global_position_callback, QoSProfile(depth=1, reliability=qos_profile_sensor_data.reliability))
-        self.create_subscription(VehicleStatus, dds_topic_prefix + 'fmu/out/vehicle_status', 
-            self.vehicle_status_callback, 
-            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE))  # 改用RELIABLE确保数据到达
-        self.create_subscription(VehicleOdometry, dds_topic_prefix + 'fmu/out/vehicle_odometry', self.px4_odom_callback, QoSProfile(depth=1, reliability=rclpy.qos.ReliabilityPolicy.BEST_EFFORT, durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL))
+        # DDS Interface - 统一使用兼容 QoS (BEST_EFFORT + VOLATILE)
+        self.create_subscription(VehicleLocalPosition, dds_topic_prefix + 'fmu/out/vehicle_local_position', self.vehicle_local_position_callback, PX4_COMPATIBLE_QOS)
+        self.create_subscription(VehicleGlobalPosition, dds_topic_prefix + 'fmu/out/vehicle_global_position', self.vehicle_global_position_callback, PX4_COMPATIBLE_QOS)
+        self.create_subscription(VehicleStatus, dds_topic_prefix + 'fmu/out/vehicle_status', self.vehicle_status_callback, PX4_COMPATIBLE_QOS)
+        self.create_subscription(VehicleOdometry, dds_topic_prefix + 'fmu/out/vehicle_odometry', self.px4_odom_callback, PX4_COMPATIBLE_QOS)
         self.vehicle_command_publisher = self.create_publisher(VehicleCommand, dds_topic_prefix + 'fmu/in/vehicle_command', 10)
         self.offboard_control_mode_pub = self.create_publisher(OffboardControlMode, dds_topic_prefix + 'fmu/in/offboard_control_mode', 10)
         self.dds_trajectory_setpoint_pub = self.create_publisher(TrajectorySetpoint, dds_topic_prefix + 'fmu/in/trajectory_setpoint', 10)
@@ -373,8 +379,9 @@ class MultirotorCommunication(Node):
         # PX4 odometry 表示无人机在 NED 坐标系中的位置
         # 我们需要取逆变换来表示 px4_odom 在 base_footprint 中的位置
         t = TransformStamped()
-        # 使用当前仿真时间戳（确保与 tf_publisher 时间同步）
-        t.header.stamp = self.get_clock().now().to_msg()
+        # PX4 timestamp 是 uint64 微秒，需要转换成 ROS2 Time
+        t.header.stamp.sec = int(msg.timestamp // 1000000)
+        t.header.stamp.nanosec = int((msg.timestamp % 1000000) * 1000)
         t.header.frame_id = self.namespace.lstrip('/') + 'base_footprint'
         t.child_frame_id = self.namespace.lstrip('/') + 'px4_odom_body'
 
