@@ -116,8 +116,12 @@ def generate_launch_description():
                                            # 值越小反应越快但可能过于激进；值越大反应平缓但可能不够及时
                                            # 推荐范围: 0.5-2.0秒
             
-            {'fsm/same_point_replan_time_threshold': 10.0},  # 相同目标点重规划时间阈值(秒): 对同一目标点多久后允许重新规划
-                                                              # 防止对静态目标点频繁重规划，节省计算资源
+            {'fsm/same_goal_skip_threshold': 1.0},  # 目标点相同判断阈值(米): 新目标与当前目标点差异小于此值时跳过急停
+                                                     # 避免因定位抖动导致的反复急停，实现顺畅过渡
+                                                     # 推荐范围: 0.5-2.0米，定位噪声大时建议增大
+            
+            {'fsm/same_point_replan_time_threshold': 10.0},  # 同点重规划时间阈值(秒): 同一点多久后才允许重新规划
+                                                              # 防止对静态目标点频繁无效重规划，节省计算资源
                                                               # 推荐范围: 5.0-20.0秒
             
             {'fsm/realworld_experiment': True},  # 实验模式: True=真实世界实验, False=仿真实验
