@@ -160,7 +160,7 @@ class MultirotorCommunication(Node):
         
         # TF buffer and listener for coordinate transformations
         # 优化 TF 缓冲区配置，提高实时性
-        self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=2.0))  # 减少缓存时间到2秒
+        self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=5.0))  # 减少缓存时间到2秒
         self.tf_listener = TransformListener(self.tf_buffer, self, spin_thread=True)  # 启用独立线程
         
         # Goal marker subscription for automatic switching
@@ -308,6 +308,8 @@ class MultirotorCommunication(Node):
         """PX4 odometry callback - 发布 base_link -> px4_odom tf (相对变换)"""
         start_time = time.time()
         
+        px4_time = rclpy.time.Time()
+        px4_header_time = self.get_clock().now().to_msg()
         # 间隔限制检查
         current_time = time.time()
         if current_time - self.last_px4_odom_time < self.odom_callback_min_interval:
@@ -379,9 +381,8 @@ class MultirotorCommunication(Node):
         # PX4 odometry 表示无人机在 NED 坐标系中的位置
         # 我们需要取逆变换来表示 px4_odom 在 base_footprint 中的位置
         t = TransformStamped()
-        # PX4 timestamp 是 uint64 微秒，需要转换成 ROS2 Time
-        t.header.stamp.sec = int(msg.timestamp // 1000000)
-        t.header.stamp.nanosec = int((msg.timestamp % 1000000) * 1000)
+        # 使用 ROS2 当前时间，确保和其他 TF（Super-LIO）时间戳同步
+        t.header.stamp = self.get_clock().now().to_msg()
         t.header.frame_id = self.namespace.lstrip('/') + 'base_footprint'
         t.child_frame_id = self.namespace.lstrip('/') + 'px4_odom_body'
 
@@ -408,41 +409,36 @@ class MultirotorCommunication(Node):
             self.get_logger().error(f'Failed to send TF: {e}')
         
         # 读取 world->e 的 tf，并发布 world->px4_odom 的静态 tf
+
+        # 计算 world->px4_odom 的变换
+        # world->px4_odom = world->base_footprint * base_footprint->px4_odom
+        # 
+
         try:
-            # 计算 world->px4_odom 的变换
-            # world->px4_odom = world->base_footprint * base_footprint->px4_odom
-            # 
+            # world_to_px4 = self.tf_buffer.lookup_transform(
+            #     'world',
+            #     self.namespace.lstrip('/') + 'px4_odom_body',
+            #     rclpy.time.Time(),
+            #     timeout=rclpy.duration.Duration(seconds=2.0)
+            # )
+            world_to_base = self.tf_buffer.lookup_transform(
+                'world',
+                base_footprint_frame,
+                px4_time,
+                timeout=rclpy.duration.Duration(seconds=0.5)
+            )
 
-            try:
-                # world_to_px4 = self.tf_buffer.lookup_transform(
-                #     'world',
-                #     self.namespace.lstrip('/') + 'px4_odom_body',
-                #     rclpy.time.Time(),
-                #     timeout=rclpy.duration.Duration(seconds=2.0)
-                # )
-                world_to_base = self.tf_buffer.lookup_transform(
-                    'world',
-                    base_footprint_frame,
-                    rclpy.time.Time(),
-                    timeout=rclpy.duration.Duration(seconds=5.0)
-                )
+            world_to_px4 = self.multiply_transforms(world_to_base, t)
+            # 设置静态 tf 的属性
+            world_to_px4.header.stamp = px4_header_time
+            world_to_px4.header.frame_id = 'world'
+            world_to_px4.child_frame_id = px4_odom_frame
 
-                world_to_px4 = self.multiply_transforms(world_to_base, t)
-                # 设置静态 tf 的属性
-                world_to_px4.header.stamp = self.get_clock().now().to_msg()
-                world_to_px4.header.frame_id = 'world'
-                world_to_px4.child_frame_id = px4_odom_frame
-
-                # 使用 StaticTransformBroadcaster 发布静态 tf
-                self.static_tf_broadcaster.sendTransform(world_to_px4)
-                # self.get_logger().info(f'Published static TF: world -> {px4_odom_frame}')
-            except Exception as e:
-                self.get_logger().warning(f'Failed to read tf for {px4_odom_frame}: {e}')
-            
-            
-            
+            # 使用 StaticTransformBroadcaster 发布静态 tf
+            self.static_tf_broadcaster.sendTransform(world_to_px4)
+            # self.get_logger().info(f'Published static TF: world -> {px4_odom_frame}')
         except Exception as e:
-            self.get_logger().warning(f'Failed to publish static TF world->px4_odom: {e}')
+            self.get_logger().warning(f'Failed to publish tf for {px4_odom_frame}: {e}')
         
         self.callback_stats['px4_odom_callback']['count'] += 1
         self.callback_stats['px4_odom_callback']['total_time'] += time.time() - start_time
