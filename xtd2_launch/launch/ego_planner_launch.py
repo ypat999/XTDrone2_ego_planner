@@ -84,8 +84,7 @@ def generate_launch_description():
             ('planning/broadcast_bspline_from_planner', '/broadcast_bspline'),
             ('planning/broadcast_bspline_to_planner', '/broadcast_bspline'),
 
-            ('/move_base_simple/goal', '/goal_pose_3d'),  # RVIZ目标点话题
-            # ('goal_point', '/goal_pose_3d'),
+            # ('/move_base_simple/goal', '/goal_pose_3d'),  # 不再直接映射, 由communication在offboard就绪后转发
         ],
         parameters=[
             # 基本参数

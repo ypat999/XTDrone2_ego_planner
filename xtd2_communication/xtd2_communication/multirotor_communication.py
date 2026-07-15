@@ -14,6 +14,7 @@ from rclpy.node import Node
 import time
 
 from std_msgs.msg import String
+from std_msgs.msg import Empty
 from geometry_msgs.msg import Pose, Twist, PoseStamped, PoseWithCovarianceStamped
 from px4_msgs.msg import TrajectorySetpoint, OffboardControlMode, VehicleCommand, VehicleLocalPosition, VehicleGlobalPosition, VehicleAttitudeSetpoint, VehicleStatus, VehicleOdometry
 from quadrotor_msgs.msg import PositionCommand
@@ -104,6 +105,8 @@ class MultirotorCommunication(Node):
         self.vehicle_status = None
         self.auto_switch_enabled = False
         self.last_goal_marker_time = None
+        self.cached_goal_pose = None  # 缓存最新goal，起飞期间外部持续刷新
+        self.goal_marker_pub = None  # 转发goal给planner的发布器，在__init__中创建
         self.was_flying = False  # 记录之前是否在飞行状态
         self.landed_time = None  # 记录落地时间
         self.auto_switch_completed = False  # 记录自动切换是否已完成
@@ -167,6 +170,10 @@ class MultirotorCommunication(Node):
         print(f"Allow Arm: {self.allowarm}")
         if self.allowarm:
             self.create_subscription(PoseStamped, '/goal_pose_3d', self.goal_marker_callback, 10)
+            # 创建转发goal给planner的发布器，offboard就绪后才转发，避免轨迹时间戳过期
+            self.goal_marker_pub = self.create_publisher(PoseStamped, '/move_base_simple/goal', 10)
+            # 创建停止规划发布器，disarm或退出offboard时通知planner和traj_server停止
+            self.stop_planning_pub = self.create_publisher(Empty, '/stop_planning', 1)
         
         # PCL pose subscription for arm safety check
         self.pcl_pose_received = False
@@ -613,9 +620,11 @@ class MultirotorCommunication(Node):
             self.get_logger().error(f'Error converting to PX4 visual odometry: {str(e)}')
 
     def goal_marker_callback(self, msg):
-        """处理目标点标记，触发自动状态切换"""
+        """处理目标点标记，触发自动状态切换，并缓存最新goal"""
         start_time = time.time()
         self.last_goal_marker_time = self.get_clock().now()
+        # 始终刷新缓存的goal，外部调度系统可能高频发送
+        self.cached_goal_pose = msg
         
         # 只有在自动切换未完成或无人机已落地的情况下才重新启动切换流程
         if not self.auto_switch_enabled and not self.auto_switch_completed:
@@ -1031,6 +1040,7 @@ class MultirotorCommunication(Node):
             response.success = True
         elif command == "DISARM":
             self.disarm()
+            self._publish_stop_planning()
             response.success = True
         elif command == "HOVER":
             self.hover()
@@ -1243,6 +1253,25 @@ class MultirotorCommunication(Node):
             self.get_logger().info('无人机已准备就绪，可以接收egoplanner控制指令')
             self.auto_switch_enabled = False  # 重置标志
             self.auto_switch_completed = True  # 设置完成标志
+            # offboard切换完成，转发缓存的最新goal触发planner规划
+            self._forward_cached_goal()
+
+    def _forward_cached_goal(self):
+        """将缓存的goal转发给ego-planner，在offboard就绪后调用"""
+        if self.cached_goal_pose is not None and self.goal_marker_pub is not None:
+            self.get_logger().info(
+                f'Offboard就绪，转发goal给planner: ({self.cached_goal_pose.pose.position.x:.2f}, '
+                f'{self.cached_goal_pose.pose.position.y:.2f}, {self.cached_goal_pose.pose.position.z:.2f})'
+            )
+            self.goal_marker_pub.publish(self.cached_goal_pose)
+        else:
+            self.get_logger().warn('Offboard就绪但没有缓存的goal，无法触发规划')
+
+    def _publish_stop_planning(self):
+        """通知planner和traj_server停止规划/发送轨迹，让飞控接管"""
+        if hasattr(self, 'stop_planning_pub') and self.stop_planning_pub is not None:
+            self.get_logger().info('发布 /stop_planning，通知planner回到WAIT_TARGET、traj_server停止发送')
+            self.stop_planning_pub.publish(Empty())
 
     def _should_skip_command(self, cmd_type):
         """检查是否需要跳过发送指令（避免重复发送）"""
@@ -1269,6 +1298,8 @@ class MultirotorCommunication(Node):
             self.get_logger().info('自动切换完成：无人机已解锁、起飞并进入offboard模式')
             self.auto_switch_enabled = False
             self.auto_switch_completed = True
+            # offboard切换完成，转发缓存的最新goal触发planner规划
+            self._forward_cached_goal()
             return
         
         # 如果超过30秒仍未完成切换，重置状态
@@ -1318,6 +1349,7 @@ class MultirotorCommunication(Node):
                 if self.OFFBOARD_STATE != "DISABLED":
                     self.get_logger().info('PX4进入降落模式(nav_state=18)，停止offboard控制输出')
                     self.OFFBOARD_STATE = "DISABLED"
+                    self._publish_stop_planning()
                 
                 self.get_logger().info(f'检测到无人机降落，nav_state={nav_state}, 高度={current_altitude:.2f}m')
                 self.landed_time = self.get_clock().now()
@@ -1375,6 +1407,7 @@ class MultirotorCommunication(Node):
         # 关闭offboard心跳
         self.OFFBOARD_STATE = "DISABLED"
         self.get_logger().info('已关闭offboard模式，进入降落')
+        self._publish_stop_planning()
 
 
 def str_to_bool(value):
