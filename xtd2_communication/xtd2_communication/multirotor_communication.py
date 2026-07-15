@@ -1280,7 +1280,7 @@ class MultirotorCommunication(Node):
                 return
         
         # 使用0.2秒检查间隔（定时器已经是20Hz/0.05s）
-        check_interval = 0.2
+        check_interval = 1.0
         if hasattr(self, '_last_check_time'):
             elapsed = (self.get_clock().now() - self._last_check_time).nanoseconds / 1e9
             if elapsed < check_interval:
