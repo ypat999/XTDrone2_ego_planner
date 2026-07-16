@@ -349,10 +349,16 @@ class MultirotorCommunication(Node):
         if (old_nav_state == 14 and msg.nav_state not in (14, 17, 18)
                 and self.OFFBOARD_STATE != "DISABLED"):
             if getattr(msg, 'failsafe', False):
-                # PX4 failsafe 触发（如导航失效），保持offboard心跳让飞控能自动恢复
+                # PX4 failsafe：发送零速刹车 + 停止规划，保持心跳等恢复
                 self.get_logger().warn(
-                    f'PX4 failsafe触发: nav_state {old_nav_state}->{msg.nav_state}，保持offboard心跳等待恢复'
+                    f'PX4 failsafe触发: nav_state {old_nav_state}->{msg.nav_state}，发送零速刹车并停止规划'
                 )
+                if self.OFFBOARD_STATE not in ("VEL_FLU", "DISABLED"):
+                    self.OFFBOARD_STATE = "VEL_FLU"
+                    self.cmd = Twist()  # 零速
+                    self.emergency_brake_active = True
+                    self.emergency_brake_start_time = self.get_clock().now()
+                self._publish_stop_planning()
             elif self.odom_jump_position_mode:
                 self.odom_jump_position_mode = False
                 self.get_logger().info(
@@ -366,11 +372,17 @@ class MultirotorCommunication(Node):
                 self.manual_offboard_exit = True
                 self._publish_stop_planning()
         
-        # 人工介入后又切回offboard，恢复offboard心跳（planner已停在WAIT_TARGET，等新goal）
-        if (msg.nav_state == 14 and self.manual_offboard_exit
-                and self.OFFBOARD_STATE == "DISABLED"):
-            self.get_logger().info('检测到人工切回offboard模式，恢复控制能力，等待新目标点')
-            self.manual_offboard_exit = False
+        # 人工介入后又切回offboard，或failsafe恢复
+        if msg.nav_state == 14 and self.OFFBOARD_STATE == "DISABLED":
+            if self.manual_offboard_exit:
+                self.get_logger().info('检测到人工切回offboard模式，恢复控制能力，等待新目标点')
+                self.manual_offboard_exit = False
+                self.OFFBOARD_STATE = "ENABLED"
+        elif msg.nav_state == 14 and self.emergency_brake_active:
+            # failsafe恢复，刹车期间飞控切回offboard，停止刹车恢复心跳
+            self.get_logger().info('failsafe恢复，停止急刹车，恢复offboard心跳等待新目标')
+            self.emergency_brake_active = False
+            self.emergency_brake_start_time = None
             self.OFFBOARD_STATE = "ENABLED"
         
         self.callback_stats['vehicle_status_callback']['count'] += 1
