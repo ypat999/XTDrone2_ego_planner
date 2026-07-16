@@ -328,6 +328,13 @@ class MultirotorCommunication(Node):
                 self.manual_offboard_exit = True  # 阻断后续goal，直到落地重置
                 self._publish_stop_planning()
         
+        # 人工介入后又切回offboard，恢复offboard心跳（planner已停在WAIT_TARGET，等新goal）
+        if (msg.nav_state == 14 and self.manual_offboard_exit
+                and self.OFFBOARD_STATE == "DISABLED"):
+            self.get_logger().info('检测到人工切回offboard模式，恢复控制能力，等待新目标点')
+            self.manual_offboard_exit = False
+            self.OFFBOARD_STATE = "ENABLED"
+        
         self.callback_stats['vehicle_status_callback']['count'] += 1
         self.callback_stats['vehicle_status_callback']['total_time'] += time.time() - start_time
 
