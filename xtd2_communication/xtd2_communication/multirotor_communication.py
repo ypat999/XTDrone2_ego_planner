@@ -381,8 +381,11 @@ class MultirotorCommunication(Node):
                 # 更新上一次有效位置
                 self.last_valid_enu_position = enu_position.copy()
                 
-                # 切换到POSITION模式 (mode 3)
+                # 切换到POSITION模式 (mode 3)，同时关闭offboard避免冲突
                 self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 3)
+                if self.OFFBOARD_STATE != "DISABLED":
+                    self.OFFBOARD_STATE = "DISABLED"
+                    self._publish_stop_planning()
                 
                 # 更新统计信息并返回，跳过本次处理
                 self.callback_stats['px4_odom_callback']['count'] += 1
@@ -634,6 +637,17 @@ class MultirotorCommunication(Node):
         self.last_goal_marker_time = self.get_clock().now()
         # 始终刷新缓存的goal，外部调度系统可能高频发送
         self.cached_goal_pose = msg
+
+        # 非offboard模式（人工介入position等）不转发目标点也不触发切换
+        if self.vehicle_status is not None and self.vehicle_status.nav_state != 14:
+            # on-ground restart: 已落地未解锁时允许重新启动切换
+            if not (self.get_current_altitude() <= 0.3 and self.vehicle_status.arming_state != 2):
+                self.get_logger().debug(
+                    f'非offboard模式(nav_state={self.vehicle_status.nav_state})，拦截目标点'
+                )
+                self.callback_stats['goal_marker_callback']['count'] += 1
+                self.callback_stats['goal_marker_callback']['total_time'] += time.time() - start_time
+                return
         
         # 只有在自动切换未完成或无人机已落地的情况下才重新启动切换流程
         if not self.auto_switch_enabled and not self.auto_switch_completed:
