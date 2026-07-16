@@ -247,10 +247,12 @@ class MultirotorCommunication(Node):
             if self.emergency_brake_start_time is not None:
                 elapsed = (self.get_clock().now() - self.emergency_brake_start_time).nanoseconds / 1e9
                 if elapsed > 1.0:
-                    self.get_logger().info('急刹车完成，切换到POSITION模式')
+                    self.get_logger().info('急刹车完成，切换到POSITION模式，重置自动切换等待新goal恢复')
                     self.emergency_brake_active = False
                     self.emergency_brake_start_time = None
                     self.OFFBOARD_STATE = "DISABLED"
+                    self.auto_switch_completed = False  # 允许新goal触发auto-switch恢复offboard
+                    self.auto_switch_enabled = False
                     self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 3)
                     self._publish_stop_planning()
             self.callback_stats['timer_callback']['count'] += 1
