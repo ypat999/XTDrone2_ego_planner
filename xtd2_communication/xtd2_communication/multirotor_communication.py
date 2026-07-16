@@ -308,6 +308,15 @@ class MultirotorCommunication(Node):
                 f'延迟: {time.time()-start_time:.3f}s'
             )
         
+        # 检测退出 offboard 模式（QGC切position等），停止控制输出
+        if (old_nav_state == 14 and msg.nav_state not in (14, 17, 18)
+                and self.OFFBOARD_STATE != "DISABLED"):
+            self.get_logger().info(
+                f'PX4退出offboard模式: nav_state {old_nav_state}->{msg.nav_state}，停止控制输出'
+            )
+            self.OFFBOARD_STATE = "DISABLED"
+            self._publish_stop_planning()
+        
         self.callback_stats['vehicle_status_callback']['count'] += 1
         self.callback_stats['vehicle_status_callback']['total_time'] += time.time() - start_time
 
