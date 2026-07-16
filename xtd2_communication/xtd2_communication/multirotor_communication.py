@@ -112,6 +112,8 @@ class MultirotorCommunication(Node):
         self.auto_switch_completed = False  # 记录自动切换是否已完成
         self.odom_jump_position_mode = False  # 标记紧急切换是否为odom跳变触发（临时保护，非人工介入）
         self.manual_offboard_exit = False   # 人工介入退出offboard，阻断goal直到落地
+        self.emergency_brake_active = False  # 急刹车中，timer_callback负责维持零速
+        self.emergency_brake_start_time = None  # 急刹车开始时刻
         self.last_px4_odom_time = 0.0  # 上次 px4_odom_callback 调用时间
         self.last_ros2_odom_time = 0.0  # 上次 ros2_odom_callback 调用时间
         self.odom_callback_min_interval = 0.1  # 最小调用间隔 (秒)
@@ -222,6 +224,39 @@ class MultirotorCommunication(Node):
     
     def timer_callback(self):
         start_time = time.time()
+
+        # 急刹车状态：维持零速指令，到期后切position模式
+        if self.emergency_brake_active:
+            msg = OffboardControlMode()
+            msg.timestamp = self.get_clock_microseconds()
+            msg.velocity = True
+            self.offboard_control_mode_pub.publish(msg)
+            if isinstance(self.cmd, Twist):
+                self.cmd.linear.x = 0.0
+                self.cmd.linear.y = 0.0
+                self.cmd.linear.z = 0.0
+                self.cmd.angular.x = 0.0
+                self.cmd.angular.y = 0.0
+                self.cmd.angular.z = 0.0
+            # PX4 trajectory_setpoint 用 velocity fields
+            cmd = TrajectorySetpoint()
+            cmd.timestamp = self.get_clock_microseconds()
+            cmd.velocity = [0.0, 0.0, 0.0]
+            self.dds_trajectory_setpoint_pub.publish(cmd)
+
+            if self.emergency_brake_start_time is not None:
+                elapsed = (self.get_clock().now() - self.emergency_brake_start_time).nanoseconds / 1e9
+                if elapsed > 1.0:
+                    self.get_logger().info('急刹车完成，切换到POSITION模式')
+                    self.emergency_brake_active = False
+                    self.emergency_brake_start_time = None
+                    self.OFFBOARD_STATE = "DISABLED"
+                    self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 3)
+                    self._publish_stop_planning()
+            self.callback_stats['timer_callback']['count'] += 1
+            self.callback_stats['timer_callback']['total_time'] += time.time() - start_time
+            return
+
         # 检查自动切换状态
         if self.auto_switch_enabled:
             self.check_auto_switch_progress()
@@ -397,16 +432,22 @@ class MultirotorCommunication(Node):
                     f'检测到位置跳变！差异: {position_diff:.2f}m > 阈值: {MAX_POSITION_DIFF}m | '
                     f'上次ENU位置: ({self.last_valid_enu_position[0]:.2f}, {self.last_valid_enu_position[1]:.2f}, {self.last_valid_enu_position[2]:.2f}) | '
                     f'新ENU位置: ({enu_position[0]:.2f}, {enu_position[1]:.2f}, {enu_position[2]:.2f}) | '
-                    f'立即切换到POSITION模式以确保安全'
+                    f'立即发送零速指令刹车...'
                 )
-                # 更新上一次有效位置
                 self.last_valid_enu_position = enu_position.copy()
-                
-                # 切换到POSITION模式 (mode 3)，同时关闭offboard避免冲突
-                self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 3)
-                self.odom_jump_position_mode = True  # 标记为odom跳变触发，非人工介入
+                self.odom_jump_position_mode = True
+
                 if self.OFFBOARD_STATE != "DISABLED":
-                    self.OFFBOARD_STATE = "DISABLED"
+                    # 仍在offboard控制中：发送零速指令主动刹车1秒后再切position
+                    self.OFFBOARD_STATE = "VEL_FLU"
+                    self.cmd = Twist()  # 零速
+                    self.emergency_brake_active = True
+                    self.emergency_brake_start_time = self.get_clock().now()
+                else:
+                    # 已脱离offboard：直接切position
+                    self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 3)
+                    if self.OFFBOARD_STATE != "DISABLED":
+                        self.OFFBOARD_STATE = "DISABLED"
                     self._publish_stop_planning()
                 
                 # 更新统计信息并返回，跳过本次处理
