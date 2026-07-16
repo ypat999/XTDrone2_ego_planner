@@ -648,7 +648,8 @@ class MultirotorCommunication(Node):
                     self.auto_switch_completed = False
                     self.auto_switch_to_egoplanner()
                 else:
-                    self.get_logger().debug('收到目标点标记，但无人机仍在飞行状态，不做状态变换')
+                    # offboard已就绪，直接转发goal给planner
+                    self._forward_cached_goal()
             else:
                 self.get_logger().warn('收到目标点标记，但无法获取无人机状态，不做状态变换')
         self.callback_stats['goal_marker_callback']['count'] += 1
