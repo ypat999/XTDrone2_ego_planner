@@ -310,22 +310,25 @@ class MultirotorCommunication(Node):
                 f'延迟: {time.time()-start_time:.3f}s'
             )
         
-        # 检测退出 offboard 模式，区分临时保护(odom跳变)和人工介入(QGC)
+        # 检测退出 offboard 模式，区分临时保护(odom跳变)、failsafe和人工介入(QGC)
         if (old_nav_state == 14 and msg.nav_state not in (14, 17, 18)
                 and self.OFFBOARD_STATE != "DISABLED"):
-            if self.odom_jump_position_mode:
-                # odom跳变触发的临时保护，不阻断后续goal触发的auto-switch
+            if getattr(msg, 'failsafe', False):
+                # PX4 failsafe 触发（如导航失效），保持offboard心跳让飞控能自动恢复
+                self.get_logger().warn(
+                    f'PX4 failsafe触发: nav_state {old_nav_state}->{msg.nav_state}，保持offboard心跳等待恢复'
+                )
+            elif self.odom_jump_position_mode:
                 self.odom_jump_position_mode = False
                 self.get_logger().info(
                     f'PX4临时position模式(odom跳变保护): nav_state {old_nav_state}->{msg.nav_state}'
                 )
             else:
-                # 人工介入(QGC切position等)，永久停止offboard控制
                 self.get_logger().info(
                     f'PX4退出offboard模式(人工介入): nav_state {old_nav_state}->{msg.nav_state}，停止控制输出'
                 )
                 self.OFFBOARD_STATE = "DISABLED"
-                self.manual_offboard_exit = True  # 阻断后续goal，直到落地重置
+                self.manual_offboard_exit = True
                 self._publish_stop_planning()
         
         # 人工介入后又切回offboard，恢复offboard心跳（planner已停在WAIT_TARGET，等新goal）
