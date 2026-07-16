@@ -251,6 +251,7 @@ class MultirotorCommunication(Node):
                     self.emergency_brake_active = False
                     self.emergency_brake_start_time = None
                     self.OFFBOARD_STATE = "DISABLED"
+                    self.cmd = None  # 清除Twist，避免后续auto-switch崩溃
                     self.auto_switch_completed = False  # 允许新goal触发auto-switch恢复offboard
                     self.auto_switch_enabled = False
                     self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 3)
@@ -274,7 +275,7 @@ class MultirotorCommunication(Node):
             # 设置至少一个控制模式为True，否则PX4会拒绝offboard模式
             msg.position = True  # 设置为位置控制模式
             self.offboard_control_mode_pub.publish(msg)
-            if self.cmd:
+            if self.cmd and not isinstance(self.cmd, Twist):
                 self.cmd.timestamp = self.get_clock_microseconds()
                 self.dds_trajectory_setpoint_pub.publish(self.cmd)
             self.callback_stats['timer_callback']['count'] += 1
