@@ -110,6 +110,8 @@ class MultirotorCommunication(Node):
         self.was_flying = False  # 记录之前是否在飞行状态
         self.landed_time = None  # 记录落地时间
         self.auto_switch_completed = False  # 记录自动切换是否已完成
+        self.odom_jump_position_mode = False  # 标记紧急切换是否为odom跳变触发（临时保护，非人工介入）
+        self.manual_offboard_exit = False   # 人工介入退出offboard，阻断goal直到落地
         self.last_px4_odom_time = 0.0  # 上次 px4_odom_callback 调用时间
         self.last_ros2_odom_time = 0.0  # 上次 ros2_odom_callback 调用时间
         self.odom_callback_min_interval = 0.1  # 最小调用间隔 (秒)
@@ -308,14 +310,23 @@ class MultirotorCommunication(Node):
                 f'延迟: {time.time()-start_time:.3f}s'
             )
         
-        # 检测退出 offboard 模式（QGC切position等），停止控制输出
+        # 检测退出 offboard 模式，区分临时保护(odom跳变)和人工介入(QGC)
         if (old_nav_state == 14 and msg.nav_state not in (14, 17, 18)
                 and self.OFFBOARD_STATE != "DISABLED"):
-            self.get_logger().info(
-                f'PX4退出offboard模式: nav_state {old_nav_state}->{msg.nav_state}，停止控制输出'
-            )
-            self.OFFBOARD_STATE = "DISABLED"
-            self._publish_stop_planning()
+            if self.odom_jump_position_mode:
+                # odom跳变触发的临时保护，不阻断后续goal触发的auto-switch
+                self.odom_jump_position_mode = False
+                self.get_logger().info(
+                    f'PX4临时position模式(odom跳变保护): nav_state {old_nav_state}->{msg.nav_state}'
+                )
+            else:
+                # 人工介入(QGC切position等)，永久停止offboard控制
+                self.get_logger().info(
+                    f'PX4退出offboard模式(人工介入): nav_state {old_nav_state}->{msg.nav_state}，停止控制输出'
+                )
+                self.OFFBOARD_STATE = "DISABLED"
+                self.manual_offboard_exit = True  # 阻断后续goal，直到落地重置
+                self._publish_stop_planning()
         
         self.callback_stats['vehicle_status_callback']['count'] += 1
         self.callback_stats['vehicle_status_callback']['total_time'] += time.time() - start_time
@@ -383,6 +394,7 @@ class MultirotorCommunication(Node):
                 
                 # 切换到POSITION模式 (mode 3)，同时关闭offboard避免冲突
                 self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 3)
+                self.odom_jump_position_mode = True  # 标记为odom跳变触发，非人工介入
                 if self.OFFBOARD_STATE != "DISABLED":
                     self.OFFBOARD_STATE = "DISABLED"
                     self._publish_stop_planning()
@@ -638,16 +650,12 @@ class MultirotorCommunication(Node):
         # 始终刷新缓存的goal，外部调度系统可能高频发送
         self.cached_goal_pose = msg
 
-        # 非offboard模式（人工介入position等）不转发目标点也不触发切换
-        if self.vehicle_status is not None and self.vehicle_status.nav_state != 14:
-            # on-ground restart: 已落地未解锁时允许重新启动切换
-            if not (self.get_current_altitude() <= 0.3 and self.vehicle_status.arming_state != 2):
-                self.get_logger().debug(
-                    f'非offboard模式(nav_state={self.vehicle_status.nav_state})，拦截目标点'
-                )
-                self.callback_stats['goal_marker_callback']['count'] += 1
-                self.callback_stats['goal_marker_callback']['total_time'] += time.time() - start_time
-                return
+        # 人工介入退出offboard（QGC切position），阻断目标点直到落地
+        if self.manual_offboard_exit:
+            self.get_logger().debug('人工介入模式，拦截目标点')
+            self.callback_stats['goal_marker_callback']['count'] += 1
+            self.callback_stats['goal_marker_callback']['total_time'] += time.time() - start_time
+            return
         
         # 只有在自动切换未完成或无人机已落地的情况下才重新启动切换流程
         if not self.auto_switch_enabled and not self.auto_switch_completed:
@@ -1402,6 +1410,7 @@ class MultirotorCommunication(Node):
                 self.get_logger().info(f'无人机在降落状态(nav_state={nav_state})且已解除arm，重置自动切换状态，等待新目标点')
                 self.auto_switch_completed = False
                 self.auto_switch_enabled = False
+                self.manual_offboard_exit = False  # 落地后重置手动offboard退出标记
         
         # 更新飞行状态记录
         if is_flying:
