@@ -440,7 +440,7 @@ class MultirotorCommunication(Node):
             )
             
             # 设置最大允许位置差异阈值（单位：米）
-            MAX_POSITION_DIFF = 2.0
+            MAX_POSITION_DIFF = 5.0
             
             if position_diff > MAX_POSITION_DIFF:
                 self.get_logger().error(

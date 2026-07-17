@@ -5,11 +5,15 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
+        - /TF1
         - /TF1/Frames1
+        - /TF1/Frames1/px4_odom_body1
+        - /TF1/Frames1/px4_odom1
         - /TF1/Tree1
-        - /PointCloud2_lio1
         - /PointCloud2_lio1/Topic1
         - /PointCloud2_inflate1/Topic1
+        - /Odometry1
+        - /Odometry1/Shape1
         - /PointCloud2_map1/Topic1
       Splitter Ratio: 0.5799999833106995
     Tree Height: 824
@@ -56,7 +60,7 @@ Visualization Manager:
       Enabled: true
       Frame Timeout: 15
       Frames:
-        All Enabled: true
+        All Enabled: false
         base_footprint:
           Value: true
         base_link:
@@ -64,10 +68,14 @@ Visualization Manager:
         imu:
           Value: true
         livox_frame:
-          Value: true
+          Value: false
         map:
           Value: true
         odom:
+          Value: false
+        px4_odom:
+          Value: true
+        px4_odom_body:
           Value: true
         world:
           Value: true
@@ -81,11 +89,14 @@ Visualization Manager:
           odom:
             world:
               base_footprint:
-                {}
+                px4_odom_body:
+                  {}
               imu:
                 livox_frame:
                   base_link:
                     {}
+              px4_odom:
+                {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -103,7 +114,7 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 150
+      Max Intensity: 156
       Min Color: 0; 0; 0
       Min Intensity: 0
       Name: PointCloud2_lio
@@ -125,7 +136,7 @@ Visualization Manager:
     - Alpha: 0.20000000298023224
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 2.4000000953674316
+        Max Value: 2.200000047683716
         Min Value: -1.399999976158142
         Value: true
       Axis: Z
@@ -160,7 +171,7 @@ Visualization Manager:
       Enabled: true
       Name: Marker_ego_traj
       Namespaces:
-        {}
+        "": true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -171,13 +182,13 @@ Visualization Manager:
       Value: true
     - Class: rviz_default_plugins/InteractiveMarkers
       Enable Transparency: true
-      Enabled: false
+      Enabled: true
       Interactive Markers Namespace: /goal_marker
       Name: InteractiveMarkers
       Show Axes: false
       Show Descriptions: true
       Show Visual Aids: false
-      Value: false
+      Value: true
     - Alpha: 1
       Axes Length: 1
       Axes Radius: 0.10000000149011612
@@ -216,32 +227,32 @@ Visualization Manager:
           Value: true
         Value: true
       Enabled: false
-      Keep: 100
+      Keep: 1
       Name: Odometry
       Position Tolerance: 0.10000000149011612
       Shape:
         Alpha: 1
         Axes Length: 1
         Axes Radius: 0.10000000149011612
-        Color: 255; 25; 0
+        Color: 246; 211; 45
         Head Length: 0.30000001192092896
         Head Radius: 0.10000000149011612
         Shaft Length: 1
         Shaft Radius: 0.05000000074505806
-        Value: Arrow
+        Value: Axes
       Topic:
         Depth: 5
         Durability Policy: Volatile
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /lio/odom
+        Value: /lio/robo/odom
       Value: false
-    - Alpha: 0.10000000149011612
+    - Alpha: 0.20000000298023224
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 3.8128268718719482
-        Min Value: -0.09895527362823486
+        Max Value: 19.31304931640625
+        Min Value: -0.16980481147766113
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -329,7 +340,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: world
+    Fixed Frame: map
     Frame Rate: 30
   Name: root
   Tools:
@@ -372,25 +383,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 15.58854866027832
+      Distance: 31.440683364868164
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -1.0188910961151123
-        Y: -0.08300605416297913
-        Z: -0.9943270087242126
+        X: 1.408979892730713
+        Y: -1.6832000017166138
+        Z: 2.3977417945861816
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8632462024688721
+      Pitch: 0.09479702264070511
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 0.6759845614433289
+      Yaw: 1.883650779724121
     Saved: ~
 Window Geometry:
   Displays:
