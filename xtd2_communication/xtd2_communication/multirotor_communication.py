@@ -1422,65 +1422,70 @@ class MultirotorCommunication(Node):
         self.auto_switch_to_egoplanner()
 
     def check_landing_and_disarm(self):
-        """检查无人机是否落地，并在确认落地后自动解除arm"""
+        """检查无人机是否落地，确认触地后disarm
+        
+        核心原则：
+        1. 基于高度<=0.3m判断触地（不依赖PX4的nav_state=18，避免过早LAND导致yaw旋转）
+        2. 降落全程不停offboard，不停ego控制
+        3. 确认触地稳定后发disarm，由PX4停桨
+        """
         if self.vehicle_status is None:
             return
         
-        # 获取当前高度（优先使用 LIO odometry）
         current_altitude = self.get_current_altitude()
         is_armed = self.vehicle_status.arming_state == 2
         nav_state = self.vehicle_status.nav_state
         
-        # 使用PX4 nav_state判断飞行状态
-        # nav_state=14表示offboard模式（飞行状态）
-        # nav_state=18表示降落状态
-        # 使用高度和nav_state综合判断是否在飞行状态
         is_offboard = nav_state == 14
         is_landing = nav_state == 18
-        is_flying = is_offboard and current_altitude > 0.3  # 在offboard模式且高度超过0.3米认为在飞行
+        is_flying = is_offboard and current_altitude > 0.3
         
-        # 检测状态变化：从飞行状态变为降落状态
-        if self.was_flying and is_landing and is_armed:
-            # 首次检测到降落，停止offboard控制并切换到降落模式
-            if self.landed_time is None:
-                # 检测到进入降落模式，停止offboard控制输出
-                if self.OFFBOARD_STATE != "DISABLED":
-                    self.get_logger().info('PX4进入降落模式(nav_state=18)，停止offboard控制输出')
-                    self.OFFBOARD_STATE = "DISABLED"
-                    self._publish_stop_planning()
-                
-                self.get_logger().info(f'检测到无人机降落，nav_state={nav_state}, 高度={current_altitude:.2f}m')
-                self.landed_time = self.get_clock().now()
-            else:
-                # 检查降落确认时间（3秒）
-                elapsed_time = (self.get_clock().now() - self.landed_time).nanoseconds / 1e9
-                if elapsed_time >= 3.0:
-                    self.get_logger().info('等待确认无人机降落，发送解除arm...')
-                    self.disarm()
-                    self.get_logger().info(f'检测到无人机降落，nav_state={nav_state}，切换降落模式...')
-                    self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 21)
-                    self.landed_time = None
-        elif is_flying:
-            # 无人机在飞行状态，重置降落计时器
+        # === 处理PX4过早进入LAND模式 ===
+        # PX4可能在offboard下降过程中(~0.26m)自动进入LAND模式，
+        # 强制切回offboard继续下降（全程不停offboard）
+        if is_armed and is_landing and current_altitude > 0.1:
+            self.get_logger().info(
+                f'PX4过早进入LAND模式(nav_state=18, 高度={current_altitude:.2f}m)，切回offboard继续下降'
+            )
+            self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 6)
+            return
+        
+        # === 检测触地：offboard模式下高度<=0.3m ===
+        # 不依赖nav_state=18，基于实际高度判断
+        is_touching_ground = is_offboard and current_altitude <= 0.3 and is_armed
+        
+        if is_flying:
             self.landed_time = None
             self.was_flying = True
+        elif self.was_flying and is_touching_ground:
+            if self.landed_time is None:
+                self.get_logger().info(f'检测到无人机触地，高度={current_altitude:.2f}m，等待稳定确认...')
+                self.landed_time = self.get_clock().now()
+            else:
+                elapsed_time = (self.get_clock().now() - self.landed_time).nanoseconds / 1e9
+                if elapsed_time >= 2.0:
+                    self.get_logger().info('确认无人机已停稳在地面，发送disarm...')
+                    self.disarm()
+                    self.landed_time = None
+        elif not is_touching_ground and self.landed_time is not None:
+            self.get_logger().warn(f'触地后高度回升至{current_altitude:.2f}m，重置触地检测')
+            self.landed_time = None
 
-        elif self.was_flying and not is_armed:
-            # 在降落状态且已解除arm，也重置状态
+        # === disarm确认后重置状态（不停offboard，不停ego控制） ===
+        if self.was_flying and not is_armed:
             self.landed_time = None
             self.was_flying = False
-            # 重置自动切换完成标志，允许下次收到goal marker时重新启动
+            
             self.get_logger().info(f'无人机降落完成，nav_state={nav_state}, 高度={current_altitude:.2f}m，切换到position模式...')
             self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 3)
             if self.auto_switch_completed:
-                self.get_logger().info(f'无人机在降落状态(nav_state={nav_state})且已解除arm，重置自动切换状态，等待新目标点')
+                self.get_logger().info(f'无人机已解除arm，重置自动切换状态，等待新目标点')
                 self.auto_switch_completed = False
                 self.auto_switch_enabled = False
-                self.manual_offboard_exit = False  # 落地后重置手动offboard退出标记
+                self.manual_offboard_exit = False
         
-        # 更新飞行状态记录
         if is_flying:
-            self.was_flying = is_flying
+            self.was_flying = True
     
     def trigger_landing(self):
         """触发无人机降落"""
