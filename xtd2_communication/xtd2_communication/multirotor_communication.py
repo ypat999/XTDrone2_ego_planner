@@ -1220,10 +1220,10 @@ class MultirotorCommunication(Node):
         # | Longitude
         # | Altitude|
         # 无GPS时使用float('nan')，PX4会在当前位置降落
-        heading = self.cur_vehicle_local_position.heading if self.cur_vehicle_local_position is not None else float('nan')
-        lat = self.cur_vehicle_global_position.lat if self.cur_vehicle_global_position is not None else float('nan')
-        lon = self.cur_vehicle_global_position.lon if self.cur_vehicle_global_position is not None else float('nan')
-        self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_NAV_LAND, param4=heading, param5=lat, param6=lon, param7=0.0)
+        heading = float('nan')
+        lat = float('nan')
+        lon = float('nan')
+        self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_NAV_LAND, param7=0.0)
         self.get_logger().info("Land command send.")
     
     def rtl(self):
