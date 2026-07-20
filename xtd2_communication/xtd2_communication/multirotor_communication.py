@@ -1154,6 +1154,8 @@ class MultirotorCommunication(Node):
             response.success = True
         elif command == "LAND":
             self.land()
+            self.OFFBOARD_STATE = "DISABLED"
+            self._publish_stop_planning()
             response.success = True
         elif command == "RTL":
             self.rtl()
@@ -1216,7 +1218,11 @@ class MultirotorCommunication(Node):
         # | Latitude
         # | Longitude
         # | Altitude|
-        self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_NAV_LAND, param4=self.cur_vehicle_local_position.heading, param5=self.cur_vehicle_global_position.lat, param6=self.cur_vehicle_global_position.lon, param7=0.0)
+        # 无GPS时使用float('nan')，PX4会在当前位置降落
+        heading = self.cur_vehicle_local_position.heading if self.cur_vehicle_local_position is not None else float('nan')
+        lat = self.cur_vehicle_global_position.lat if self.cur_vehicle_global_position is not None else float('nan')
+        lon = self.cur_vehicle_global_position.lon if self.cur_vehicle_global_position is not None else float('nan')
+        self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_NAV_LAND, param4=heading, param5=lat, param6=lon, param7=0.0)
         self.get_logger().info("Land command send.")
     
     def rtl(self):
@@ -1449,6 +1455,18 @@ class MultirotorCommunication(Node):
                 self.landed_time = None
                 self.land_command_time = None
             return  # LAND等待期间不做其他操作
+
+        # === PX4在Phase 1期间自行进入LAND模式 ===
+        # 触地后PX4可能自动切到nav_state=18，此时land_command_time尚未设置(Phase 1未到期)
+        # 立即stop planning + 等待disarm，防止落地后无法上锁
+        if self.landed_time is not None and self.land_command_time is None and nav_state == 18 and is_armed:
+            self.get_logger().info(
+                f'PX4在Phase 1期间进入LAND模式(nav_state=18)，立即停止规划，等待disarm...'
+            )
+            self._publish_stop_planning()
+            self.OFFBOARD_STATE = "DISABLED"
+            self.land_command_time = self.get_clock().now()
+            return
 
         # === 检测触地 ===
         is_touching_ground = is_offboard and current_altitude <= 0.3 and is_armed

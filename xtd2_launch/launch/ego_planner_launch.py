@@ -319,6 +319,7 @@ def generate_launch_description():
             {'safe_zone_descent/zone_size_y': 1.0},
             {'safe_zone_descent/zone_size_z': 1.0},
             {'safe_zone_descent/position_threshold': 0.05},
+            {'safe_zone_descent/z_offset': -0.5},
         ],
         remappings=[
             # ('position_cmd', 'position_cmd'),
