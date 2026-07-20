@@ -1156,6 +1156,7 @@ class MultirotorCommunication(Node):
             self.land()
             self.OFFBOARD_STATE = "DISABLED"
             self._publish_stop_planning()
+            self.land_command_time = self.get_clock().now()
             response.success = True
         elif command == "RTL":
             self.rtl()
@@ -1506,8 +1507,6 @@ class MultirotorCommunication(Node):
                 self.auto_switch_enabled = False
                 self.manual_offboard_exit = False
 
-        if is_flying:
-            self.was_flying = True
     
     def trigger_landing(self):
         """触发无人机降落"""
@@ -1533,6 +1532,7 @@ class MultirotorCommunication(Node):
         # 关闭offboard心跳
         self.OFFBOARD_STATE = "DISABLED"
         self.get_logger().info('已关闭offboard模式，进入降落')
+        self.land_command_time = self.get_clock().now()
         self._publish_stop_planning()
 
 
