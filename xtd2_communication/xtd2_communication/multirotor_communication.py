@@ -284,6 +284,11 @@ class MultirotorCommunication(Node):
             return
         
         if self.OFFBOARD_STATE == "DISABLED":
+            # DISABLED状态下仍要持续发送offboard heartbeat，否则PX4会报"no offboard signal"
+            msg = OffboardControlMode()
+            msg.timestamp = self.get_clock_microseconds()
+            msg.position = True
+            self.offboard_control_mode_pub.publish(msg)
             self.callback_stats['timer_callback']['count'] += 1
             self.callback_stats['timer_callback']['total_time'] += time.time() - start_time
             return
