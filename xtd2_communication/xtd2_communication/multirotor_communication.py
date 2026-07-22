@@ -120,6 +120,10 @@ class MultirotorCommunication(Node):
         self.last_ros2_odom_time = 0.0  # 上次 ros2_odom_callback 调用时间
         self.odom_callback_min_interval = 0.1  # 最小调用间隔 (秒)
         self.last_valid_enu_position = None  # 记录上一次有效的ENU位置
+        self._last_switch_progress_log_time = None  # 自动切换进度日志上次输出时间（秒，time.time）
+        self._last_switch_progress_state = None  # 上次切换进度状态 (nav_state, armed, flying)，用于检测变化
+        self.board_temperature = 0.0  # 板卡温度（摄氏度）
+        self.temperature_emergency_landing = False  # 温度触发紧急降落标记，防止重复触发
 
         # XTDrone2 Interface
         # 移除namespace前后的斜杠，避免重复
@@ -206,6 +210,9 @@ class MultirotorCommunication(Node):
         
         self.stats_start_time = time.time()
         self.stats_timer = self.create_timer(60.0, self.print_callback_stats)
+
+        # 温度监控定时器：每秒检查一次板卡温度
+        self.temperature_timer = self.create_timer(1.0, self.check_board_temperature)
 
         self.get_logger().info(f'{self.namespace} communication node started')
     
@@ -1320,7 +1327,7 @@ class MultirotorCommunication(Node):
         if self.vehicle_status is None:
             self.get_logger().warn('无法获取无人机状态，等待数据...')
             return
-        
+
         # 1. 检查是否已起飞（使用高度判断，优先使用 LIO odometry）
         current_altitude = self.get_current_altitude()
         is_flying = current_altitude > 0.3  # 高度超过0.3米认为已起飞
@@ -1336,7 +1343,21 @@ class MultirotorCommunication(Node):
 
         is_landing = self.vehicle_status.nav_state == 18  # NAVIGATION_STATE_LAND
         
-        self.get_logger().info(f'状态检查: nav_state={self.vehicle_status.nav_state}, 高度={current_altitude:.2f}m, 已起飞={is_flying}, 已解锁={is_armed}, offboard模式={is_offboard}')
+        # 检测状态是否变化，变化时取消日志抑制，立即输出
+        current_state = (self.vehicle_status.nav_state, is_armed, is_flying)
+        if current_state != getattr(self, '_last_egoplanner_state', None):
+            self._last_egoplanner_state = current_state
+            self._last_switch_progress_log_time = None  # 状态变化，允许立即输出
+
+        # 限制info级日志最多10秒输出一次，状态无变化时不刷屏
+        now = time.time()
+        _should_log_info = (self._last_switch_progress_log_time is None or
+                            now - self._last_switch_progress_log_time >= 10.0)
+        if _should_log_info:
+            self._last_switch_progress_log_time = now
+        _log = self.get_logger().info if _should_log_info else self.get_logger().debug
+
+        _log(f'状态检查: nav_state={self.vehicle_status.nav_state}, 高度={current_altitude:.2f}m, 已起飞={is_flying}, 已解锁={is_armed}, offboard模式={is_offboard}')
         
         # 执行状态切换（按照PX4安全要求：先解锁，再起飞，最后切换到offboard模式）
         # 只有在非offboard模式时才切换
@@ -1345,10 +1366,10 @@ class MultirotorCommunication(Node):
         # 已经在offboard模式，检查是否需要解锁
         if not is_armed:
             if not self._should_skip_command('arm'):
-                self.get_logger().info('无人机未解锁，执行解锁...')
+                _log('无人机未解锁，执行解锁...')
                 self.arm()
                 self._last_command_sent = {'type': 'arm', 'time': self.get_clock().now()}
-            self.get_logger().info('等待解锁完成...')
+            _log('等待解锁完成...')
             return
         
         # 已解锁，检查是否需要起飞
@@ -1357,26 +1378,26 @@ class MultirotorCommunication(Node):
         if not is_flying and not is_landing:
             if not self._should_skip_command('takeoff'):
                 if is_takeoff:
-                    self.get_logger().info('无人机处于TAKEOFF状态但未离地(nav_state=17)，重新发送起飞指令...')
+                    _log('无人机处于TAKEOFF状态但未离地(nav_state=17)，重新发送起飞指令...')
                 else:
-                    self.get_logger().info('无人机未起飞，执行起飞...')
+                    _log('无人机未起飞，执行起飞...')
                 self.takeoff()
                 self._last_command_sent = {'type': 'takeoff', 'time': self.get_clock().now()}
-            self.get_logger().info('等待起飞完成...')
+            _log('等待起飞完成...')
             return
         
         if not is_offboard and not is_landing and is_flying:
             if not self._should_skip_command('offboard'):
-                self.get_logger().info('已起飞，最后切换到offboard模式...')
+                _log('已起飞，最后切换到offboard模式...')
                 self.OFFBOARD_STATE = "ENABLED"
                 self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 6)
                 self._last_command_sent = {'type': 'offboard', 'time': self.get_clock().now()}
-                self.get_logger().info('offboard模式切换完成')
+                _log('offboard模式切换完成')
             return
         
         # 所有条件满足，切换到egoplanner控制
         if is_offboard:
-            self.get_logger().info('无人机已准备就绪，可以接收egoplanner控制指令')
+            _log('无人机已准备就绪，可以接收egoplanner控制指令')
             self.auto_switch_enabled = False  # 重置标志
             self.auto_switch_completed = True  # 设置完成标志
             # offboard切换完成，转发缓存的最新goal触发planner规划
@@ -1385,7 +1406,7 @@ class MultirotorCommunication(Node):
     def _forward_cached_goal(self):
         """将缓存的goal转发给ego-planner，在offboard就绪后调用"""
         if self.cached_goal_pose is not None and self.goal_marker_pub is not None:
-            self.get_logger().info(
+            self.get_logger().debug(
                 f'Offboard就绪，转发goal给planner: ({self.cached_goal_pose.pose.position.x:.2f}, '
                 f'{self.cached_goal_pose.pose.position.y:.2f}, {self.cached_goal_pose.pose.position.z:.2f})'
             )
@@ -1436,14 +1457,20 @@ class MultirotorCommunication(Node):
                 self.auto_switch_enabled = False
                 return
         
-        # 使用0.2秒检查间隔（定时器已经是20Hz/0.05s）
-        check_interval = 1.0
-        if hasattr(self, '_last_check_time'):
-            elapsed = (self.get_clock().now() - self._last_check_time).nanoseconds / 1e9
-            if elapsed < check_interval:
-                return
+        # 检测状态是否变化，变化时取消日志抑制，立即输出
+        current_state = (self.vehicle_status.nav_state, is_armed, is_flying)
+        if current_state != self._last_switch_progress_state:
+            self._last_switch_progress_state = current_state
+            self._last_switch_progress_log_time = None  # 状态变化，允许立即输出
         
-        self._last_check_time = self.get_clock().now()
+        # 限制10秒输出一次进度日志
+        now = time.time()
+        if self._last_switch_progress_log_time is not None and now - self._last_switch_progress_log_time < 10.0:
+            # 10秒内不再重复打印进度，但切换逻辑仍需执行
+            self.auto_switch_to_egoplanner()
+            return
+        
+        self._last_switch_progress_log_time = now
         self.get_logger().info(f'自动切换进度: 已解锁={is_armed}, 已起飞={is_flying}, offboard模式={is_offboard}')
         
         # 重新执行切换逻辑
@@ -1541,6 +1568,38 @@ class MultirotorCommunication(Node):
         if is_flying:
             self.was_flying = True
 
+    def check_board_temperature(self):
+        """每秒检查板卡温度，>80°C告警，>86°C立刻切换position并降落"""
+        try:
+            with open('/sys/class/thermal/thermal_zone0/temp', 'r') as f:
+                temp_raw = f.read().strip()
+            self.board_temperature = float(temp_raw) / 1000.0
+        except Exception as e:
+            self.get_logger().warn(f'读取板卡温度失败: {e}')
+            return
+
+        # 已触发紧急降落，不再重复处理
+        if self.temperature_emergency_landing:
+            return
+
+        if self.board_temperature > 86.0:
+            self.get_logger().error(
+                f'[温度紧急] 板卡温度 {self.board_temperature:.1f}°C > 86°C，立刻停止offboard并降落！'
+            )
+            self.temperature_emergency_landing = True
+            self.OFFBOARD_STATE = "DISABLED"
+            self._publish_stop_planning()
+            # 切换到position模式
+            self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 3)
+            self.get_logger().info('[温度紧急] 已切换到position模式')
+            # 发送LAND命令
+            self.land()
+            self.land_command_time = self.get_clock().now()
+            self.get_logger().info('[温度紧急] LAND命令已发送，check_landing_and_disarm将处理后续disarm')
+        elif self.board_temperature > 80.0:
+            self.get_logger().warn(
+                f'[温度警告] 板卡温度 {self.board_temperature:.1f}°C > 80°C，请注意散热！'
+            )
     
     def trigger_landing(self):
         """触发无人机降落"""
