@@ -97,6 +97,9 @@ ros2 launch ego_planner rviz.launch.py
 
 # 发布目标点
 ros2 topic pub --once /goal_pose_3d geometry_msgs/msg/PoseStamped '{header: {stamp: now, frame_id: "map"}, pose: {position: {x: 0.0, y: 0.0, z: 0.0}, orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}}}'
+
+# 降落
+ros2 topic pub --once /x500_depth_0/fmu/in/vehicle_command px4_msgs/msg/VehicleCommand "{timestamp: 0, command: 21, param1: 0.0, param2: nan, param3: .nan, param4: .nan, param5: .nan, param6: .nan, param7: .nan, target_system: 1, target_component: 1, source_system: 1, source_component: 1, from_external: true}"
 ```
 
 #### 4. 点云数据

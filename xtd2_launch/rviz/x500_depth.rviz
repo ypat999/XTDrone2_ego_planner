@@ -9,7 +9,7 @@ Panels:
         - /TF1/Tree1
         - /PointCloud2_depth1/Topic1
       Splitter Ratio: 0.6323529481887817
-    Tree Height: 821
+    Tree Height: 440
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -104,8 +104,8 @@ Visualization Manager:
                       {}
                     x500_depth_0/livox_frame/mid360_lidar:
                       {}
-                    x500_depth_0/px4_odom_body:
-                      {}
+                  x500_depth_0/px4_odom_body:
+                    {}
                 x500_depth_0/px4_odom:
                   {}
       Update Interval: 0
@@ -253,8 +253,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 9
-        Min Value: -0.4000000059604645
+        Max Value: 7.199999809265137
+        Min Value: -0.20000000298023224
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -316,7 +316,7 @@ Visualization Manager:
       Enabled: true
       Name: Marker_ego_traj
       Namespaces:
-        "": true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -434,25 +434,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 15.686834335327148
+      Distance: 6.410825729370117
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.6488837003707886
-        Y: -1.0172755718231201
-        Z: 1.5648322105407715
+        X: 0.2703591287136078
+        Y: 0.06440173089504242
+        Z: 0.5991396903991699
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.2097969055175781
+      Pitch: 0.5547968745231628
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.0746517181396484
+      Yaw: 3.099651575088501
     Saved: ~
 Window Geometry:
   Displays:

@@ -12,6 +12,7 @@ Panels:
         - /PointCloud2_inflate1/Topic1
         - /Odometry1
         - /Odometry1/Shape1
+        - /PointCloud2_map1
         - /PointCloud2_map1/Topic1
       Splitter Ratio: 0.5799999833106995
     Tree Height: 824
@@ -381,25 +382,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 16.387908935546875
+      Distance: 15.154634475708008
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.29170215129852295
-        Y: -0.444071888923645
-        Z: 0.43780574202537537
+        X: 0.1312202513217926
+        Y: -0.22661152482032776
+        Z: 0.34467220306396484
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.199796199798584
+      Pitch: 0.8447970151901245
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.1336584091186523
+      Yaw: 4.6738104820251465
     Saved: ~
 Window Geometry:
   Displays:

@@ -313,7 +313,9 @@ exit 1
                 target_action=wait_for_px4_odom,
                 on_exit=[
                     # super_lio_launch,
+                    # lidar_localization_launch,
                     ego_planner_launch
+                    
                 ]
             )
         )
