@@ -57,6 +57,12 @@ config_by_machine = {
         # RK3588主机配置 - Livox MID360
         'LIVOX_MID360_CONFIG': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config_tilt.json',
         'LIVOX_MID360_CONFIG_NO_TILT': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config_drone.json',
+        
+        # RK3588主机配置 - EGO Planner（真实飞行）
+        'EGO_PLANNER_NAMESPACE': '/',
+        'EGO_PLANNER_ODOM_TOPIC': '/lio/odom',
+        'EGO_PLANNER_CLOUD_TOPIC': '/lio/cloud_world',
+        'EGO_PLANNER_POSE_TOPIC': '/mid360/pose',
     },
     'jqr001': {
         # jqr001主机配置 - LIO-SAM
@@ -83,6 +89,12 @@ config_by_machine = {
         # jqr001主机配置 - Livox MID360
         'LIVOX_MID360_CONFIG': '/home/ywj/projects/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config_drone.json',
         'LIVOX_MID360_CONFIG_NO_TILT': '/home/ywj/projects/git/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config_drone.json',
+        
+        # jqr001主机配置 - EGO Planner（真实飞行）
+        'EGO_PLANNER_NAMESPACE': '/',
+        'EGO_PLANNER_ODOM_TOPIC': '/lio/odom',
+        'EGO_PLANNER_CLOUD_TOPIC': '/lio/cloud_world',
+        'EGO_PLANNER_POSE_TOPIC': '/mid360/pose',
     },
     'DESKTOP-4LS1SSN': {
         # DESKTOP-4LS1SSN主机配置 - LIO-SAM
@@ -109,6 +121,12 @@ config_by_machine = {
         # DESKTOP-4LS1SSN主机配置 - Livox MID360
         'LIVOX_MID360_CONFIG': '/home/ywj/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config_gazebo.json',
         'LIVOX_MID360_CONFIG_NO_TILT': '/home/ywj/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config_gazebo.json',
+        
+        # DESKTOP-4LS1SSN主机配置 - EGO Planner（仿真飞行）
+        'EGO_PLANNER_NAMESPACE': '/x500_depth_0/',
+        'EGO_PLANNER_ODOM_TOPIC': '/x500_depth_0/livox_down_frame/mid360_down_lidar/odometry',
+        'EGO_PLANNER_CLOUD_TOPIC': '/livox_down/lidar',
+        'EGO_PLANNER_POSE_TOPIC': '/x500_depth_0/StereoOV7251/pose',
     },
     'DESKTOP-ypat': {
         # DESKTOP-ypat主机配置 - LIO-SAM
@@ -135,6 +153,12 @@ config_by_machine = {
         # DESKTOP-ypat主机配置 - Livox MID360
         'LIVOX_MID360_CONFIG': '/home/ywj/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config_gazebo.json',
         'LIVOX_MID360_CONFIG_NO_TILT': '/home/ywj/dog_slam/LIO-SAM_MID360_ROS2_PKG/ros2/src/livox_ros_driver2/config/MID360_config_gazebo.json',
+        
+        # DESKTOP-ypat主机配置 - EGO Planner（仿真飞行）
+        'EGO_PLANNER_NAMESPACE': '/x500_depth_0/',
+        'EGO_PLANNER_ODOM_TOPIC': '/x500_depth_0/livox_down_frame/mid360_down_lidar/odometry',
+        'EGO_PLANNER_CLOUD_TOPIC': '/livox_down/lidar',
+        'EGO_PLANNER_POSE_TOPIC': '/x500_depth_0/StereoOV7251/pose',
     },
     'lubancat': {
         # lubancat主机配置 - LIO-SAM
@@ -161,6 +185,12 @@ config_by_machine = {
         # lubancat主机配置 - Livox MID360
         'LIVOX_MID360_CONFIG': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config_drone.json',
         'LIVOX_MID360_CONFIG_NO_TILT': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config_drone.json',
+        
+        # lubancat主机配置 - EGO Planner（真实飞行）
+        'EGO_PLANNER_NAMESPACE': '/',
+        'EGO_PLANNER_ODOM_TOPIC': '/lio/odom',
+        'EGO_PLANNER_CLOUD_TOPIC': '/lio/cloud_world',
+        'EGO_PLANNER_POSE_TOPIC': '/mid360/pose',
     },
     'ywj-B250-D3A': {
         # ywj-B250-D3A主机配置 - LIO-SAM
@@ -195,6 +225,12 @@ config_by_machine = {
         
         #SC-PGO
         'SC_PGO_SAVE_DIRECTORY': '/home/ywj/save_data/',
+        
+        # ywj-B250-D3A主机配置 - EGO Planner（仿真飞行）
+        'EGO_PLANNER_NAMESPACE': '/x500_depth_0/',
+        'EGO_PLANNER_ODOM_TOPIC': '/x500_depth_0/livox_down_frame/mid360_down_lidar/odometry',
+        'EGO_PLANNER_CLOUD_TOPIC': '/livox_down/lidar',
+        'EGO_PLANNER_POSE_TOPIC': '/x500_depth_0/StereoOV7251/pose',
     }
 }
 
@@ -224,6 +260,12 @@ default_config = {
     # Livox MID360 默认配置
     'LIVOX_MID360_CONFIG': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config_drone.json',
     'LIVOX_MID360_CONFIG_NO_TILT': '/home/cat/git/xtd2_ws/XTDrone2_ego_planner/lio/livox_ros_driver2/config/MID360_config_drone.json',
+    
+    # EGO Planner 默认配置（真实飞行默认）
+    'EGO_PLANNER_NAMESPACE': '/',
+    'EGO_PLANNER_ODOM_TOPIC': '/lio/odom',
+    'EGO_PLANNER_CLOUD_TOPIC': '/lio/cloud_world',
+    'EGO_PLANNER_POSE_TOPIC': '/mid360/pose',
 }
 
 # 根据当前主机名选择配置
@@ -276,6 +318,12 @@ SCAN_TOPIC = '/scan'
 CMD_VEL_TOPIC = '/cmd_vel'
 LIDAR_TOPIC = '/livox/lidar'
 IMU_TOPIC = '/livox/imu'
+
+# ========== EGO Planner 配置参数 ==========
+EGO_PLANNER_NAMESPACE = selected_config['EGO_PLANNER_NAMESPACE']
+EGO_PLANNER_ODOM_TOPIC = selected_config['EGO_PLANNER_ODOM_TOPIC']
+EGO_PLANNER_CLOUD_TOPIC = selected_config['EGO_PLANNER_CLOUD_TOPIC']
+EGO_PLANNER_POSE_TOPIC = selected_config['EGO_PLANNER_POSE_TOPIC']
 
 # ========== 服务名称配置 ==========
 INITIAL_POSE_SERVICE = '/initialpose'

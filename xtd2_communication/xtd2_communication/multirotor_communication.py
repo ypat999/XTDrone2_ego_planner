@@ -200,7 +200,7 @@ class MultirotorCommunication(Node):
             10
         )
 
-        self.timer_ = self.create_timer(0.2, self.timer_callback)
+        self.timer_ = self.create_timer(0.05, self.timer_callback)
 
         # Debug publisher for vehicle state
         if self.debug:

@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
 
-import platform
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
 from launch_ros.actions import Node
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, TextSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 
-# 检查主机名，设置默认namespace
-hostname = platform.node()
-if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
-    default_namespace = '/x500_depth_0/'
-    
-else:
-    default_namespace = '/'
-    
+# 从全局配置导入主机特定的EGO Planner配置
+from global_config import (
+    EGO_PLANNER_NAMESPACE as default_namespace,
+    EGO_PLANNER_ODOM_TOPIC,
+    EGO_PLANNER_CLOUD_TOPIC,
+    EGO_PLANNER_POSE_TOPIC,
+    DEFAULT_USE_SIM_TIME,
+)
 
 
 def generate_launch_description():
-    # 配置参数 - 针对Gazebo仿真环境
+    # 配置参数
     namespace = LaunchConfiguration('namespace', default=default_namespace)
     drone_id = LaunchConfiguration('drone_id', default=0)
 
@@ -27,21 +26,14 @@ def generate_launch_description():
     map_size_z = LaunchConfiguration('map_size_z', default=20.0)
 
     max_vel = LaunchConfiguration('max_vel', default=2.0)
-    max_acc = LaunchConfiguration('max_acc', default=0.5)
+    max_acc = LaunchConfiguration('max_acc', default=1.0)
     
-    # 根据主机名决定是否使用仿真时间
-    if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
-        default_use_sim_time = 'true'
-        # odom_world_topic = '/x500_depth_0/odometry'
-        odom_world_topic = '/x500_depth_0/livox_down_frame/mid360_down_lidar/odometry'
-        grid_map_cloud_topic = '/livox_down/lidar'  #'/x500_depth_0/StereoOV7251/pointcloud'
-        grid_map_pose_topic = '/x500_depth_0/StereoOV7251/pose'
-    else:
-        default_use_sim_time = 'false'
-        odom_world_topic = [namespace, TextSubstitution(text='lio/odom')]
-        grid_map_cloud_topic = [namespace, TextSubstitution(text='lio/cloud_world')]
-        grid_map_pose_topic = [namespace, TextSubstitution(text='mid360/pose')]
+    # 从全局配置读取话题名（已包含完整路径）
+    odom_world_topic = EGO_PLANNER_ODOM_TOPIC
+    grid_map_cloud_topic = EGO_PLANNER_CLOUD_TOPIC
+    grid_map_pose_topic = EGO_PLANNER_POSE_TOPIC
     
+    default_use_sim_time = 'true' if DEFAULT_USE_SIM_TIME else 'false'
     use_sim_time = LaunchConfiguration('use_sim_time', default=default_use_sim_time)
     
     # 路径点参数 - 根据Gazebo环境调整
@@ -111,7 +103,7 @@ def generate_launch_description():
                                                   # 影响轨迹预测长度，值越大轨迹越长但不确定性增加
                                                   # 推荐范围: 3.0-8.0秒，高速飞行建议增大
             
-            {'fsm/emergency_time': 1.0},  # 紧急情况处理时间(秒): 检测到碰撞风险时的紧急避障响应时间
+            {'fsm/emergency_time': 0.5},  # 紧急情况处理时间(秒): 检测到碰撞风险时的紧急避障响应时间
                                            # 值越小反应越快但可能过于激进；值越大反应平缓但可能不够及时
                                            # 推荐范围: 0.5-2.0秒
             
