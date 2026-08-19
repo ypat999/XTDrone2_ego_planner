@@ -69,6 +69,29 @@ if __name__ == '__main__':
   )
 ")
 
+# obstacle_distance_publisher 可执行文件包装器
+install(CODE "
+  file(WRITE ${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}/obstacle_distance_publisher
+\"#!/usr/bin/env python3
+import sys
+import os
+
+# 添加Python包路径
+script_dir = os.path.dirname(os.path.realpath(__file__))
+pkg_dir = os.path.join(script_dir, '..', '..', 'local', 'lib', 'python3.10', 'dist-packages')
+sys.path.insert(0, pkg_dir)
+
+# 导入并执行main函数
+from xtd2_communication.obstacle_distance_publisher import main
+
+if __name__ == '__main__':
+    main()
+\")
+  execute_process(
+    COMMAND chmod +x ${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}/obstacle_distance_publisher
+  )
+")
+
 install(TARGETS coordinate_transform_cpp
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib

@@ -230,6 +230,76 @@ def generate_launch_description():
     #     prefix=['taskset -c 0,1,2,3'],   # 绑定 CPU 
     # )
 
+    #######################
+    # Obstacle Distance Publisher (mid360 -> PX4 Collision Prevention)
+    #######################
+    # tf 外参模式默认关闭; real 分支开启后从 /tf 自动获取, 忽略 quat/trans
+    cp_tf_parent = ''
+    cp_tf_child = ''
+    if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
+        # 仿真: x500_depth 前向 mid360 (/livox/lidar), 相对机体前倾 30°(RPY=0,30,0), 平移(0.1,0,0.3)
+        # 雷达系->机体系FRD 变换四元数由 R=Rx(180)*Ry(30) 计算得到
+        cp_cloud_topic = '/livox/lidar'
+        cp_lidar_quat = [0.0, 0.9659, 0.0, 0.2588]   # w,x,y,z
+        cp_lidar_trans = [0.1, 0.0, -0.3]
+    else:
+        # 真实: /livox/lidar 是 livox CustomMsg(驱动 xfer_format=1), 本节点无法直接订阅
+        # 改用 Super-LIO 输出的 lio/body/cloud (PointCloud2, 10Hz, 已去畸变, frame=imu)
+        # 雷达倾斜安装, 外参从 /tf(/tf_static) 自动获取: imu(=livox_frame) -> base_link
+        cp_cloud_topic = 'lio/body/cloud'
+        cp_lidar_quat = [1.0, 0.0, 0.0, 0.0]         # 被 tf 模式忽略
+        cp_lidar_trans = [0.0, 0.0, 0.0]             # 被 tf 模式忽略
+        cp_tf_parent = 'base_link'
+        cp_tf_child = 'imu'
+
+    obstacle_distance_publisher = Node(
+        package='xtd2_communication',
+        executable='obstacle_distance_publisher',
+        name='obstacle_distance_publisher',
+        output='screen',
+        emulate_tty=True,
+        parameters=[{
+            'cloud_topic': cp_cloud_topic,
+            'namespace': LaunchConfiguration('namespace'),
+            'quat_wxyz': cp_lidar_quat,
+            'trans_xyz': cp_lidar_trans,
+            'tf_parent_frame': cp_tf_parent,
+            'tf_child_frame': cp_tf_child,
+            'use_sim_time': use_sim_time,
+        }],
+        prefix=['taskset -c 0,1,2,3'],   # 绑定 CPU
+    )
+
+    ##############################
+    # PX4 CP 参数设置 (仅仿真)
+    # 通过 px4-param 客户端写入运行中的 PX4 SITL 实例
+    # CP_GO_NO_DATA=1: 无避障数据时也允许飞行(移动到未知空间)
+    # COM_OBS_AVOID=0: 我们走机载原生 CP(obstacle_distance->collision_prevention),
+    #                   不依赖外部避障栈心跳; 若为1会报 "Avoidance system not ready" 无法解锁
+    # MPC_POS_MODE=3: 关键! 默认4=加速控制(FlightTaskManualAcceleration, 无CP),
+    #                 Position 模式只有位置控制类任务(0=ManualPosition / 3=SmoothVel)才运行
+    #                 Collision Prevention; 用3保留平滑手感
+    # 注意: 真实飞行时这些参数需在 QGC 中设置, 会持久化到飞控
+    ##############################
+    px4_cp_param_set = ExecuteProcess(
+        cmd=[
+            'bash', '-c',
+            "BIN=$HOME/git/PX4-Autopilot/build/px4_sitl_default/bin/px4-param; "
+            "echo '设置 PX4 CP 参数 (CP_GO_NO_DATA=1: 无数据时允许飞行)...'; "
+            "$BIN --instance ${PX4_ID} set COM_OBS_AVOID 0; "
+            "$BIN --instance ${PX4_ID} set CP_GO_NO_DATA 1; "
+            "echo 'CP_GO_NO_DATA =' $($BIN --instance ${PX4_ID} show CP_GO_NO_DATA); "
+            "$BIN --instance ${PX4_ID} set CP_DIST 2.0; "
+            "echo 'CP_DIST =' $($BIN --instance ${PX4_ID} show CP_DIST); "
+            "$BIN --instance ${PX4_ID} set MPC_POS_MODE 3; "
+            "echo 'MPC_POS_MODE =' $($BIN --instance ${PX4_ID} show MPC_POS_MODE)"
+        ],
+        env={'PX4_ID': LaunchConfiguration('id')},
+        output='screen',
+        name='px4_cp_param_set',
+        shell=False,
+    )
+
     # 根据主机名决定启动哪些组件
     ld = LaunchDescription([
         world_name_arg,
@@ -287,6 +357,7 @@ exit 1
     
     
     ld.add_action(wait_for_px4_odom)  # 等待px4_odom_topic发布
+    ld.add_action(obstacle_distance_publisher)  # mid360 点云 -> PX4 Collision Prevention
     
     # # 启动Rosbridge和Web服务器
     # ld.add_action(rosbridge_node)
@@ -312,8 +383,7 @@ exit 1
             OnProcessExit(
                 target_action=wait_for_px4_odom,
                 on_exit=[
-                    # super_lio_launch,
-                    # lidar_localization_launch,
+                    px4_cp_param_set,   # 设置 PX4 CP 参数(无数据时允许飞行)
                     ego_planner_launch
                     
                 ]

@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'multirotor_communication = xtd2_communication.multirotor_communication:main',
+            'obstacle_distance_publisher = xtd2_communication.obstacle_distance_publisher:main',
         ],
     },
 )
