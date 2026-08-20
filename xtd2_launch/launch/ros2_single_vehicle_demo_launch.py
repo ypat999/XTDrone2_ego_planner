@@ -289,7 +289,7 @@ def generate_launch_description():
             "$BIN --instance ${PX4_ID} set COM_OBS_AVOID 0; "
             "$BIN --instance ${PX4_ID} set CP_GO_NO_DATA 1; "
             "echo 'CP_GO_NO_DATA =' $($BIN --instance ${PX4_ID} show CP_GO_NO_DATA); "
-            "$BIN --instance ${PX4_ID} set CP_DIST 2.0; "
+            "$BIN --instance ${PX4_ID} set CP_DIST 1.0; "
             "echo 'CP_DIST =' $($BIN --instance ${PX4_ID} show CP_DIST); "
             "$BIN --instance ${PX4_ID} set MPC_POS_MODE 3; "
             "echo 'MPC_POS_MODE =' $($BIN --instance ${PX4_ID} show MPC_POS_MODE)"
