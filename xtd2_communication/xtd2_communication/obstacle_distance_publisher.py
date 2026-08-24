@@ -257,13 +257,18 @@ class ObstacleDistancePublisher(Node):
             R_w_bp, t_wb = wp
             # 高度带过滤用 world z 差(相对机体位置)
             dz_world = pts[:, 2] - t_wb[2]
-            # world -> base_footprint(水平) -> FRD
-            p = (pts - t_wb) @ R_w_bp.T @ self.r_flu2frd.T
+            # 直接投到 base_footprint(水平, 只带 yaw): LaserScan 用, 无中间转换
+            # R_w_bp 列 = bf 轴在 world 的投影(被动变换), 转 world 点到 bf: 行向量直接 @ R_w_bp (不转置)
+            p_fp = (pts - t_wb) @ R_w_bp
+            # -> FRD(z 下, y 右): 仅 PX4 obstacle_distance 需要
+            p = p_fp @ self.r_flu2frd.T
             z_for_mask = p[:, 2]
             height_ok = np.abs(dz_world) <= self.z_half
         else:
-            # 机体系点云(雷达系或 body 系): 静态外参转到 FRD, 高度带用机体 z
+            # 机体系点云(雷达系或 body 系): 静态外参转到 FRD
             p = pts @ self.R.T + self.t
+            # FRD -> FLU(z 上, y 左): LaserScan 用(r_flu2frd 为自逆)
+            p_fp = p @ self.r_flu2frd
             z_for_mask = p[:, 2]
             height_ok = np.abs(z_for_mask) <= self.z_half
 
@@ -272,8 +277,10 @@ class ObstacleDistancePublisher(Node):
         z = p[:, 2]
 
         d_h = np.hypot(x, y)
-        # 方位角: 0 度=机头, +90 度=机右(FRD)
+        # PX4 方位角: 0 度=机头, +90 度=机右(FRD, 顺时针)
         az = np.degrees(np.arctan2(y, x))
+        # LaserScan 方位角: base_footprint(FLU), 0 度=机头, +90 度=机左(逆时针), 直接对应 LaserScan
+        az_flu = np.degrees(np.arctan2(p_fp[:, 1], p_fp[:, 0]))
 
         # 机体包络剔除: 落在机体尺寸内的回波视为打到机体自身(机臂/机身), 不参与避障
         in_body = (np.abs(x) < self.body_half[0]) & \
@@ -305,14 +312,27 @@ class ObstacleDistancePublisher(Node):
             else:
                 distances[i] = self.clear_value
 
+        # LaserScan bin: FLU 方位直接分 bin, 无翻转/无映射
+        az_fp_v = az_flu[valid]
+        fp_idx = np.floor(az_fp_v / self.bin_deg).astype(np.int64) % self.n_bins
+        fp_min = np.full(self.n_bins, np.inf, dtype=np.float64)
+        np.minimum.at(fp_min, fp_idx, d_v)
+
+        scan_dists = [0.0] * 72
+        for i in range(self.n_bins):
+            if np.isfinite(fp_min[i]):
+                scan_dists[i] = float(min(fp_min[i], self.max_range))
+            else:
+                scan_dists[i] = self.clear_value    # 明确无障碍
+
         # 注意: 时间戳必须换算成完整纳秒(sec+nanosec), 否则与 get_clock().now() 比较会永远超时
         stamp_ns = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
-        self._latest = (stamp_ns, distances)
+        self._latest = (stamp_ns, distances, scan_dists)
 
     def timer_cb(self):
         if self._latest is None:
             return
-        stamp_ns, distances = self._latest
+        stamp_ns, distances, scan_dists = self._latest
         now_ns = self.get_clock().now().nanoseconds
         if now_ns - stamp_ns > self._timeout_ns:
             # 数据过期, 停止发布, 让 PX4 判定数据失效 (配合 CP_GO_NO_DATA 决策)
@@ -329,9 +349,8 @@ class ObstacleDistancePublisher(Node):
         msg.distances = distances
         self.pub.publish(msg)
 
-        # 调试用 LaserScan (base_footprint 水平面): 障碍=距离(m), 明确无障碍=range_max, 未知=0(rviz 不画)
-        # 方向: LaserScan 0°=+x 逆时针为正; PX4 bin 是 FRD 顺时针为正(0°=机头,+90°=机右)
-        # 直接映射 FRD 顺时针角 θ=i*binsize -> LaserScan 逆时针角 (360-θ) -> 索引 (n_bins-i)%n_bins
+        # 调试用 LaserScan (base_footprint 水平面): 数据已在 cloud_cb 直接投到 base_footprint(FLU)
+        # 方向与 LaserScan 一致: 0°=+x 机头, 逆时针(+90°=机左)为正, 所以 1:1 填入, 无任何翻转/映射
         scan = LaserScan()
         scan.header.stamp = self.get_clock().now().to_msg()
         scan.header.frame_id = self.laser_frame_id
@@ -344,14 +363,13 @@ class ObstacleDistancePublisher(Node):
         scan.range_max = float(self.max_cm)
         scan.ranges = [0.0] * 72
         for i in range(self.n_bins):
-            d = distances[i]
-            if d == UINT16_MAX:
+            d = scan_dists[i]
+            if d == 0.0:
                 continue                          # 未知, 不画
             if d >= self.clear_value:
-                val = float(self.max_cm)          # FOV 内明确无障碍
+                scan.ranges[i] = float(self.max_cm)   # FOV 内明确无障碍
             else:
-                val = float(d) / 100.0            # 实际障碍距离(m)
-            scan.ranges[(self.n_bins - i) % self.n_bins] = val
+                scan.ranges[i] = float(d)             # 实际障碍距离(m)
         self.scan_pub.publish(scan)
 
 
