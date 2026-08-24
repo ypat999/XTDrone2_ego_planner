@@ -31,7 +31,6 @@ from tf2_ros import Buffer, TransformListener
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import PointField
 from sensor_msgs.msg import LaserScan
-from nav_msgs.msg import Odometry
 from px4_msgs.msg import ObstacleDistance
 
 UINT16_MAX = 65535
@@ -90,10 +89,12 @@ class ObstacleDistancePublisher(Node):
         self.declare_parameter('min_range', 0.3)        # 有效距离下限(米)
         self.declare_parameter('max_range', 30.0)       # 有效距离上限(米)
         self.declare_parameter('publish_hz', 20.0)
-        # world 模式: 订阅 Super-LIO 的 world 系点云(lio/cloud_world) + odom(lio/odom),
-        # 高度带以 world z(相对飞机)衡量, 再转到机体系 FRD 分 bin
+        # world 模式: 订阅 Super-LIO 的 world 系点云(lio/cloud_world),
+        # 高度带以 world z(相对飞机)衡量; 飞机位姿用 Super-LIO 动态 TF world->base_footprint
+        # (base_footprint 与 world 保持平行, 只有 yaw, 位置=机体), 再转到机体系 FRD 分 bin
         self.declare_parameter('use_world_cloud', False)
-        self.declare_parameter('odom_topic', 'lio/odom')
+        self.declare_parameter('world_frame', 'world')
+        self.declare_parameter('footprint_frame', 'base_footprint')
         self.declare_parameter('quat_wxyz', [1.0, 0.0, 0.0, 0.0])  # 雷达系->机体系(FRD) 旋转
         self.declare_parameter('trans_xyz', [0.0, 0.0, 0.0])       # 雷达系->机体系(FRD) 平移
         # 或从 /tf 获取外参: 配置 tf_parent_frame(机体frame)/tf_child_frame(点云frame) 后,
@@ -116,7 +117,8 @@ class ObstacleDistancePublisher(Node):
         publish_hz = float(self.get_parameter('publish_hz').value)
         scan_topic = self.get_parameter('scan_topic').value
         self.use_world = bool(self.get_parameter('use_world_cloud').value)
-        odom_topic = self.get_parameter('odom_topic').value
+        self.world_frame = self.get_parameter('world_frame').value
+        self.footprint_frame = self.get_parameter('footprint_frame').value
         laser_frame_id = self.get_parameter('laser_frame_id').value
         if not laser_frame_id:
             # 自适应 namespace: sim 有 ns -> x500_depth_0/base_link; 真机无 ns -> base_link
@@ -137,11 +139,14 @@ class ObstacleDistancePublisher(Node):
                                    [0.0, 0.0, -1.0]])
 
         if self.use_world:
-            # world 模式: 点已在 world(ENU), 只需 imu->base_link 静态外参(FLU) 用于转机体系
-            if not tf_child:
-                raise RuntimeError('use_world_cloud 需要 tf_parent_frame/tf_child_frame (imu -> base_link)')
-            self.R_imu_base, self.t_imu_base = self._lookup_extrinsic(tf_parent, tf_child)
-            self.get_logger().info(f'world 模式外参来自 /tf: {tf_child} -> {tf_parent}')
+            # world 模式: 飞机位姿用 Super-LIO 动态 TF world->base_footprint
+            # (与 world 平行, 只有 yaw; 位置=机体), 无需静态外参
+            self.tf_buffer = Buffer()
+            self.tf_listener = TransformListener(self.tf_buffer, self, spin_thread=True)
+            self._tf_miss = 0
+            self._wait_for_footprint_tf()
+            self.get_logger().info(
+                f'world 模式飞机位姿: tf {self.footprint_frame} -> {self.world_frame}')
             self.R = None
             self.t = None
         elif tf_child:
@@ -162,11 +167,6 @@ class ObstacleDistancePublisher(Node):
         # 点云订阅: 传感器数据一般 best_effort
         cloud_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
         self.create_subscription(PointCloud2, cloud_topic, self.cloud_cb, cloud_qos)
-
-        # world 模式: 订阅 Super-LIO odom 获取 world->imu 位姿(ENU, frame=world)
-        if self.use_world:
-            self._odom = None
-            self.create_subscription(Odometry, odom_topic, self.odom_cb, cloud_qos)
 
         # 发布到 uXRCE-DDS 输入话题, 直达 PX4 uORB obstacle_distance
         out_topic = namespace.rstrip('/') + '/fmu/in/obstacle_distance'
@@ -212,9 +212,31 @@ class ObstacleDistancePublisher(Node):
                 time_module.sleep(0.5)
         raise RuntimeError(f'获取静态外参失败 {child}->{parent}: {last_err}')
 
-    def odom_cb(self, msg):
-        """Super-LIO odom: world(frame='world', ENU) -> imu 位姿。"""
-        self._odom = msg.pose.pose
+    def _wait_for_footprint_tf(self):
+        """等待 Super-LIO 发布 world->base_footprint 动态 TF, 最多 10s。"""
+        deadline = time_module.monotonic() + 10.0
+        last_err = None
+        while time_module.monotonic() < deadline:
+            try:
+                self.tf_buffer.lookup_transform(self.world_frame, self.footprint_frame, Time())
+                return
+            except Exception as e:  # noqa: BLE001
+                last_err = e
+                time_module.sleep(0.2)
+        raise RuntimeError(
+            f'获取动态 TF {self.footprint_frame}->{self.world_frame} 失败(10s): {last_err}\n'
+            '请确认 Super-LIO 已启动且 lio.output.footprint_pub_en=true')
+
+    def _lookup_world_pose(self):
+        """动态获取 world->base_footprint (水平姿态+机体位置)。失败返回 None。"""
+        try:
+            ts = self.tf_buffer.lookup_transform(self.world_frame, self.footprint_frame, Time())
+            q = ts.transform.rotation
+            t = ts.transform.translation
+            R = quat_to_rotation_matrix(q.w, q.x, q.y, q.z)
+            return R, np.array([t.x, t.y, t.z], dtype=np.float64)
+        except Exception:  # noqa: BLE001
+            return None
 
     def cloud_cb(self, msg):
         pts = pointcloud2_to_xyz(msg)
@@ -222,19 +244,20 @@ class ObstacleDistancePublisher(Node):
             return
 
         if self.use_world:
-            # world 模式: 点云在 world(ENU), 高度带用 world z(相对飞机), 再转到机体系 FRD
-            odom = self._odom
-            if odom is None:
+            # world 模式: 点云在 world(ENU), 高度带用 world z(相对飞机, 不随俯仰倾斜)
+            # 姿态投影到 base_footprint(与 world 平行, 只有 yaw): 方位角不随机体倾斜而偏
+            wp = self._lookup_world_pose()
+            if wp is None:
+                self._tf_miss += 1
+                if self._tf_miss % 50 == 1:   # ~5s 报一次
+                    self.get_logger().warn(
+                        f'动态 TF 缺失: {self.footprint_frame}->{self.world_frame}, 跳过本帧')
                 return
-            t_wb = np.array([odom.position.x, odom.position.y, odom.position.z])
-            q = odom.orientation
-            R_w_imu = quat_to_rotation_matrix(q.w, q.x, q.y, q.z)   # world -> imu (ENU)
-            # 高度带过滤用 world z 差(不随飞机俯仰倾斜)
+            R_w_bp, t_wb = wp
+            # 高度带过滤用 world z 差(相对机体位置)
             dz_world = pts[:, 2] - t_wb[2]
-            # world -> imu(ENU) -> base_link(FLU) -> FRD
-            p_imu = (pts - t_wb) @ R_w_imu.T
-            p_base = p_imu @ self.R_imu_base.T + self.t_imu_base
-            p = p_base @ self.r_flu2frd.T
+            # world -> base_footprint(水平) -> FRD
+            p = (pts - t_wb) @ R_w_bp.T @ self.r_flu2frd.T
             z_for_mask = p[:, 2]
             height_ok = np.abs(dz_world) <= self.z_half
         else:

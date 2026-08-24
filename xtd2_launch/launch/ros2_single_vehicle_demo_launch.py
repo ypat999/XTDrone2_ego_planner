@@ -247,7 +247,7 @@ def generate_launch_description():
         # 真实: /livox/lidar 是 livox CustomMsg(驱动 xfer_format=1), 本节点无法直接订阅
         # 改用 Super-LIO 输出的 lio/cloud_world (PointCloud2, world 系, 10Hz, 已去畸变)
         # world 模式: 高度带以 world z(相对飞机)衡量, 不随飞机俯仰倾斜;
-        #   飞机位姿来自 lio/odom(world->imu, ENU), imu->base_link 外参从 /tf 获取
+        #   飞机位姿用 Super-LIO 动态 TF world->base_footprint(与 world 平行, 只有 yaw)
         cp_cloud_topic = 'lio/cloud_world'
         cp_use_world = True
         cp_lidar_quat = [1.0, 0.0, 0.0, 0.0]         # world 模式忽略
@@ -269,7 +269,6 @@ def generate_launch_description():
             'tf_parent_frame': cp_tf_parent,
             'tf_child_frame': cp_tf_child,
             'use_world_cloud': cp_use_world,
-            'odom_topic': 'lio/odom',
             'use_sim_time': use_sim_time,
         }],
         prefix=['taskset -c 0,1,2,3'],   # 绑定 CPU
