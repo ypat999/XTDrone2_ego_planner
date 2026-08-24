@@ -105,7 +105,8 @@ class ObstacleDistancePublisher(Node):
         self.declare_parameter('body_half_size', [0.5, 0.45, 0.4])
         # 调试用 LaserScan 输出
         self.declare_parameter('scan_topic', 'obstacle_laserscan')
-        self.declare_parameter('laser_frame_id', '')   # 默认留空: 自动带 namespace
+        # LaserScan 调试话题的 frame: 空 -> 自动选择 (world 模式=base_footprint, 否则=base_link+ns)
+        self.declare_parameter('laser_frame_id', '')
         # use_sim_time 由 rclpy 预声明, 直接读取即可
 
         cloud_topic = self.get_parameter('cloud_topic').value
@@ -121,10 +122,14 @@ class ObstacleDistancePublisher(Node):
         self.footprint_frame = self.get_parameter('footprint_frame').value
         laser_frame_id = self.get_parameter('laser_frame_id').value
         if not laser_frame_id:
-            # 自适应 namespace: sim 有 ns -> x500_depth_0/base_link; 真机无 ns -> base_link
-            # 注意: frame_id 不能带 / 前缀 (ROS2 用相对 tf 名)
-            ns = namespace.strip('/')
-            laser_frame_id = (ns + '/base_link') if ns else 'base_link'
+            # 自动选择 frame (注意: frame_id 不能带 / 前缀, ROS2 用相对 tf 名)
+            if self.use_world:
+                # world 模式: base_footprint(与 world 平行, 不随机体倾斜), 真机无 ns
+                laser_frame_id = self.footprint_frame
+            else:
+                # 自适应 namespace: sim 有 ns -> x500_depth_0/base_link; 真机无 ns -> base_link
+                ns = namespace.strip('/')
+                laser_frame_id = (ns + '/base_link') if ns else 'base_link'
         self.laser_frame_id = laser_frame_id
         tf_parent = self.get_parameter('tf_parent_frame').value
         tf_child = self.get_parameter('tf_child_frame').value
