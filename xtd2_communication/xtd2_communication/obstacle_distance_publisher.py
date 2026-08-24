@@ -15,6 +15,7 @@
     - 数据超时(>500ms)由 PX4 侧判定为 stale, 配合 CP_GO_NO_DATA=1 允许无数据时飞行
 """
 
+import math
 import time as time_module
 
 import numpy as np
@@ -29,6 +30,7 @@ from tf2_ros import Buffer, TransformListener
 
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import PointField
+from sensor_msgs.msg import LaserScan
 from px4_msgs.msg import ObstacleDistance
 
 UINT16_MAX = 65535
@@ -83,7 +85,7 @@ class ObstacleDistancePublisher(Node):
         self.declare_parameter('cloud_topic', CLOUD_TOPIC_NAME)
         self.declare_parameter('namespace', '/x500_depth_0/')
         self.declare_parameter('bin_deg', 10.0)
-        self.declare_parameter('pitch_fov_deg', 20.0)   # 参与避障的水平环带半俯仰角(度)
+        self.declare_parameter('z_half_m', 0.3)     # 参与避障的垂直范围半宽(米), 相对机体水平面上下
         self.declare_parameter('min_range', 0.3)        # 有效距离下限(米)
         self.declare_parameter('max_range', 30.0)       # 有效距离上限(米)
         self.declare_parameter('publish_hz', 20.0)
@@ -95,15 +97,26 @@ class ObstacleDistancePublisher(Node):
         self.declare_parameter('tf_child_frame', '')
         # 机体包络半尺寸 (FRD: x前/y右/z下), 位于包络内的点视为打到自己机身上的回波, 剔除
         self.declare_parameter('body_half_size', [0.5, 0.45, 0.4])
+        # 调试用 LaserScan 输出
+        self.declare_parameter('scan_topic', 'obstacle_laserscan')
+        self.declare_parameter('laser_frame_id', '')   # 默认留空: 自动带 namespace
         # use_sim_time 由 rclpy 预声明, 直接读取即可
 
         cloud_topic = self.get_parameter('cloud_topic').value
         namespace = self.get_parameter('namespace').value
         self.bin_deg = float(self.get_parameter('bin_deg').value)
-        self.pitch_fov_deg = float(self.get_parameter('pitch_fov_deg').value)
+        self.z_half = float(self.get_parameter('z_half_m').value)
         self.min_range = float(self.get_parameter('min_range').value)
         self.max_range = float(self.get_parameter('max_range').value)
         publish_hz = float(self.get_parameter('publish_hz').value)
+        scan_topic = self.get_parameter('scan_topic').value
+        laser_frame_id = self.get_parameter('laser_frame_id').value
+        if not laser_frame_id:
+            # 自适应 namespace: sim 有 ns -> x500_depth_0/base_link; 真机无 ns -> base_link
+            # 注意: frame_id 不能带 / 前缀 (ROS2 用相对 tf 名)
+            ns = namespace.strip('/')
+            laser_frame_id = (ns + '/base_link') if ns else 'base_link'
+        self.laser_frame_id = laser_frame_id
         tf_parent = self.get_parameter('tf_parent_frame').value
         tf_child = self.get_parameter('tf_child_frame').value
 
@@ -138,13 +151,18 @@ class ObstacleDistancePublisher(Node):
         out_topic = namespace.rstrip('/') + '/fmu/in/obstacle_distance'
         self.pub = self.create_publisher(ObstacleDistance, out_topic, 10)
 
+        # 调试用 LaserScan: 与 obstacle_distance 内容一致(机体系, 0 度=机头, 顺时针右为正)
+        self.scan_pub = self.create_publisher(
+            LaserScan, namespace.rstrip('/') + '/' + scan_topic, 10)
+
         self._latest = None          # (stamp_ns, distances list)
         self._timeout_ns = int(0.5 * 1e9)
         self.create_timer(1.0 / publish_hz, self.timer_cb)
+        self.publish_hz = publish_hz
 
         self.get_logger().info(
             f'订阅点云: {cloud_topic} -> 发布: {out_topic}, bins={self.n_bins} '
-            f'({self.bin_deg}deg), pitch_fov=±{self.pitch_fov_deg}deg, '
+            f'({self.bin_deg}deg), z_half=±{self.z_half}m, '
             f'range=[{self.min_range}, {self.max_range}]m, '
             f'body_mask(FRD half)={self.body_half.tolist()}')
 
@@ -187,8 +205,6 @@ class ObstacleDistancePublisher(Node):
         d_h = np.hypot(x, y)
         # 方位角: 0 度=机头, +90 度=机右(FRD)
         az = np.degrees(np.arctan2(y, x))
-        # 俯仰角: 相对机体水平面, 上为正
-        pitch = np.degrees(np.arctan2(-z, d_h))
 
         # 机体包络剔除: 落在机体尺寸内的回波视为打到机体自身(机臂/机身), 不参与避障
         in_body = (np.abs(x) < self.body_half[0]) & \
@@ -198,7 +214,7 @@ class ObstacleDistancePublisher(Node):
         valid = (
             (d_h >= self.min_range)
             & (d_h <= self.max_range)
-            & (np.abs(pitch) <= self.pitch_fov_deg)
+            & (np.abs(z) <= self.z_half)   # 只取机体水平面上下 30cm 内的点(能撞到的高度)
             & ~in_body
         )
         if not np.any(valid):
@@ -243,6 +259,31 @@ class ObstacleDistancePublisher(Node):
         msg.angle_offset = 0.0
         msg.distances = distances
         self.pub.publish(msg)
+
+        # 调试用 LaserScan (机体系): 障碍=距离(m), 明确无障碍=range_max, 未知=0(rviz 不画)
+        # 注意方向: LaserScan 0°=+x 逆时针为正; 我们的 bin 是 FRD 顺时针为正(0°=机头,+90°=机右)
+        # 所以前 n_bins 个 bin 需反转索引再填入
+        scan = LaserScan()
+        scan.header.stamp = self.get_clock().now().to_msg()
+        scan.header.frame_id = self.laser_frame_id
+        scan.angle_min = 0.0
+        scan.angle_max = 2.0 * math.pi
+        scan.angle_increment = math.radians(self.bin_deg)
+        scan.time_increment = 0.0
+        scan.scan_time = 1.0 / self.publish_hz
+        scan.range_min = self.min_range
+        scan.range_max = float(self.max_cm)
+        scan.ranges = [0.0] * 72
+        for i in range(self.n_bins):
+            d = distances[i]
+            if d == UINT16_MAX:
+                continue                          # 未知, 不画
+            if d >= self.clear_value:
+                val = float(self.max_cm)          # FOV 内明确无障碍
+            else:
+                val = float(d) / 100.0            # 实际障碍距离(m)
+            scan.ranges[(self.n_bins - 1) - i] = val
+        self.scan_pub.publish(scan)
 
 
 def main(args=None):

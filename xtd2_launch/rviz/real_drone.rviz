@@ -110,10 +110,10 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: Intensity
       Decay Time: 1
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 151
+      Max Intensity: 255
       Min Color: 0; 0; 0
       Min Intensity: 10
       Name: PointCloud2_lio
@@ -131,7 +131,7 @@ Visualization Manager:
         Value: /lio/cloud_world
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Alpha: 0.20000000298023224
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -382,25 +382,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 42.377506256103516
+      Distance: 48.90680694580078
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 12.535568237304688
-        Y: 6.881816387176514
-        Z: 1.0515235662460327
+        X: 18.0052433013916
+        Y: -11.846823692321777
+        Z: -8.115973472595215
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.38979822397232056
+      Pitch: 1.239797592163086
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 5.085181713104248
+      Yaw: 1.7883474826812744
     Saved: ~
 Window Geometry:
   Displays:
