@@ -236,6 +236,7 @@ def generate_launch_description():
     # tf 外参模式默认关闭; real 分支开启后从 /tf 自动获取, 忽略 quat/trans
     cp_tf_parent = ''
     cp_tf_child = ''
+    cp_use_world = False
     if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
         # 仿真: x500_depth 前向 mid360 (/livox/lidar), 相对机体前倾 30°(RPY=0,30,0), 平移(0.1,0,0.3)
         # 雷达系->机体系FRD 变换四元数由 R=Rx(180)*Ry(30) 计算得到
@@ -244,11 +245,13 @@ def generate_launch_description():
         cp_lidar_trans = [0.1, 0.0, -0.3]
     else:
         # 真实: /livox/lidar 是 livox CustomMsg(驱动 xfer_format=1), 本节点无法直接订阅
-        # 改用 Super-LIO 输出的 lio/body/cloud (PointCloud2, 10Hz, 已去畸变, frame=imu)
-        # 雷达倾斜安装, 外参从 /tf(/tf_static) 自动获取: imu(=livox_frame) -> base_link
-        cp_cloud_topic = 'lio/body/cloud'
-        cp_lidar_quat = [1.0, 0.0, 0.0, 0.0]         # 被 tf 模式忽略
-        cp_lidar_trans = [0.0, 0.0, 0.0]             # 被 tf 模式忽略
+        # 改用 Super-LIO 输出的 lio/cloud_world (PointCloud2, world 系, 10Hz, 已去畸变)
+        # world 模式: 高度带以 world z(相对飞机)衡量, 不随飞机俯仰倾斜;
+        #   飞机位姿来自 lio/odom(world->imu, ENU), imu->base_link 外参从 /tf 获取
+        cp_cloud_topic = 'lio/cloud_world'
+        cp_use_world = True
+        cp_lidar_quat = [1.0, 0.0, 0.0, 0.0]         # world 模式忽略
+        cp_lidar_trans = [0.0, 0.0, 0.0]             # world 模式忽略
         cp_tf_parent = 'base_link'
         cp_tf_child = 'imu'
 
@@ -265,6 +268,8 @@ def generate_launch_description():
             'trans_xyz': cp_lidar_trans,
             'tf_parent_frame': cp_tf_parent,
             'tf_child_frame': cp_tf_child,
+            'use_world_cloud': cp_use_world,
+            'odom_topic': 'lio/odom',
             'use_sim_time': use_sim_time,
         }],
         prefix=['taskset -c 0,1,2,3'],   # 绑定 CPU

@@ -31,6 +31,7 @@ from tf2_ros import Buffer, TransformListener
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import PointField
 from sensor_msgs.msg import LaserScan
+from nav_msgs.msg import Odometry
 from px4_msgs.msg import ObstacleDistance
 
 UINT16_MAX = 65535
@@ -85,10 +86,14 @@ class ObstacleDistancePublisher(Node):
         self.declare_parameter('cloud_topic', CLOUD_TOPIC_NAME)
         self.declare_parameter('namespace', '/x500_depth_0/')
         self.declare_parameter('bin_deg', 10.0)
-        self.declare_parameter('z_half_m', 0.3)     # 参与避障的垂直范围半宽(米), 相对机体水平面上下
+        self.declare_parameter('z_half_m', 0.3)     # 参与避障的垂直范围半宽(米): world 模式=world z 上下, 否则=机体 z 上下
         self.declare_parameter('min_range', 0.3)        # 有效距离下限(米)
         self.declare_parameter('max_range', 30.0)       # 有效距离上限(米)
         self.declare_parameter('publish_hz', 20.0)
+        # world 模式: 订阅 Super-LIO 的 world 系点云(lio/cloud_world) + odom(lio/odom),
+        # 高度带以 world z(相对飞机)衡量, 再转到机体系 FRD 分 bin
+        self.declare_parameter('use_world_cloud', False)
+        self.declare_parameter('odom_topic', 'lio/odom')
         self.declare_parameter('quat_wxyz', [1.0, 0.0, 0.0, 0.0])  # 雷达系->机体系(FRD) 旋转
         self.declare_parameter('trans_xyz', [0.0, 0.0, 0.0])       # 雷达系->机体系(FRD) 平移
         # 或从 /tf 获取外参: 配置 tf_parent_frame(机体frame)/tf_child_frame(点云frame) 后,
@@ -110,6 +115,8 @@ class ObstacleDistancePublisher(Node):
         self.max_range = float(self.get_parameter('max_range').value)
         publish_hz = float(self.get_parameter('publish_hz').value)
         scan_topic = self.get_parameter('scan_topic').value
+        self.use_world = bool(self.get_parameter('use_world_cloud').value)
+        odom_topic = self.get_parameter('odom_topic').value
         laser_frame_id = self.get_parameter('laser_frame_id').value
         if not laser_frame_id:
             # 自适应 namespace: sim 有 ns -> x500_depth_0/base_link; 真机无 ns -> base_link
@@ -124,15 +131,24 @@ class ObstacleDistancePublisher(Node):
         self.max_cm = int(round(self.max_range * 100.0))
         self.clear_value = self.max_cm + 1              # 无回波 -> 明确无障碍
 
-        if tf_child:
+        # 机体 FLU -> PX4 FRD (z 下): Rx(180°)
+        self.r_flu2frd = np.array([[1.0, 0.0, 0.0],
+                                   [0.0, -1.0, 0.0],
+                                   [0.0, 0.0, -1.0]])
+
+        if self.use_world:
+            # world 模式: 点已在 world(ENU), 只需 imu->base_link 静态外参(FLU) 用于转机体系
+            if not tf_child:
+                raise RuntimeError('use_world_cloud 需要 tf_parent_frame/tf_child_frame (imu -> base_link)')
+            self.R_imu_base, self.t_imu_base = self._lookup_extrinsic(tf_parent, tf_child)
+            self.get_logger().info(f'world 模式外参来自 /tf: {tf_child} -> {tf_parent}')
+            self.R = None
+            self.t = None
+        elif tf_child:
             # 从 /tf(/tf_static) 自动获取雷达系 -> 机体系 外参
             R_flu, t_flu = self._lookup_extrinsic(tf_parent, tf_child)
-            # 机体系从 ROS(FLU, z上) 转到 PX4 FRD(z下): Rx(180°)
-            r_flu2frd = np.array([[1.0, 0.0, 0.0],
-                                  [0.0, -1.0, 0.0],
-                                  [0.0, 0.0, -1.0]])
-            self.R = r_flu2frd @ R_flu
-            self.t = r_flu2frd @ t_flu
+            self.R = self.r_flu2frd @ R_flu
+            self.t = self.r_flu2frd @ t_flu
             self.get_logger().info(f'外参来自 /tf: {tf_child} -> {tf_parent}')
             self.get_logger().info('R(FRD)=\n' + np.array2string(self.R, precision=4) +
                                    f'\nt(FRD)={np.round(self.t, 4).tolist()}')
@@ -146,6 +162,11 @@ class ObstacleDistancePublisher(Node):
         # 点云订阅: 传感器数据一般 best_effort
         cloud_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
         self.create_subscription(PointCloud2, cloud_topic, self.cloud_cb, cloud_qos)
+
+        # world 模式: 订阅 Super-LIO odom 获取 world->imu 位姿(ENU, frame=world)
+        if self.use_world:
+            self._odom = None
+            self.create_subscription(Odometry, odom_topic, self.odom_cb, cloud_qos)
 
         # 发布到 uXRCE-DDS 输入话题, 直达 PX4 uORB obstacle_distance
         out_topic = namespace.rstrip('/') + '/fmu/in/obstacle_distance'
@@ -164,7 +185,8 @@ class ObstacleDistancePublisher(Node):
             f'订阅点云: {cloud_topic} -> 发布: {out_topic}, bins={self.n_bins} '
             f'({self.bin_deg}deg), z_half=±{self.z_half}m, '
             f'range=[{self.min_range}, {self.max_range}]m, '
-            f'body_mask(FRD half)={self.body_half.tolist()}')
+            f'body_mask(FRD half)={self.body_half.tolist()}, '
+            f'world_mode={self.use_world}')
 
     def _lookup_extrinsic(self, parent, child):
         """从 /tf(/tf_static) 获取 child->parent 静态外参, 返回 (R_3x3, t_3)。
@@ -190,13 +212,36 @@ class ObstacleDistancePublisher(Node):
                 time_module.sleep(0.5)
         raise RuntimeError(f'获取静态外参失败 {child}->{parent}: {last_err}')
 
+    def odom_cb(self, msg):
+        """Super-LIO odom: world(frame='world', ENU) -> imu 位姿。"""
+        self._odom = msg.pose.pose
+
     def cloud_cb(self, msg):
         pts = pointcloud2_to_xyz(msg)
         if pts is None or len(pts) == 0:
             return
 
-        # 雷达系 -> 机体系 FRD (x 前, y 右, z 下)
-        p = pts @ self.R.T + self.t
+        if self.use_world:
+            # world 模式: 点云在 world(ENU), 高度带用 world z(相对飞机), 再转到机体系 FRD
+            odom = self._odom
+            if odom is None:
+                return
+            t_wb = np.array([odom.position.x, odom.position.y, odom.position.z])
+            q = odom.orientation
+            R_w_imu = quat_to_rotation_matrix(q.w, q.x, q.y, q.z)   # world -> imu (ENU)
+            # 高度带过滤用 world z 差(不随飞机俯仰倾斜)
+            dz_world = pts[:, 2] - t_wb[2]
+            # world -> imu(ENU) -> base_link(FLU) -> FRD
+            p_imu = (pts - t_wb) @ R_w_imu.T
+            p_base = p_imu @ self.R_imu_base.T + self.t_imu_base
+            p = p_base @ self.r_flu2frd.T
+            z_for_mask = p[:, 2]
+            height_ok = np.abs(dz_world) <= self.z_half
+        else:
+            # 机体系点云(雷达系或 body 系): 静态外参转到 FRD, 高度带用机体 z
+            p = pts @ self.R.T + self.t
+            z_for_mask = p[:, 2]
+            height_ok = np.abs(z_for_mask) <= self.z_half
 
         x = p[:, 0]
         y = p[:, 1]
@@ -214,7 +259,7 @@ class ObstacleDistancePublisher(Node):
         valid = (
             (d_h >= self.min_range)
             & (d_h <= self.max_range)
-            & (np.abs(z) <= self.z_half)   # 只取机体水平面上下 30cm 内的点(能撞到的高度)
+            & height_ok
             & ~in_body
         )
         if not np.any(valid):
