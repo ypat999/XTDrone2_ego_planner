@@ -105,7 +105,7 @@ class ObstacleDistancePublisher(Node):
         self.declare_parameter('body_half_size', [0.5, 0.45, 0.4])
         # 调试用 LaserScan 输出
         self.declare_parameter('scan_topic', 'obstacle_laserscan')
-        # LaserScan 调试话题的 frame: 空 -> 自动选择 (world 模式=base_footprint, 否则=base_link+ns)
+        # LaserScan 调试话题的 frame: 空 -> 自动选择 base_footprint(带 ns 前缀)
         self.declare_parameter('laser_frame_id', '')
         # use_sim_time 由 rclpy 预声明, 直接读取即可
 
@@ -122,14 +122,10 @@ class ObstacleDistancePublisher(Node):
         self.footprint_frame = self.get_parameter('footprint_frame').value
         laser_frame_id = self.get_parameter('laser_frame_id').value
         if not laser_frame_id:
-            # 自动选择 frame (注意: frame_id 不能带 / 前缀, ROS2 用相对 tf 名)
-            if self.use_world:
-                # world 模式: base_footprint(与 world 平行, 不随机体倾斜), 真机无 ns
-                laser_frame_id = self.footprint_frame
-            else:
-                # 自适应 namespace: sim 有 ns -> x500_depth_0/base_link; 真机无 ns -> base_link
-                ns = namespace.strip('/')
-                laser_frame_id = (ns + '/base_link') if ns else 'base_link'
+            # 统一用 base_footprint(水平投影, 与 world 平行, 只带 yaw, 不随机体倾斜)
+            # 注意: frame_id 不带 / 前缀; 自适应 namespace(sim 有 ns -> x500_depth_0/base_footprint)
+            ns = namespace.strip('/')
+            laser_frame_id = (ns + '/' + self.footprint_frame) if ns else self.footprint_frame
         self.laser_frame_id = laser_frame_id
         tf_parent = self.get_parameter('tf_parent_frame').value
         tf_child = self.get_parameter('tf_child_frame').value
@@ -333,9 +329,9 @@ class ObstacleDistancePublisher(Node):
         msg.distances = distances
         self.pub.publish(msg)
 
-        # 调试用 LaserScan (机体系): 障碍=距离(m), 明确无障碍=range_max, 未知=0(rviz 不画)
-        # 注意方向: LaserScan 0°=+x 逆时针为正; 我们的 bin 是 FRD 顺时针为正(0°=机头,+90°=机右)
-        # 所以前 n_bins 个 bin 需反转索引再填入
+        # 调试用 LaserScan (base_footprint 水平面): 障碍=距离(m), 明确无障碍=range_max, 未知=0(rviz 不画)
+        # 方向: LaserScan 0°=+x 逆时针为正; PX4 bin 是 FRD 顺时针为正(0°=机头,+90°=机右)
+        # 直接映射 FRD 顺时针角 θ=i*binsize -> LaserScan 逆时针角 (360-θ) -> 索引 (n_bins-i)%n_bins
         scan = LaserScan()
         scan.header.stamp = self.get_clock().now().to_msg()
         scan.header.frame_id = self.laser_frame_id
@@ -355,7 +351,7 @@ class ObstacleDistancePublisher(Node):
                 val = float(self.max_cm)          # FOV 内明确无障碍
             else:
                 val = float(d) / 100.0            # 实际障碍距离(m)
-            scan.ranges[(self.n_bins - 1) - i] = val
+            scan.ranges[(self.n_bins - i) % self.n_bins] = val
         self.scan_pub.publish(scan)
 
 

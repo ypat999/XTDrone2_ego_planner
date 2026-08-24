@@ -252,8 +252,9 @@ def generate_launch_description():
         cp_use_world = True
         cp_lidar_quat = [1.0, 0.0, 0.0, 0.0]         # world 模式忽略
         cp_lidar_trans = [0.0, 0.0, 0.0]             # world 模式忽略
-        cp_tf_parent = 'base_link'
-        cp_tf_child = 'imu'
+        # world 模式无需静态外参(位姿直接来自 world->base_footprint TF), 仅保留占位
+        cp_tf_parent = 'base_footprint'
+        cp_tf_child = ''
 
     obstacle_distance_publisher = Node(
         package='xtd2_communication',
