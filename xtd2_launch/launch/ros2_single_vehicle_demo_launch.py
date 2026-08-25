@@ -126,6 +126,8 @@ def generate_launch_description():
             'rviz': 'false',
             'use_sim_time': use_sim_time_str,
             'dynamic_removal': 'true' if build_map_mode else 'false',
+            # build_map_mode 时同时输出 SC-PGO 兼容数据(lio.sc_pgo.enable)
+            'sc_pgo': 'true' if build_map_mode else 'false',
 
         }.items()
     )
@@ -279,6 +281,7 @@ def generate_launch_description():
     # PX4 CP 参数设置 (仅仿真)
     # 通过 px4-param 客户端写入运行中的 PX4 SITL 实例
     # CP_GO_NO_DATA=1: 无避障数据时也允许飞行(移动到未知空间)
+    # CP_GUIDE_ANG=0: 避障时禁用偏航修正, 只做平移避让(避免机头乱转)
     # COM_OBS_AVOID=0: 我们走机载原生 CP(obstacle_distance->collision_prevention),
     #                   不依赖外部避障栈心跳; 若为1会报 "Avoidance system not ready" 无法解锁
     # MPC_POS_MODE=3: 关键! 默认4=加速控制(FlightTaskManualAcceleration, 无CP),
@@ -294,6 +297,8 @@ def generate_launch_description():
             "$BIN --instance ${PX4_ID} set COM_OBS_AVOID 0; "
             "$BIN --instance ${PX4_ID} set CP_GO_NO_DATA 1; "
             "echo 'CP_GO_NO_DATA =' $($BIN --instance ${PX4_ID} show CP_GO_NO_DATA); "
+            "$BIN --instance ${PX4_ID} set CP_GUIDE_ANG 0; "
+            "echo 'CP_GUIDE_ANG =' $($BIN --instance ${PX4_ID} show CP_GUIDE_ANG); "
             "$BIN --instance ${PX4_ID} set CP_DIST 1.0; "
             "echo 'CP_DIST =' $($BIN --instance ${PX4_ID} show CP_DIST); "
             "$BIN --instance ${PX4_ID} set MPC_POS_MODE 3; "

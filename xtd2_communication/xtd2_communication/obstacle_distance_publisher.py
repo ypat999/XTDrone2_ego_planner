@@ -293,7 +293,12 @@ class ObstacleDistancePublisher(Node):
             & height_ok
             & ~in_body
         )
+        # 注意: 无障碍物也要继续发送(全 clear), 否则 PX4 判定数据超时 stale, 空旷处推杆无反应
         if not np.any(valid):
+            stamp_ns = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
+            self._latest = (stamp_ns,
+                            [self.clear_value] * 72,      # 明确无障碍
+                            [0.0] * 72)                   # 调试 scan 不画
             return
 
         az_v = az[valid]
