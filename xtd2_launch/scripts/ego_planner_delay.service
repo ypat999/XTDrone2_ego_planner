@@ -1,0 +1,11 @@
+[Unit]
+Description=XTDrone2 Ego Planner Startup Delay (20s)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sleep 20
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

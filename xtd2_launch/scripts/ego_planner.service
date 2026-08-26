@@ -1,7 +1,7 @@
 [Unit]
 Description=XTDrone2 Single Vehicle Demo Service
-After=network.target
-Wants=network.target
+After=network.target ego_planner_delay.service
+Wants=network.target ego_planner_delay.service
 
 [Service]
 Type=simple
