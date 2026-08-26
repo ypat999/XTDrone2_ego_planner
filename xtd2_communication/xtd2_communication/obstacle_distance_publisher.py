@@ -159,7 +159,7 @@ class ObstacleDistancePublisher(Node):
             self.tf_parent = tf_parent
             self.tf_child = tf_child
             self._tf_miss = 0
-            # 启动预热: 等待 TF 链路可用(最多 10s)。
+            # 启动预热: 等待 TF 链路可用(最多 60s)。
             # Super-LIO 等前置节点可能尚未启动, 此时 TF 暂时不存在是正常的, 不能直接抛异常。
             self._wait_for_tf_link(tf_parent, tf_child)
             self.R = None
@@ -212,12 +212,12 @@ class ObstacleDistancePublisher(Node):
             return None, None
 
     def _wait_for_tf_link(self, parent, child):
-        """启动预热: 等待 child->parent TF 链路可用, 最多 10s。
+        """启动预热: 等待 child->parent TF 链路可用, 最多 60s。
 
         Super-LIO 等前置节点可能晚于本节点启动, 此时 TF 暂时不存在属正常,
         轮询等待即可; 超时仍未出现则抛异常(避免用错误外参静默飞行)。
         """
-        deadline = time_module.monotonic() + 10.0
+        deadline = time_module.monotonic() + 60.0
         last_err = None
         while time_module.monotonic() < deadline:
             try:
@@ -227,12 +227,12 @@ class ObstacleDistancePublisher(Node):
                 last_err = e
                 time_module.sleep(0.5)
         raise RuntimeError(
-            f'等待动态 TF {child}->{parent} 超时(10s): {last_err}\n'
+            f'等待动态 TF {child}->{parent} 超时(60s): {last_err}\n'
             '请确认 Super-LIO 已启动且发布了相关 TF(world->imu / world->base_footprint 等)')
 
     def _wait_for_footprint_tf(self):
-        """等待 Super-LIO 发布 world->base_footprint 动态 TF, 最多 10s。"""
-        deadline = time_module.monotonic() + 10.0
+        """等待 Super-LIO 发布 world->base_footprint 动态 TF, 最多 60s。"""
+        deadline = time_module.monotonic() + 60.0
         last_err = None
         while time_module.monotonic() < deadline:
             try:
@@ -242,7 +242,7 @@ class ObstacleDistancePublisher(Node):
                 last_err = e
                 time_module.sleep(0.2)
         raise RuntimeError(
-            f'获取动态 TF {self.footprint_frame}->{self.world_frame} 失败(10s): {last_err}\n'
+            f'获取动态 TF {self.footprint_frame}->{self.world_frame} 失败(60s): {last_err}\n'
             '请确认 Super-LIO 已启动且 lio.output.footprint_pub_en=true')
 
     def _lookup_world_pose(self):
