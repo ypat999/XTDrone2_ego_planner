@@ -494,6 +494,10 @@
     let backendConfigPub = null;
     let backendStatusSub = null;
     let useBackend = true;
+    let laserScanSub = null;
+    let laserScanGroup = null;
+    let laserScanRing = null;
+    let lastLaserScanFrameId = null;
 
     let trajectoryGroup = null;
     let trajMarkerSub = null;
@@ -580,6 +584,11 @@
       axesHelper.add(createAxisLabel('Y', new THREE.Vector3(axisLength + 1, 0, 0), '#00ff00'));
       axesHelper.add(createAxisLabel('Z', new THREE.Vector3(0, axisLength + 1, 0), '#0000ff'));
       rosRoot.add(axesHelper);
+
+      // /obstacle_laserscan 内容展示组(经 TF 变换到 fixedFrame)
+      laserScanGroup = new THREE.Group();
+      laserScanGroup.name = 'obstacle_laserscan';
+      rosRoot.add(laserScanGroup);
 
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
       scene.add(ambientLight);
@@ -688,6 +697,7 @@
         subscribeTf();
         fetchPointCloud2Topics();
         initBackendCommunication();
+        subscribeLaserScan();
 
         setTimeout(function () {
           console.log('Subscribing to default topic: /grid_map/occupancy_inflate/web_processed');
@@ -754,6 +764,7 @@
         if (goalPoseSub) { goalPoseSub.unsubscribe(); goalPoseSub = null; }
         if (trajectoryGroup) { rosRoot.remove(trajectoryGroup); disposeGroupRecursive(trajectoryGroup); trajectoryGroup = null; }
         if (goalArrow) { rosRoot.remove(goalArrow); goalArrow.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }); goalArrow = null; }
+        if (laserScanSub) { laserScanSub.unsubscribe(); laserScanSub = null; }
         ros.close();
         ros = null;
         updateConnectionStatus(false);
@@ -766,6 +777,109 @@
         el.textContent = connected ? '已连接' : '未连接';
         el.className = connected ? 'connected' : '';
       });
+    }
+
+    function subscribeLaserScan() {
+      if (!ros || !ros.isConnected) return;
+      if (laserScanSub) { laserScanSub.unsubscribe(); laserScanSub = null; }
+
+      laserScanSub = new ROSLIB.Topic({
+        ros: ros,
+        name: '/obstacle_laserscan',
+        messageType: 'sensor_msgs/msg/LaserScan',
+        qos: { depth: 10, durability: 'volatile', reliability: 'reliable' }
+      });
+      laserScanSub.subscribe(updateLaserScanDisplay);
+      console.log('Subscribed to /obstacle_laserscan for content display');
+    }
+
+    // 距离 -> 颜色: 近(红/危险) -> 远(绿/安全)
+    function laserDistanceColor(d, rangeMax) {
+      const t = Math.min(Math.max(d / rangeMax, 0), 1);
+      return new THREE.Vector3(1 - t, t, 0);
+    }
+
+    // 将 /obstacle_laserscan 内容渲染为 3D 环线(LaserScan: 0°=机头, 逆时针, FLU)
+    function updateLaserScanDisplay(message) {
+      if (!message || !laserScanGroup) return;
+
+      const ranges = message.ranges || [];
+      if (ranges.length === 0) return;
+
+      lastLaserScanFrameId = (message.header && message.header.frame_id) || null;
+
+      const angleMin = message.angle_min || 0;
+      const angleIncrement = message.angle_increment || (2 * Math.PI / ranges.length);
+      const rangeMax = message.range_max || 30;
+
+      // 场景坐标映射: ROS (x,y,z) -> THREE (y,z,x)
+      const pts = [];
+      for (let i = 0; i < ranges.length; i++) {
+        const r = ranges[i];
+        if (!isFinite(r) || r <= 0) continue;      // 0.0 = 未知, 跳过
+        const d = Math.min(r, rangeMax);
+        const a = angleMin + i * angleIncrement;
+        pts.push(new THREE.Vector3(d * Math.sin(a), 0, d * Math.cos(a)));
+      }
+
+      // 相邻有效点连成线段, 按平均距离着色
+      const positions = [];
+      const colors = [];
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[i];
+        const p1 = pts[i + 1];
+        positions.push(p0.x, p0.y, p0.z, p1.x, p1.y, p1.z);
+        const avg = (p0.length() + p1.length()) / 2;
+        const c = laserDistanceColor(avg, rangeMax);
+        colors.push(c.x, c.y, c.z, c.x, c.y, c.z);
+      }
+
+      if (!laserScanRing) {
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute([], 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute([], 3));
+        const material = new THREE.LineBasicMaterial({ vertexColors: true });
+        laserScanRing = new THREE.LineSegments(geometry, material);
+        laserScanRing.name = 'laserscan-ring';
+        laserScanRing.frustumCulled = false;
+        laserScanGroup.add(laserScanRing);
+      }
+
+      const geom = laserScanRing.geometry;
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geom.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      geom.setDrawRange(0, positions.length / 3);
+      geom.computeBoundingSphere();
+      laserScanRing.visible = positions.length > 0;
+
+      applyLaserScanTransform(lastLaserScanFrameId);
+    }
+
+    // 将激光扫描组从 scan.frame_id 变换到 fixedFrame
+    function applyLaserScanTransform(frameId) {
+      if (!frameId || !laserScanGroup) return;
+      fixedFrame = document.getElementById('fixed-frame').value;
+
+      if (frameId === fixedFrame) {
+        laserScanGroup.position.set(0, 0, 0);
+        laserScanGroup.quaternion.set(0, 0, 0, 1);
+        return;
+      }
+
+      const transform = lookupTransform(fixedFrame, frameId);
+      if (transform) {
+        laserScanGroup.position.set(
+          transform.translation.y,
+          transform.translation.z,
+          transform.translation.x
+        );
+        laserScanGroup.quaternion.set(
+          transform.rotation.y,
+          transform.rotation.z,
+          transform.rotation.x,
+          transform.rotation.w
+        );
+      }
     }
 
     function fetchPointCloud2Topics() {
@@ -1719,6 +1833,9 @@
         for (const topicKey in pointCloudObjects) {
           applyTfToPointCloud(topicKey);
         }
+        if (lastLaserScanFrameId) {
+          applyLaserScanTransform(lastLaserScanFrameId);
+        }
 
         if (lastTrajectoryData) {
           updateTrajectory(lastTrajectoryData.points, lastTrajectoryData.frameId);
@@ -1923,6 +2040,9 @@
       fixedFrame = this.value;
       for (const topicKey in pointCloudObjects) {
         applyTfToPointCloud(topicKey);
+      }
+      if (lastLaserScanFrameId) {
+        applyLaserScanTransform(lastLaserScanFrameId);
       }
       updateAllTfAxes();
       if (lastTrajectoryData) {

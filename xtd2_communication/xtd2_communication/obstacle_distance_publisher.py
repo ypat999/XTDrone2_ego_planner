@@ -34,7 +34,7 @@ from sensor_msgs.msg import LaserScan
 from px4_msgs.msg import ObstacleDistance
 
 UINT16_MAX = 65535
-CLOUD_TOPIC_NAME = '/livox/lidar'
+CLOUD_TOPIC_NAME = 'lio/body/cloud'
 
 
 def quat_to_rotation_matrix(w, x, y, z):
@@ -151,13 +151,20 @@ class ObstacleDistancePublisher(Node):
             self.R = None
             self.t = None
         elif tf_child:
-            # 从 /tf(/tf_static) 自动获取雷达系 -> 机体系 外参
-            R_flu, t_flu = self._lookup_extrinsic(tf_parent, tf_child)
-            self.R = self.r_flu2frd @ R_flu
-            self.t = self.r_flu2frd @ t_flu
-            self.get_logger().info(f'外参来自 /tf: {tf_child} -> {tf_parent}')
-            self.get_logger().info('R(FRD)=\n' + np.array2string(self.R, precision=4) +
-                                   f'\nt(FRD)={np.round(self.t, 4).tolist()}')
+            # 动态外参模式: 每帧实时查询 tf_child -> tf_parent 变换(含实时姿态)。
+            # 用于把机体系/imu系点云投影到水平 base_footprint(始终平行地面)后,
+            # 再在水平 z 上取 ±z_half 上下区间; 也兼容纯静态安装外参(动态查询每次返回同一值)。
+            self.tf_buffer = Buffer()
+            self.tf_listener = TransformListener(self.tf_buffer, self, spin_thread=True)
+            self.tf_parent = tf_parent
+            self.tf_child = tf_child
+            self._tf_miss = 0
+            # 启动预热: 等待 TF 链路可用(最多 10s)。
+            # Super-LIO 等前置节点可能尚未启动, 此时 TF 暂时不存在是正常的, 不能直接抛异常。
+            self._wait_for_tf_link(tf_parent, tf_child)
+            self.R = None
+            self.t = None
+            self.get_logger().info(f'动态外参模式: 每帧实时查询 {tf_child} -> {tf_parent}')
         else:
             q = self.get_parameter('quat_wxyz').value
             t = self.get_parameter('trans_xyz').value
@@ -189,29 +196,39 @@ class ObstacleDistancePublisher(Node):
             f'body_mask(FRD half)={self.body_half.tolist()}, '
             f'world_mode={self.use_world}')
 
-    def _lookup_extrinsic(self, parent, child):
-        """从 /tf(/tf_static) 获取 child->parent 静态外参, 返回 (R_3x3, t_3)。
+    def _lookup_dynamic_tf(self):
+        """实时查询 self.tf_child -> self.tf_parent 变换(每帧, 含实时姿态)。
 
         R/t 满足 p_parent = R * p_child + t (ROS FLU 系)。
-        重试最多 10s, 失败则抛异常(避免用错误外参静默飞行)。
+        TF 链路缺失时返回 (None, None), 由调用方跳过本帧。
         """
-        if not parent:
-            raise RuntimeError('tf_parent_frame 未配置')
-        buffer = Buffer()
-        TransformListener(buffer, self, spin_thread=True)
+        try:
+            ts = self.tf_buffer.lookup_transform(self.tf_parent, self.tf_child, Time())
+            q = ts.transform.rotation
+            t = ts.transform.translation
+            R = quat_to_rotation_matrix(q.w, q.x, q.y, q.z)
+            return R, np.array([t.x, t.y, t.z], dtype=np.float64)
+        except Exception:  # noqa: BLE001 - tf2 异常类型多且派生自同一基类
+            return None, None
+
+    def _wait_for_tf_link(self, parent, child):
+        """启动预热: 等待 child->parent TF 链路可用, 最多 10s。
+
+        Super-LIO 等前置节点可能晚于本节点启动, 此时 TF 暂时不存在属正常,
+        轮询等待即可; 超时仍未出现则抛异常(避免用错误外参静默飞行)。
+        """
         deadline = time_module.monotonic() + 10.0
         last_err = None
         while time_module.monotonic() < deadline:
             try:
-                ts = buffer.lookup_transform(parent, child, Time(), Duration(seconds=1.0))
-                q = ts.transform.rotation
-                t = ts.transform.translation
-                R = quat_to_rotation_matrix(q.w, q.x, q.y, q.z)
-                return R, np.array([t.x, t.y, t.z], dtype=np.float64)
-            except Exception as e:  # noqa: BLE001 - tf2 异常类型多且派生自同一基类
+                self.tf_buffer.lookup_transform(parent, child, Time())
+                return
+            except Exception as e:  # noqa: BLE001
                 last_err = e
                 time_module.sleep(0.5)
-        raise RuntimeError(f'获取静态外参失败 {child}->{parent}: {last_err}')
+        raise RuntimeError(
+            f'等待动态 TF {child}->{parent} 超时(10s): {last_err}\n'
+            '请确认 Super-LIO 已启动且发布了相关 TF(world->imu / world->base_footprint 等)')
 
     def _wait_for_footprint_tf(self):
         """等待 Super-LIO 发布 world->base_footprint 动态 TF, 最多 10s。"""
@@ -265,10 +282,25 @@ class ObstacleDistancePublisher(Node):
             z_for_mask = p[:, 2]
             height_ok = np.abs(dz_world) <= self.z_half
         else:
-            # 机体系点云(雷达系或 body 系): 静态外参转到 FRD
-            p = pts @ self.R.T + self.t
-            # FRD -> FLU(z 上, y 左): LaserScan 用(r_flu2frd 为自逆)
-            p_fp = p @ self.r_flu2frd
+            if self.R is None:
+                # 动态外参模式: 每帧把 imu 系点云投影到 tf_parent(如水平 base_footprint),
+                # 机身倾斜时点云跟随实时姿态变换, 保证取的是水平面上下区间
+                R_flu, t_flu = self._lookup_dynamic_tf()
+                if R_flu is None:
+                    self._tf_miss += 1
+                    if self._tf_miss % 50 == 1:   # ~5s 报一次
+                        self.get_logger().warn(
+                            f'动态 TF 缺失: {self.tf_child}->{self.tf_parent}, 跳过本帧')
+                    return
+                # FLU -> FRD(z 下, y 右): 与 PX4 obstacle_distance 一致
+                p = pts @ (self.r_flu2frd @ R_flu).T + (self.r_flu2frd @ t_flu)
+                # FRD -> FLU(z 上, y 左): LaserScan 用(r_flu2frd 为自逆)
+                p_fp = p @ self.r_flu2frd
+            else:
+                # 静态外参模式(quat/trans 或历史配置): 机体系点云直接转 FRD
+                p = pts @ self.R.T + self.t
+                # FRD -> FLU(z 上, y 左): LaserScan 用(r_flu2frd 为自逆)
+                p_fp = p @ self.r_flu2frd
             z_for_mask = p[:, 2]
             height_ok = np.abs(z_for_mask) <= self.z_half
 

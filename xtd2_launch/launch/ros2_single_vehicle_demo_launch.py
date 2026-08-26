@@ -247,16 +247,15 @@ def generate_launch_description():
         cp_lidar_trans = [0.1, 0.0, -0.3]
     else:
         # 真实: /livox/lidar 是 livox CustomMsg(驱动 xfer_format=1), 本节点无法直接订阅
-        # 改用 Super-LIO 输出的 lio/cloud_world (PointCloud2, world 系, 10Hz, 已去畸变)
-        # world 模式: 高度带以 world z(相对飞机)衡量, 不随飞机俯仰倾斜;
-        #   飞机位姿用 Super-LIO 动态 TF world->base_footprint(与 world 平行, 只有 yaw)
-        cp_cloud_topic = 'lio/cloud_world'
-        cp_use_world = True
-        cp_lidar_quat = [1.0, 0.0, 0.0, 0.0]         # world 模式忽略
-        cp_lidar_trans = [0.0, 0.0, 0.0]             # world 模式忽略
-        # world 模式无需静态外参(位姿直接来自 world->base_footprint TF), 仅保留占位
-        cp_tf_parent = 'base_footprint'
-        cp_tf_child = ''
+        # 改用 Super-LIO 输出的 lio/body/cloud (PointCloud2, 机体系/imu系, 已去畸变, 点数多更稳)
+        # 机体系模式: 高度带在 base_footprint(水平,只带yaw) 的 z 上下衡量, 等效原 world 模式
+        # 外参从 /tf 获取: imu(点云系) -> base_footprint(目标系), 自动包含倾斜与平移
+        cp_cloud_topic = 'lio/body/cloud'
+        cp_use_world = False
+        cp_lidar_quat = [1.0, 0.0, 0.0, 0.0]         # 机体系模式用 /tf 外参, 忽略 quat
+        cp_lidar_trans = [0.0, 0.0, 0.0]             # 机体系模式用 /tf 外参, 忽略 trans
+        cp_tf_parent = 'base_footprint'              # 目标系: 点云被变换到的坐标系
+        cp_tf_child = 'imu'                          # 源系: 点云所在坐标系(=lio/body/cloud frame_id)
 
     obstacle_distance_publisher = Node(
         package='xtd2_communication',
