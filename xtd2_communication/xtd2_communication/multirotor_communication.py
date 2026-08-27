@@ -16,7 +16,7 @@ import time
 from std_msgs.msg import String
 from std_msgs.msg import Empty
 from geometry_msgs.msg import Pose, Twist, PoseStamped, PoseWithCovarianceStamped
-from px4_msgs.msg import TrajectorySetpoint, OffboardControlMode, VehicleCommand, VehicleLocalPosition, VehicleGlobalPosition, VehicleAttitudeSetpoint, VehicleStatus, VehicleOdometry
+from px4_msgs.msg import TrajectorySetpoint, OffboardControlMode, VehicleCommand, VehicleLocalPosition, VehicleGlobalPosition, VehicleAttitudeSetpoint, VehicleStatus, VehicleOdometry, VehicleLandDetected
 from quadrotor_msgs.msg import PositionCommand
 from xtd2_msgs.srv import XTD2Cmd
 from xtd2_msgs.msg import XTD2VehicleState
@@ -67,6 +67,7 @@ class MultirotorCommunication(Node):
             'vehicle_local_position_callback': {'count': 0, 'total_time': 0.0},
             'vehicle_global_position_callback': {'count': 0, 'total_time': 0.0},
             'vehicle_status_callback': {'count': 0, 'total_time': 0.0},
+            'vehicle_land_detected_callback': {'count': 0, 'total_time': 0.0},
             'px4_odom_callback': {'count': 0, 'total_time': 0.0},
             'ros2_odom_callback': {'count': 0, 'total_time': 0.0},
             'cmd_pose_local_ned_callback': {'count': 0, 'total_time': 0.0},
@@ -124,6 +125,10 @@ class MultirotorCommunication(Node):
         self._last_switch_progress_state = None  # 上次切换进度状态 (nav_state, armed, flying)，用于检测变化
         self.board_temperature = 0.0  # 板卡温度（摄氏度）
         self.temperature_emergency_landing = False  # 温度触发紧急降落标记，防止重复触发
+        self.land_detected = None  # PX4落地检测结果 (VehicleLandDetected)，用于诊断
+        self.land_stuck_check_start = None  # 降落监护：触地但PX4未上锁的持续计时起始时间
+        self.last_disarm_attempt_time = None  # 上次发送disarm的时间（重试限频1Hz）
+        self._last_land_recommand_time = None  # 上次重发LAND命令的时间（限频5s）
 
         # XTDrone2 Interface
         # 移除namespace前后的斜杠，避免重复
@@ -152,6 +157,7 @@ class MultirotorCommunication(Node):
         self.create_subscription(VehicleLocalPosition, dds_topic_prefix + 'fmu/out/vehicle_local_position', self.vehicle_local_position_callback, PX4_COMPATIBLE_QOS)
         self.create_subscription(VehicleGlobalPosition, dds_topic_prefix + 'fmu/out/vehicle_global_position', self.vehicle_global_position_callback, PX4_COMPATIBLE_QOS)
         self.create_subscription(VehicleStatus, dds_topic_prefix + 'fmu/out/vehicle_status', self.vehicle_status_callback, PX4_COMPATIBLE_QOS)
+        self.create_subscription(VehicleLandDetected, dds_topic_prefix + 'fmu/out/vehicle_land_detected', self.vehicle_land_detected_callback, PX4_COMPATIBLE_QOS)
         self.create_subscription(VehicleOdometry, dds_topic_prefix + 'fmu/out/vehicle_odometry', self.px4_odom_callback, PX4_COMPATIBLE_QOS)
         self.vehicle_command_publisher = self.create_publisher(VehicleCommand, dds_topic_prefix + 'fmu/in/vehicle_command', 10)
         self.offboard_control_mode_pub = self.create_publisher(OffboardControlMode, dds_topic_prefix + 'fmu/in/offboard_control_mode', 10)
@@ -1476,6 +1482,40 @@ class MultirotorCommunication(Node):
         # 重新执行切换逻辑
         self.auto_switch_to_egoplanner()
 
+    def vehicle_land_detected_callback(self, msg):
+        """PX4落地检测回调 (fmu/out/vehicle_land_detected)，用于降落监护诊断"""
+        start_time = time.time()
+        self.land_detected = msg
+        self.callback_stats['vehicle_land_detected_callback']['count'] += 1
+        self.callback_stats['vehicle_land_detected_callback']['total_time'] += time.time() - start_time
+
+    def _is_on_ground(self, threshold=0.35, vel_threshold=0.8):
+        """基于自身高度/速度判断是否已触地（降落监护用）
+
+        优先使用LIO里程计（ENU，z向上），其次PX4本地位置（NED，取-z）。
+        高度低于阈值 且 速度接近零 才判定触地；无有效数据时返回False避免误判。
+        """
+        alt = None
+        vel = None
+        if self.cur_lio_vehicle_odometry is not None:
+            alt = self.cur_lio_vehicle_odometry.pose.pose.position.z
+            vel = self.cur_lio_vehicle_odometry.twist.twist.linear
+        elif self.cur_vehicle_local_position is not None:
+            alt = -self.cur_vehicle_local_position.z
+        if alt is None or alt > threshold:
+            return False
+        if vel is not None:
+            v_mag = math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2)
+            if v_mag > vel_threshold:
+                return False
+        return True
+
+    def _should_retry_disarm(self):
+        """disarm命令限频重试（最低间隔1秒），避免刷屏重复发送"""
+        if self.last_disarm_attempt_time is None:
+            return True
+        return (self.get_clock().now() - self.last_disarm_attempt_time).nanoseconds / 1e9 >= 1.0
+
     def check_landing_and_disarm(self):
         """检查无人机是否落地，自动完成降落流程
 
@@ -1483,7 +1523,7 @@ class MultirotorCommunication(Node):
         1. 基于高度<=0.3m判断触地，继续发送setpoint保持offboard 5秒（防止PX4过早停桨）
         2. 5秒后stop planning + 切换到position模式 + 关闭offboard
         3. 切换position后0.5秒发送LAND命令
-        4. LAND后3秒尝试disarm
+        4. 降落监护：LAND后3秒尝试disarm；触地后5秒仍未上锁（PX4未检测到落地/顶桨）强制disarm并1Hz重试
         """
         if self.vehicle_status is None:
             return
@@ -1495,16 +1535,54 @@ class MultirotorCommunication(Node):
         is_offboard = nav_state == 14
         is_flying = is_offboard and current_altitude > 0.3
 
-        # === Phase 4: LAND已发送，等待3秒后disarm ===
+        # === Phase 4: 降落监护（LAND已发送，等待PX4完成落地上锁） ===
+        # 关键兜底：PX4有小概率未检测到落地、持续顶桨不自动上锁。
+        # 此处以自身高度/速度判定触地，若触地后长时间仍未上锁 → 强制disarm并重试，不再一次失败就放弃。
         if self.land_command_time is not None and is_armed:
-            land_elapsed = (self.get_clock().now() - self.land_command_time).nanoseconds / 1e9
-            if land_elapsed >= 3.0:
-                self.get_logger().info('LAND后3秒，发送disarm...')
+            now_ = self.get_clock().now()
+            land_elapsed = (now_ - self.land_command_time).nanoseconds / 1e9
+            is_on_ground = self._is_on_ground()
+
+            # 触地持续计时（用于兜底判定）
+            if is_on_ground:
+                if self.land_stuck_check_start is None:
+                    self.land_stuck_check_start = now_
+                stuck_elapsed = (now_ - self.land_stuck_check_start).nanoseconds / 1e9
+            else:
+                self.land_stuck_check_start = None
+                stuck_elapsed = 0.0
+
+            # 正常路径：LAND后3秒尝试disarm（PX4若能正常检测落地会接受普通disarm）
+            if land_elapsed >= 3.0 and self._should_retry_disarm():
+                self.get_logger().info(f'LAND后{land_elapsed:.1f}秒，发送disarm...')
                 self.disarm()
-                self.landed_time = None
-                self.position_switch_time = None
-                self.land_command_time = None
-            return  # LAND等待期间不做其他操作
+                self.last_disarm_attempt_time = now_
+
+            # 兜底路径：已触地但持续未上锁（PX4未检测到落地，可能在顶桨）→ 强制disarm，1Hz重试
+            if is_on_ground and stuck_elapsed >= 5.0 and self._should_retry_disarm():
+                land_det_str = '无数据'
+                if self.land_detected is not None:
+                    land_det_str = (f'landed={self.land_detected.landed}, '
+                                    f'ground_contact={self.land_detected.ground_contact}, '
+                                    f'maybe_landed={self.land_detected.maybe_landed}')
+                self.get_logger().error(
+                    f'[降落兜底] 已触地{stuck_elapsed:.1f}秒仍未上锁，PX4可能未检测到落地仍在加油门 '
+                    f'(PX4落地检测: {land_det_str})，强制disarm!'
+                )
+                self.disarm(force=True)
+                self.last_disarm_attempt_time = now_
+
+            # 兜底路径2：LAND后较长时间仍未触地（PX4可能未正常执行降落下降）→ 重发LAND
+            if nav_state == 18 and not is_on_ground and land_elapsed >= 10.0:
+                if (self._last_land_recommand_time is None or
+                        (now_ - self._last_land_recommand_time).nanoseconds / 1e9 >= 5.0):
+                    self.get_logger().warn(
+                        f'[降落监护] LAND后{land_elapsed:.1f}秒仍未触地，PX4可能未正常执行降落，重新发送LAND命令...'
+                    )
+                    self.land()
+                    self._last_land_recommand_time = now_
+
+            return  # 降落监护期间不做其他操作
 
         # === Phase 3: Position模式已切换，等待0.5秒后发送LAND ===
         if self.position_switch_time is not None and self.land_command_time is None:
@@ -1518,7 +1596,7 @@ class MultirotorCommunication(Node):
         # === PX4在Phase 1期间自行进入LAND模式 ===
         # 触地后PX4可能自动切到nav_state=18，此时position_switch_time尚未设置(Phase 1未到期)
         # 立即stop planning + 等待disarm，防止落地后无法上锁
-        if self.landed_time is not None and self.position_switch_time is None and nav_state == 18 and is_armed:
+        if (self.landed_time is not None or self._is_on_ground()) and self.position_switch_time is None and nav_state == 18 and is_armed:
             self.get_logger().info(
                 f'PX4在Phase 1期间进入LAND模式(nav_state=18)，立即停止规划，等待disarm...'
             )
@@ -1556,6 +1634,8 @@ class MultirotorCommunication(Node):
             self.landed_time = None
             self.position_switch_time = None
             self.land_command_time = None
+            self.land_stuck_check_start = None
+            self.last_disarm_attempt_time = None
             self.was_flying = False
 
             self.get_logger().info(f'无人机降落完成，nav_state={nav_state}, 高度={current_altitude:.2f}m')

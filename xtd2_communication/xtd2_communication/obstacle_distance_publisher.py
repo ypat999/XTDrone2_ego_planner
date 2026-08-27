@@ -11,8 +11,9 @@
     - frame = MAV_FRAME_BODY_FRD (12), 0 号 bin 指向机头, 角度顺时针(右)为正
     - distances 单位为 cm
     - 某 bin 内有点: 取该方位最小水平距离 (cm)
-    - 某 bin 无回波: 填 max_distance+1, 表示该方向明确无障碍
-    - 数据超时(>500ms)由 PX4 侧判定为 stale, 配合 CP_GO_NO_DATA=1 允许无数据时飞行
+    - 无回波: 填 max_distance+1, 表示该方向明确无障碍
+    - 无点云输入(初始尚未收到 或 断流超时): 按最大距离(全 clear)持续发送,
+      避免 PX4 侧 obstacle_distance 数据超时进入 loiter, 保证可自动切换模式
 """
 
 import math
@@ -184,8 +185,11 @@ class ObstacleDistancePublisher(Node):
         self.scan_pub = self.create_publisher(
             LaserScan, namespace.rstrip('/') + '/' + scan_topic, 10)
 
-        self._latest = None          # (stamp_ns, distances list)
-        self._timeout_ns = int(0.5 * 1e9)
+        self._latest = None          # (last_recv_ns, distances list)
+        # 断流判定: 超过该时长未收到点云输入, 则按全 clear(最大距离)持续发送,
+        # 避免 PX4 因 obstacle_distance 超时进入 loiter。值需大于输入点云实际周期,
+        # 真机 Super-LIO 重负载下可能低至 0.2~1Hz, 故用 5s
+        self._timeout_ns = int(5.0 * 1e9)
         self.create_timer(1.0 / publish_hz, self.timer_cb)
         self.publish_hz = publish_hz
 
@@ -327,8 +331,7 @@ class ObstacleDistancePublisher(Node):
         )
         # 注意: 无障碍物也要继续发送(全 clear), 否则 PX4 判定数据超时 stale, 空旷处推杆无反应
         if not np.any(valid):
-            stamp_ns = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
-            self._latest = (stamp_ns,
+            self._latest = (self.get_clock().now().nanoseconds,
                             [self.clear_value] * 72,      # 明确无障碍
                             [0.0] * 72)                   # 调试 scan 不画
             return
@@ -362,18 +365,25 @@ class ObstacleDistancePublisher(Node):
             else:
                 scan_dists[i] = self.clear_value    # 明确无障碍
 
-        # 注意: 时间戳必须换算成完整纳秒(sec+nanosec), 否则与 get_clock().now() 比较会永远超时
-        stamp_ns = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
-        self._latest = (stamp_ns, distances, scan_dists)
+        # 用节点接收时刻(而非点云时间戳)作为断流判据:
+        # 点云时间戳会因 Super-LIO 处理延迟/低频输出而陈旧, 用它比较会让输出跟着输入频率走
+        # (真机 cloud_world 低至 0.2Hz 时 obstacle_distance 也会只剩 0.2Hz)
+        self._latest = (self.get_clock().now().nanoseconds, distances, scan_dists)
 
     def timer_cb(self):
-        if self._latest is None:
-            return
-        stamp_ns, distances, scan_dists = self._latest
         now_ns = self.get_clock().now().nanoseconds
-        if now_ns - stamp_ns > self._timeout_ns:
-            # 数据过期, 停止发布, 让 PX4 判定数据失效 (配合 CP_GO_NO_DATA 决策)
-            return
+        distances = None
+        scan_dists = None
+        if self._latest is not None:
+            stamp_ns, distances, scan_dists = self._latest
+            if now_ns - stamp_ns > self._timeout_ns:
+                # 断流(超过 timeout 未收到点云): 不停止发布, 改用全 clear(最大距离)持续发送,
+                # 让 PX4 避障视为"无障碍", 避免 obstacle_distance 超时导致进入 loiter/无法自动切换
+                distances = None
+        if distances is None:
+            # 初始尚未收到点云 或 已断流: 一律按最大距离(全 clear)发送
+            distances = [self.clear_value] * 72
+            scan_dists = [0.0] * 72
 
         msg = ObstacleDistance()
         msg.timestamp = int(now_ns // 1000)          # us, PX4 用其判断数据新鲜度
