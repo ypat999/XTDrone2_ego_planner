@@ -16,7 +16,7 @@ import time
 from std_msgs.msg import String
 from std_msgs.msg import Empty
 from geometry_msgs.msg import Pose, Twist, PoseStamped, PoseWithCovarianceStamped
-from px4_msgs.msg import TrajectorySetpoint, OffboardControlMode, VehicleCommand, VehicleLocalPosition, VehicleGlobalPosition, VehicleAttitudeSetpoint, VehicleStatus, VehicleOdometry, VehicleLandDetected
+from px4_msgs.msg import TrajectorySetpoint, OffboardControlMode, VehicleCommand, VehicleLocalPosition, VehicleGlobalPosition, VehicleAttitudeSetpoint, VehicleStatus, VehicleOdometry, VehicleLandDetected, VehicleCommandAck
 from quadrotor_msgs.msg import PositionCommand
 from xtd2_msgs.srv import XTD2Cmd
 from xtd2_msgs.msg import XTD2VehicleState
@@ -68,6 +68,7 @@ class MultirotorCommunication(Node):
             'vehicle_global_position_callback': {'count': 0, 'total_time': 0.0},
             'vehicle_status_callback': {'count': 0, 'total_time': 0.0},
             'vehicle_land_detected_callback': {'count': 0, 'total_time': 0.0},
+            'vehicle_command_ack_callback': {'count': 0, 'total_time': 0.0},
             'px4_odom_callback': {'count': 0, 'total_time': 0.0},
             'ros2_odom_callback': {'count': 0, 'total_time': 0.0},
             'cmd_pose_local_ned_callback': {'count': 0, 'total_time': 0.0},
@@ -129,6 +130,10 @@ class MultirotorCommunication(Node):
         self.land_stuck_check_start = None  # 降落监护：触地但PX4未上锁的持续计时起始时间
         self.last_disarm_attempt_time = None  # 上次发送disarm的时间（重试限频1Hz）
         self._last_land_recommand_time = None  # 上次重发LAND命令的时间（限频5s）
+        # LIO严重漂移保护：速度突变>20m/s判定漂移，零速悬停5s，未恢复(<10m/s)则触发LAND
+        self.lidar_drift_active = False  # 漂移保护进行中（timer维持零速悬停）
+        self.lidar_drift_start_time = None  # 零速悬停起始时刻
+        self.last_lio_speed = 0.0  # 最新一次LIO线速度模长(m/s)，用于漂移检测与恢复判定
 
         # XTDrone2 Interface
         # 移除namespace前后的斜杠，避免重复
@@ -158,6 +163,7 @@ class MultirotorCommunication(Node):
         self.create_subscription(VehicleGlobalPosition, dds_topic_prefix + 'fmu/out/vehicle_global_position', self.vehicle_global_position_callback, PX4_COMPATIBLE_QOS)
         self.create_subscription(VehicleStatus, dds_topic_prefix + 'fmu/out/vehicle_status', self.vehicle_status_callback, PX4_COMPATIBLE_QOS)
         self.create_subscription(VehicleLandDetected, dds_topic_prefix + 'fmu/out/vehicle_land_detected', self.vehicle_land_detected_callback, PX4_COMPATIBLE_QOS)
+        self.create_subscription(VehicleCommandAck, dds_topic_prefix + 'fmu/out/vehicle_command_ack', self.vehicle_command_ack_callback, PX4_COMPATIBLE_QOS)
         self.create_subscription(VehicleOdometry, dds_topic_prefix + 'fmu/out/vehicle_odometry', self.px4_odom_callback, PX4_COMPATIBLE_QOS)
         self.vehicle_command_publisher = self.create_publisher(VehicleCommand, dds_topic_prefix + 'fmu/in/vehicle_command', 10)
         self.offboard_control_mode_pub = self.create_publisher(OffboardControlMode, dds_topic_prefix + 'fmu/in/offboard_control_mode', 10)
@@ -271,6 +277,21 @@ class MultirotorCommunication(Node):
                     self.auto_switch_enabled = False
                     self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 3)
                     self._publish_stop_planning()
+            self.callback_stats['timer_callback']['count'] += 1
+            self.callback_stats['timer_callback']['total_time'] += time.time() - start_time
+            return
+
+        # LIO漂移保护：维持零速悬停，5秒到期后判定恢复或触发降落
+        if self.lidar_drift_active:
+            msg = OffboardControlMode()
+            msg.timestamp = self.get_clock_microseconds()
+            msg.velocity = True
+            self.offboard_control_mode_pub.publish(msg)
+            cmd = TrajectorySetpoint()
+            cmd.timestamp = self.get_clock_microseconds()
+            cmd.velocity = [0.0, 0.0, 0.0]
+            self.dds_trajectory_setpoint_pub.publish(cmd)
+            self.check_lio_drift()
             self.callback_stats['timer_callback']['count'] += 1
             self.callback_stats['timer_callback']['total_time'] += time.time() - start_time
             return
@@ -422,6 +443,41 @@ class MultirotorCommunication(Node):
         
         self.callback_stats['vehicle_status_callback']['count'] += 1
         self.callback_stats['vehicle_status_callback']['total_time'] += time.time() - start_time
+
+    def vehicle_command_ack_callback(self, msg):
+        """PX4命令回执：仅打印日志便于定位失败原因，不参与控制逻辑"""
+        cmd_names = {
+            VehicleCommand.VEHICLE_CMD_NAV_TAKEOFF: 'TAKEOFF',
+            VehicleCommand.VEHICLE_CMD_NAV_LAND: 'LAND',
+            VehicleCommand.VEHICLE_CMD_NAV_RETURN_TO_LAUNCH: 'RTL',
+            VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM: 'ARM_DISARM',
+            VehicleCommand.VEHICLE_CMD_DO_SET_MODE: 'SET_MODE',
+            VehicleCommand.VEHICLE_CMD_DO_PAUSE_CONTINUE: 'PAUSE_CONTINUE',
+        }
+        result_map = {
+            VehicleCommandAck.VEHICLE_CMD_RESULT_ACCEPTED: ('info', 'ACCEPTED'),
+            VehicleCommandAck.VEHICLE_CMD_RESULT_TEMPORARILY_REJECTED: ('warn', 'TEMPORARILY_REJECTED'),
+            VehicleCommandAck.VEHICLE_CMD_RESULT_DENIED: ('error', 'DENIED'),
+            VehicleCommandAck.VEHICLE_CMD_RESULT_UNSUPPORTED: ('error', 'UNSUPPORTED'),
+            VehicleCommandAck.VEHICLE_CMD_RESULT_FAILED: ('error', 'FAILED'),
+            VehicleCommandAck.VEHICLE_CMD_RESULT_IN_PROGRESS: ('debug', 'IN_PROGRESS'),
+            VehicleCommandAck.VEHICLE_CMD_RESULT_CANCELLED: ('warn', 'CANCELLED'),
+        }
+        start_time = time.time()
+        cmd_name = cmd_names.get(msg.command, f'CMD_{msg.command}')
+        level, result_name = result_map.get(msg.result, ('warn', f'RESULT_{msg.result}'))
+        log_str = (f'[CommandAck] {cmd_name}: {result_name} '
+                   f'(result_param1={msg.result_param1}, result_param2={msg.result_param2})')
+        if level == 'info':
+            self.get_logger().info(log_str)
+        elif level == 'warn':
+            self.get_logger().warn(log_str)
+        elif level == 'error':
+            self.get_logger().error(log_str)
+        else:
+            self.get_logger().debug(log_str)
+        self.callback_stats['vehicle_command_ack_callback']['count'] += 1
+        self.callback_stats['vehicle_command_ack_callback']['total_time'] += time.time() - start_time
 
     def px4_odom_callback(self, msg):
         """PX4 odometry callback - 发布 base_link -> px4_odom tf (相对变换)"""
@@ -606,7 +662,20 @@ class MultirotorCommunication(Node):
         
         # 保存 LIO odometry 用于高度判断 (livox_frame 原始高度)
         self.cur_lio_vehicle_odometry = msg
-        
+
+        # LIO漂移检测：线速度模长突增视为严重漂移（点云跳变/里程计发散）
+        v = msg.twist.twist.linear
+        speed = math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
+        self.last_lio_speed = speed
+        if (not self.lidar_drift_active and not self.emergency_brake_active
+                and self.OFFBOARD_STATE != "DISABLED" and speed > 20.0):
+            self.get_logger().error(
+                f'[漂移保护] LIO速度 {speed:.1f}m/s > 20m/s，判定为严重漂移，零速悬停5秒观察！'
+            )
+            self.lidar_drift_active = True
+            self.lidar_drift_start_time = self.get_clock().now()
+            self._publish_stop_planning()
+
         # 将 livox_frame 位置转换为 base_link 位置
         # /lio/robo/odom 发布的是 base_link 在世界系下的位姿
         # PX4 需要 base_link 在世界系下的位姿
@@ -658,6 +727,34 @@ class MultirotorCommunication(Node):
         self.publish_px4_visual_odometry(msg_for_px4)
         self.callback_stats['ros2_odom_callback']['count'] += 1
         self.callback_stats['ros2_odom_callback']['total_time'] += time.time() - start_time
+
+    def check_lio_drift(self):
+        """LIO漂移保护判定：零速悬停5秒后，速度恢复(<10m/s)则解除等待新goal，否则触发LAND降落"""
+        if self.lidar_drift_start_time is None:
+            return
+        elapsed = (self.get_clock().now() - self.lidar_drift_start_time).nanoseconds / 1e9
+        if elapsed < 5.0:
+            return
+        if self.last_lio_speed < 10.0:
+            self.get_logger().warn(
+                f'[漂移保护] 悬停5秒后LIO速度 {self.last_lio_speed:.1f}m/s 已恢复，解除保护，等待新目标点恢复飞行'
+            )
+            self.lidar_drift_active = False
+            self.lidar_drift_start_time = None
+            self.OFFBOARD_STATE = "ENABLED"
+            self.cmd = None
+            self.auto_switch_completed = False
+            self.auto_switch_enabled = False
+        else:
+            self.get_logger().error(
+                f'[漂移保护] 悬停5秒后LIO速度仍为 {self.last_lio_speed:.1f}m/s，判定不可恢复，触发LAND降落！'
+            )
+            self.lidar_drift_active = False
+            self.lidar_drift_start_time = None
+            self.OFFBOARD_STATE = "DISABLED"
+            self.land()
+            self.land_command_time = self.get_clock().now()
+            self._publish_stop_planning()
 
     def publish_px4_visual_odometry(self, msg: Odometry):
         """转换并发布PX4 visual odometry (NED坐标系) - FLU -> NED，使用init_heading补偿"""
@@ -1238,7 +1335,10 @@ class MultirotorCommunication(Node):
         # | Longitude
         # | Altitude (限制为1.5米)
         # 注意：param4 需要度数，而 heading 是弧度
-        heading_deg = math.degrees(self.cur_vehicle_local_position.heading) if self.cur_vehicle_local_position else float('nan')
+        if self.cur_vehicle_local_position is None:
+            self.get_logger().warn('未收到PX4 local position数据，跳过本次takeoff命令（自动切换循环会自动重试）')
+            return
+        heading_deg = math.degrees(self.cur_vehicle_local_position.heading)
         self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_NAV_TAKEOFF, param1=0.0, param4=heading_deg, param5=self.cur_vehicle_local_position.ref_lat, param6=self.cur_vehicle_local_position.ref_lon, param7=1.5)
         self.get_logger().info("Take off command send. Target altitude: 1.5m")
 
@@ -1658,8 +1758,15 @@ class MultirotorCommunication(Node):
             self.get_logger().warn(f'读取板卡温度失败: {e}')
             return
 
-        # 已触发紧急降落，不再重复处理
+        # 已触发紧急降落：上锁且温度回落到安全范围后清零标记，保证下次飞行仍有温度保护
         if self.temperature_emergency_landing:
+            if (self.vehicle_status is not None
+                    and self.vehicle_status.arming_state != VehicleStatus.ARMING_STATE_ARMED
+                    and self.board_temperature <= 80.0):
+                self.temperature_emergency_landing = False
+                self.get_logger().info(
+                    f'[温度] 飞控已上锁且温度降至 {self.board_temperature:.1f}°C <= 80°C，紧急保护标记已复位'
+                )
             return
 
         if self.board_temperature > 86.0:
