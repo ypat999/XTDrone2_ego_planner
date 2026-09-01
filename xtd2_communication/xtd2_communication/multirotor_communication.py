@@ -127,13 +127,8 @@ class MultirotorCommunication(Node):
         self.board_temperature = 0.0  # 板卡温度（摄氏度）
         self.temperature_emergency_landing = False  # 温度触发紧急降落标记，防止重复触发
         self.land_detected = None  # PX4落地检测结果 (VehicleLandDetected)，用于诊断
-        self.land_stuck_check_start = None  # 降落监护：触地但PX4未上锁的持续计时起始时间
         self.last_disarm_attempt_time = None  # 上次发送disarm的时间（重试限频1Hz）
         self._last_land_recommand_time = None  # 上次重发LAND命令的时间（限频5s）
-        # LIO严重漂移保护：速度突变>20m/s判定漂移，零速悬停5s，未恢复(<10m/s)则触发LAND
-        self.lidar_drift_active = False  # 漂移保护进行中（timer维持零速悬停）
-        self.lidar_drift_start_time = None  # 零速悬停起始时刻
-        self.last_lio_speed = 0.0  # 最新一次LIO线速度模长(m/s)，用于漂移检测与恢复判定
 
         # XTDrone2 Interface
         # 移除namespace前后的斜杠，避免重复
@@ -277,21 +272,6 @@ class MultirotorCommunication(Node):
                     self.auto_switch_enabled = False
                     self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1, 3)
                     self._publish_stop_planning()
-            self.callback_stats['timer_callback']['count'] += 1
-            self.callback_stats['timer_callback']['total_time'] += time.time() - start_time
-            return
-
-        # LIO漂移保护：维持零速悬停，5秒到期后判定恢复或触发降落
-        if self.lidar_drift_active:
-            msg = OffboardControlMode()
-            msg.timestamp = self.get_clock_microseconds()
-            msg.velocity = True
-            self.offboard_control_mode_pub.publish(msg)
-            cmd = TrajectorySetpoint()
-            cmd.timestamp = self.get_clock_microseconds()
-            cmd.velocity = [0.0, 0.0, 0.0]
-            self.dds_trajectory_setpoint_pub.publish(cmd)
-            self.check_lio_drift()
             self.callback_stats['timer_callback']['count'] += 1
             self.callback_stats['timer_callback']['total_time'] += time.time() - start_time
             return
@@ -663,19 +643,6 @@ class MultirotorCommunication(Node):
         # 保存 LIO odometry 用于高度判断 (livox_frame 原始高度)
         self.cur_lio_vehicle_odometry = msg
 
-        # LIO漂移检测：线速度模长突增视为严重漂移（点云跳变/里程计发散）
-        v = msg.twist.twist.linear
-        speed = math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
-        self.last_lio_speed = speed
-        if (not self.lidar_drift_active and not self.emergency_brake_active
-                and self.OFFBOARD_STATE != "DISABLED" and speed > 20.0):
-            self.get_logger().error(
-                f'[漂移保护] LIO速度 {speed:.1f}m/s > 20m/s，判定为严重漂移，零速悬停5秒观察！'
-            )
-            self.lidar_drift_active = True
-            self.lidar_drift_start_time = self.get_clock().now()
-            self._publish_stop_planning()
-
         # 将 livox_frame 位置转换为 base_link 位置
         # /lio/robo/odom 发布的是 base_link 在世界系下的位姿
         # PX4 需要 base_link 在世界系下的位姿
@@ -727,34 +694,6 @@ class MultirotorCommunication(Node):
         self.publish_px4_visual_odometry(msg_for_px4)
         self.callback_stats['ros2_odom_callback']['count'] += 1
         self.callback_stats['ros2_odom_callback']['total_time'] += time.time() - start_time
-
-    def check_lio_drift(self):
-        """LIO漂移保护判定：零速悬停5秒后，速度恢复(<10m/s)则解除等待新goal，否则触发LAND降落"""
-        if self.lidar_drift_start_time is None:
-            return
-        elapsed = (self.get_clock().now() - self.lidar_drift_start_time).nanoseconds / 1e9
-        if elapsed < 5.0:
-            return
-        if self.last_lio_speed < 10.0:
-            self.get_logger().warn(
-                f'[漂移保护] 悬停5秒后LIO速度 {self.last_lio_speed:.1f}m/s 已恢复，解除保护，等待新目标点恢复飞行'
-            )
-            self.lidar_drift_active = False
-            self.lidar_drift_start_time = None
-            self.OFFBOARD_STATE = "ENABLED"
-            self.cmd = None
-            self.auto_switch_completed = False
-            self.auto_switch_enabled = False
-        else:
-            self.get_logger().error(
-                f'[漂移保护] 悬停5秒后LIO速度仍为 {self.last_lio_speed:.1f}m/s，判定不可恢复，触发LAND降落！'
-            )
-            self.lidar_drift_active = False
-            self.lidar_drift_start_time = None
-            self.OFFBOARD_STATE = "DISABLED"
-            self.land()
-            self.land_command_time = self.get_clock().now()
-            self._publish_stop_planning()
 
     def publish_px4_visual_odometry(self, msg: Odometry):
         """转换并发布PX4 visual odometry (NED坐标系) - FLU -> NED，使用init_heading补偿"""
@@ -1643,30 +1582,18 @@ class MultirotorCommunication(Node):
             land_elapsed = (now_ - self.land_command_time).nanoseconds / 1e9
             is_on_ground = self._is_on_ground()
 
-            # 触地持续计时（用于兜底判定）
-            if is_on_ground:
-                if self.land_stuck_check_start is None:
-                    self.land_stuck_check_start = now_
-                stuck_elapsed = (now_ - self.land_stuck_check_start).nanoseconds / 1e9
-            else:
-                self.land_stuck_check_start = None
-                stuck_elapsed = 0.0
-
-            # 正常路径：LAND后3秒尝试disarm（PX4若能正常检测落地会接受普通disarm）
-            if land_elapsed >= 3.0 and self._should_retry_disarm():
-                self.get_logger().info(f'LAND后{land_elapsed:.1f}秒，发送disarm...')
-                self.disarm()
-                self.last_disarm_attempt_time = now_
-
-            # 兜底路径：已触地但持续未上锁（PX4未检测到落地，可能在顶桨）→ 强制disarm，1Hz重试
-            if is_on_ground and stuck_elapsed >= 5.0 and self._should_retry_disarm():
+            # LAND后5秒且已确认触地 → 直接强制disarm，1Hz重试直到上锁。
+            # 不做软disarm试探：PX4未检测到落地时会拒绝普通disarm并持续顶桨，
+            #   试探只会浪费重试窗口（此前普通/强制两分支共用1Hz槽还互相挤占）。
+            # is_on_ground条件保留：防止PX4未执行降落时空中强制解锁。
+            if land_elapsed >= 5.0 and is_on_ground and self._should_retry_disarm():
                 land_det_str = '无数据'
                 if self.land_detected is not None:
                     land_det_str = (f'landed={self.land_detected.landed}, '
                                     f'ground_contact={self.land_detected.ground_contact}, '
                                     f'maybe_landed={self.land_detected.maybe_landed}')
                 self.get_logger().error(
-                    f'[降落兜底] 已触地{stuck_elapsed:.1f}秒仍未上锁，PX4可能未检测到落地仍在加油门 '
+                    f'[降落兜底] LAND后{land_elapsed:.1f}秒已触地仍未上锁，PX4可能未检测到落地仍在加油门 '
                     f'(PX4落地检测: {land_det_str})，强制disarm!'
                 )
                 self.disarm(force=True)
@@ -1734,7 +1661,6 @@ class MultirotorCommunication(Node):
             self.landed_time = None
             self.position_switch_time = None
             self.land_command_time = None
-            self.land_stuck_check_start = None
             self.last_disarm_attempt_time = None
             self.was_flying = False
 
