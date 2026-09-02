@@ -705,8 +705,10 @@ class MultirotorCommunication(Node):
             px4_msg.timestamp_sample = px4_msg.timestamp
             
             # 坐标系设置
+            # position 仍是世界系(NED)，用 init_heading 补偿，与原来保持一致
             px4_msg.pose_frame = VehicleOdometry.POSE_FRAME_NED
-            px4_msg.velocity_frame = VehicleOdometry.VELOCITY_FRAME_NED
+            # velocity 声明为机体系：PX4 会用 EKF 自身姿态旋转，无需 heading 补偿
+            px4_msg.velocity_frame = VehicleOdometry.VELOCITY_FRAME_BODY_FRD
             
             # 直接转换 FLU -> NED，假设PX4 NED原点与ROS2 world位置重合
             flu_x = msg.pose.pose.position.x
@@ -728,24 +730,14 @@ class MultirotorCommunication(Node):
                 flu_qz = msg.pose.pose.orientation.z
                 px4_msg.q = CoordinateTransform.flu_enu_to_frd_ned_quaternion(flu_qw, flu_qx, flu_qy, flu_qz)
 
-            # 速度转换：world frame -> FRD body frame
-            # Super-LIO 输出的 velocity 是世界坐标系（与位置同坐标系）
-            # PX4 vehicle_odometry.velocity 必须是 FRD body frame
-            # 转换链: world -> R^T -> FLU body -> FRD body
-            world_vx = msg.twist.twist.linear.x
-            world_vy = msg.twist.twist.linear.y
-            world_vz = msg.twist.twist.linear.z
-            
-            flu_qw = msg.pose.pose.orientation.w
-            flu_qx = msg.pose.pose.orientation.x
-            flu_qy = msg.pose.pose.orientation.y
-            flu_qz = msg.pose.pose.orientation.z
-            R_world_to_body = CoordinateTransform.create_rotation_matrix_from_quaternion(
-                flu_qw, flu_qx, flu_qy, flu_qz
-            ).T
-            body_vel = R_world_to_body @ np.array([world_vx, world_vy, world_vz])
+            # 速度转换：/lio/robo/odom 的 twist.linear 已经是 base_link(FLU) 机体系
+            # (REP-103: twist 定义在 child_frame 下，Super-LIO 里是 v_robo_body)
+            # 因此不能再用 R(q).T 旋转一次，只做 FLU -> FRD 轴反射即可。
+            # PX4 在 VELOCITY_FRAME_BODY_FRD 分支里会用 EKF 自己的 _R_to_earth 旋到地面系。
             px4_msg.velocity = CoordinateTransform.flu_to_frd_velocity(
-                float(body_vel[0]), float(body_vel[1]), float(body_vel[2])
+                msg.twist.twist.linear.x,
+                msg.twist.twist.linear.y,
+                msg.twist.twist.linear.z
             )
 
             # 角速度转换：FLU -> FRD
