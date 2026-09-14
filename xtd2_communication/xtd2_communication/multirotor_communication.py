@@ -15,6 +15,7 @@ import time
 
 from std_msgs.msg import String
 from std_msgs.msg import Empty
+from std_msgs.msg import UInt32
 from geometry_msgs.msg import Pose, Twist, PoseStamped, PoseWithCovarianceStamped
 from px4_msgs.msg import TrajectorySetpoint, OffboardControlMode, VehicleCommand, VehicleLocalPosition, VehicleGlobalPosition, VehicleAttitudeSetpoint, VehicleStatus, VehicleOdometry, VehicleLandDetected, VehicleCommandAck
 from quadrotor_msgs.msg import PositionCommand
@@ -119,8 +120,32 @@ class MultirotorCommunication(Node):
         self.emergency_brake_active = False  # 急刹车中，timer_callback负责维持零速
         self.emergency_brake_start_time = None  # 急刹车开始时刻
         self.last_px4_odom_time = 0.0  # 上次 px4_odom_callback 调用时间
-        self.last_ros2_odom_time = 0.0  # 上次 ros2_odom_callback 调用时间
-        self.odom_callback_min_interval = 0.1  # 最小调用间隔 (秒)
+        # PX4 -> ROS 的 TF 发布限频。这一路是真降频（vehicle_odometry 频率高于
+        # TF 需要），和下面 odom -> PX4 的墙钟限频是两件不同的事，故独立命名。
+        self.px4_odom_tf_min_interval = 0.1
+        # odom -> PX4 方向不再做限频（原为墙钟 0.1s 间隔判断）：Mid360 物理上就是
+        # 10Hz (launch 里 publish_freq: 10.0)，墙钟限频省不了算力，只会和到达抖动
+        # 混叠出随机丢帧（通过间隔在 0.1~0.2s 之间跳）；而且管道堆积时它完全失效——
+        # 墙钟照走，过期数据照样当新鲜数据发给飞控。改为按消息时间戳监控新鲜度。
+        self.odom_max_latency = 0.15      # 超过即判定陈旧（> EKF2_DELAY_MAX=200ms 的预算）
+        self.odom_max_gap = 0.30          # 帧间空洞阈值：10Hz 下 >3 帧即视为流断
+        self.odom_jump_pos_max = 2.0      # ROS->PX4 方向单帧位置跳变上限 (m)
+        self.odom_jump_vel_max = 15.0     # ROS->PX4 方向表观速度上限 (m/s)
+        self._last_odom_stamp = None      # 上一帧 odom 的消息时间戳（传感器时基）
+        self._last_odom_flu_pos = None    # 上一帧 odom 的 FLU 位置，用于跳变守卫
+        self._last_odom_flu_pos_t = None  # 上一帧 odom 的消息时间戳，用于算 dt
+        self._odom_stale_cnt = 0
+        self._odom_gap_cnt = 0
+        self._odom_jump_cnt = 0
+        self._odom_err_cnt = 0
+        self._odom_total_cnt = 0
+        self._odom_warn_time = 0.0
+        # LIO 声明的 odom 重置计数（/lio/odom_reset_counter, TRANSIENT_LOCAL）
+        self._lio_reset_counter = 0     # LIO 侧计数器的最近观测值
+        # 发给飞控的复位计数：只能单调增。它 = LIO 上报增量 + 本地检测次数，
+        # 绝不能被任何一个来源直接覆盖赋值，否则会把另一来源的记录抹掉/倒退。
+        self._odom_reset_out = 0
+        self._cov_warned = False
         self.last_valid_enu_position = None  # 记录上一次有效的ENU位置
         self._last_switch_progress_log_time = None  # 自动切换进度日志上次输出时间（秒，time.time）
         self._last_switch_progress_state = None  # 上次切换进度状态 (nav_state, armed, flying)，用于检测变化
@@ -206,6 +231,21 @@ class MultirotorCommunication(Node):
             self.ros2_odom_callback,
             10
         )
+
+        # LIO 的 odom 重置计数。TRANSIENT_LOCAL + KEEP_LAST(1)，
+        # 所以本节点晚于 LIO 启动也能立即拿到当前值。
+        # 话题名跟随 odom_topic 里 /lio/ 的前缀，避免节点命名空间不一致时订不到；
+        # 仿真(Gazebo)分支没有 LIO，不建立订阅。
+        if '/lio/' in odom_topic:
+            reset_topic = odom_topic.rsplit('/lio/', 1)[0] + '/lio/odom_reset_counter'
+            self.create_subscription(
+                UInt32,
+                reset_topic,
+                self.lio_reset_counter_callback,
+                QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                           durability=DurabilityPolicy.TRANSIENT_LOCAL)
+            )
+            self.get_logger().info(f'订阅 LIO odom 重置计数: {reset_topic}')
 
         self.timer_ = self.create_timer(0.05, self.timer_callback)
 
@@ -467,7 +507,7 @@ class MultirotorCommunication(Node):
         px4_header_time = self.get_clock().now().to_msg()
         # 间隔限制检查
         current_time = time.time()
-        if current_time - self.last_px4_odom_time < self.odom_callback_min_interval:
+        if current_time - self.last_px4_odom_time < self.px4_odom_tf_min_interval:
             # self.callback_stats['px4_odom_callback']['count'] += 1
             self.callback_stats['px4_odom_callback']['total_time'] += time.time() - start_time
             return
@@ -628,18 +668,60 @@ class MultirotorCommunication(Node):
         
         return result
 
+    def lio_reset_counter_callback(self, msg: UInt32):
+        """累计 LIO 上报的 odom 重置事件（映射到 PX4 VehicleOdometry.reset_counter）
+
+        只累加增量，不直接赋值 —— 本地还会独立检测空洞/跳变并递增同一个输出计数器，
+        直接覆盖会让两路来源互相抹掉。
+        """
+        new = int(msg.data)
+        prev = self._lio_reset_counter
+        self._lio_reset_counter = new
+        if new > prev:
+            self._odom_reset_out += new - prev
+            self.get_logger().warning(
+                f'LIO 声明 odom 重置 {prev} -> {new}，'
+                f'飞控侧 reset_counter={self._odom_reset_out & 0xFF}')
+        elif new < prev:
+            # LIO 重启会让它自己的计数归零，这本身就是一次参考系重置
+            self._odom_reset_out += 1
+            self.get_logger().error(
+                f'LIO odom 重置计数回退 {prev} -> {new}（LIO 重启？），'
+                f'按一次重置处理，reset_counter={self._odom_reset_out & 0xFF}')
+
     def ros2_odom_callback(self, msg: Odometry):
         """Gazebo odometry callback - 发布 PX4 visual odometry (NED坐标系)"""
         start_time = time.time()
-        
-        # 间隔限制检查
-        current_time = time.time()
-        if current_time - self.last_ros2_odom_time < self.odom_callback_min_interval:
-            # self.callback_stats['ros2_odom_callback']['count'] += 1
-            self.callback_stats['ros2_odom_callback']['total_time'] += time.time() - start_time
-            return
-        self.last_ros2_odom_time = current_time
-        
+        self._odom_total_cnt += 1
+
+        # 用消息时间戳（传感器时基）而不是墙钟来判断新鲜度：
+        # 墙钟限频在管道堆积时完全失效，堆积恰恰是飞控 vision_data_stopped 的根因。
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        now = self.get_clock().now().nanoseconds * 1e-9
+        latency = now - stamp
+
+        stale = latency > self.odom_max_latency
+        if stale:
+            self._odom_stale_cnt += 1
+            if time.time() - self._odom_warn_time > 5.0:
+                self._odom_warn_time = time.time()
+                self.get_logger().warning(
+                    f'odom 链路延迟 {latency * 1000:.0f}ms > {self.odom_max_latency * 1000:.0f}ms，'
+                    f'累计 {self._odom_stale_cnt}/{self._odom_total_cnt} 帧陈旧'
+                    f'（LIO 处理堆积或 DDS 丢包，飞控侧会判为 vision_data_stopped）')
+
+        # 帧间空洞检测：10Hz 下正常间隔 0.1s，>3 帧即认为流断过。
+        # 断流后恢复的第一帧属于"新的一段观测"，必须让飞控按 reset 处理而不是按连续量融合。
+        if self._last_odom_stamp is not None:
+            gap = stamp - self._last_odom_stamp
+            if gap > self.odom_max_gap:
+                self._odom_gap_cnt += 1
+                self.get_logger().error(
+                    f'odom 流出现 {gap * 1000:.0f}ms 空洞'
+                    f'(累计 {self._odom_gap_cnt} 次)：飞控侧大概率已判 '
+                    f'vision_data_stopped，请核对 EKF2 事件')
+        self._last_odom_stamp = stamp
+
         # 保存 LIO odometry 用于高度判断 (livox_frame 原始高度)
         self.cur_lio_vehicle_odometry = msg
 
@@ -691,16 +773,31 @@ class MultirotorCommunication(Node):
         #         msg_for_px4.pose.pose.orientation = msg.pose.pose.orientation
         #         msg_for_px4.twist = msg.twist
         
-        self.publish_px4_visual_odometry(msg_for_px4)
+        self.publish_px4_visual_odometry(msg_for_px4, stale=stale)
         self.callback_stats['ros2_odom_callback']['count'] += 1
         self.callback_stats['ros2_odom_callback']['total_time'] += time.time() - start_time
 
-    def publish_px4_visual_odometry(self, msg: Odometry):
+    def publish_px4_visual_odometry(self, msg: Odometry, stale: bool = False):
         """转换并发布PX4 visual odometry (NED坐标系) - FLU -> NED，使用init_heading补偿"""
         try:
             px4_msg = VehicleOdometry()
+
+            # 传感器时基下的本帧时间戳（秒），用于跳变守卫里的 dt 计算
+            stamp_now = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
             
             # 时间戳 - 转换为PX4时间基准（微秒）
+            #
+            # ⚠️ 未决风险（本次有意不改动）：VehicleOdometry.timestamp /
+            #   timestamp_sample 的规范语义是"开机 µs"(hrt 单调时基)，而这里填的是
+            #   ROS 消息时间戳。真机上 use_sim_time=False，ROS 时钟是 epoch µs
+            #   (~1.7891e15)，与飞控时基差约 56 年。timesync_status 已证实这一点。
+            #   目前 EV 融合能用 => 说明 uXRCE-DDS 客户端或飞控侧某处做了换算，
+            #   但我无法在本机验证（PX4 源码树不在此机器）。
+            #   若擅自改成 boot-relative 而链路上其实已有换算，会直接弄坏一条
+            #   现在工作的路径，故保持原样 + 标注待核。
+            #   核实方法：飞控 shell 里 `listener vehicle_visual_odometry` 看
+            #   timestamp 量级是否与 `hrt` 同阶；并对照日志里
+            #   estimator_event_flags 是否出现 vision 相关超时。
             px4_msg.timestamp = int(msg.header.stamp.sec * 1e6 + msg.header.stamp.nanosec / 1000)
             px4_msg.timestamp_sample = px4_msg.timestamp
             
@@ -714,6 +811,34 @@ class MultirotorCommunication(Node):
             flu_x = msg.pose.pose.position.x
             flu_y = msg.pose.pose.position.y
             flu_z = msg.pose.pose.position.z
+            
+            # ---- ROS -> PX4 方向的跳变守卫 ----
+            # 原先只有 PX4 -> ROS 方向有 MAX_POSITION_DIFF 保护，反方向裸奔。
+            # 单帧位置跳变 / 表观速度超限 => 这帧位姿不可信，直接扣住不发，
+            # 避免把假绝对位置灌进飞控（本次事故里表现为每秒一次的 xy_reset 风暴）。
+            # 跳变同时视为 LIO 的隐式重置，递增 reset_counter（见下方说明）。
+            jump_detected = False
+            if self._last_odom_flu_pos is not None:
+                prev = self._last_odom_flu_pos
+                jump = math.sqrt((flu_x - prev[0]) ** 2 +
+                                 (flu_y - prev[1]) ** 2 +
+                                 (flu_z - prev[2]) ** 2)
+                dt = stamp_now - (self._last_odom_flu_pos_t or stamp_now)
+                v_app = jump / dt if dt > 1e-3 else 0.0
+                if jump > self.odom_jump_pos_max or v_app > self.odom_jump_vel_max:
+                    jump_detected = True
+                    self._odom_jump_cnt += 1
+                    # 物理量突变 = LIO 内部发生了未经钩子上报的重置（例如退化场景下的
+                    # 隐式 reset），符合 reset_counter 的字段语义，因此同时递增。
+                    # 注意：只空洞(gap)不递增 —— 那是传输事件，不是估计器重置事件。
+                    self._odom_reset_out += 1
+                    self.get_logger().warning(
+                        f'odom 位置跳变 {jump:.2f}m / {dt * 1000:.0f}ms '
+                        f'(表观速度 {v_app:.1f}m/s)，本帧扣住不发并声明 reset '
+                        f'(累计 {self._odom_jump_cnt} 次, reset_counter='
+                        f'{self._odom_reset_out & 0xFF})')
+            self._last_odom_flu_pos = (flu_x, flu_y, flu_z)
+            self._last_odom_flu_pos_t = stamp_now
             
             # 使用标准 FLU -> NED 转换，不进行px4_odom补偿
             if self.cur_vehicle_local_position:
@@ -749,14 +874,73 @@ class MultirotorCommunication(Node):
             flu_wz = msg.twist.twist.angular.z
             px4_msg.angular_velocity = CoordinateTransform.flu_to_frd_angular_velocity(flu_wx, flu_wy, flu_wz)
             
-            # 协方差 (简化处理)
-            px4_msg.position_variance = [0.0001, 0.0001, 0.0001]
-            px4_msg.orientation_variance = [0.01, 0.01, 0.01]
-            px4_msg.velocity_variance = [0.01, 0.01, 0.01]
-            
-            # 质量指标
+            # ---- covariance: 透传 LIO 的 ESKF 后验方差 ----
+            # 地板值不可省：上游没实现时 pose/twist.covariance 是全 0，
+            # 把 0 转给飞控等于告诉它"odom 在该方向无穷可信"，比不发更危险。
+            POS_MIN_VAR, VEL_MIN_VAR, ROT_MIN_VAR = 1e-4, 1e-3, 1e-4
+            pc = list(msg.pose.covariance)
+            tc = list(msg.twist.covariance)
+            pv = [pc[0], pc[7], pc[14]]           # 6x6 行主序对角
+            rv = [pc[21], pc[28], pc[35]]
+            vv = [tc[0], tc[7], tc[14]]
+
+            if min(pv) > 0.0 and min(vv) > 0.0 and min(rv) > 0.0:
+                self._cov_warned = False
+            else:
+                # 上游未填充 -> 退回固定的保守方差（与改动前行为一致）。
+                # 这里故意不用 NaN：本机 GPS 不参与导航，EV 是唯一绝对定位源，
+                # 把 position 设 NaN 等于彻底关掉定位，比保留已知保守值危险得多。
+                pv = [0.01, 0.01, 0.01]           # 0.1 m
+                rv = [0.01, 0.01, 0.01]           # 0.1 rad
+                vv = [0.04, 0.04, 0.04]           # 0.2 m/s
+                if not self._cov_warned:
+                    self._cov_warned = True
+                    self.get_logger().warning(
+                        'LIO odom 未填充 covariance，已退回固定保守值。'
+                        '注意 EKF2_EV_NOISE_MD 决定飞控是否采纳本消息的方差'
+                        '（本机未验证其方向，请用 slam_data/ulog_md_test.py '
+                        '在地面判定后再决定是否依赖自报值）')
+
+            px4_msg.position_variance = [max(v, POS_MIN_VAR) for v in pv]
+            px4_msg.orientation_variance = [max(v, ROT_MIN_VAR) for v in rv]
+            px4_msg.velocity_variance = [max(v, VEL_MIN_VAR) for v in vv]
+
+            # ---- 通道的有效性控制（三通道各自独立判定）----
+            # PX4 ev_control 用 isAllFinite() 逐通道判有效性：
+            #   NaN = 干净的"本帧关闭该通道"；0/小值 = 合法观测，会被当真融合。
+            # 且自报 variance 是否被采纳取决于 EKF2_EV_NOISE_MD（本机未验证方向，
+            # 语义与地面判定方法见事故报告附录C / §4.6-4.7）。
+            if stale:
+                # 仅链路延迟大：位置本身没错，只是老了。拉大方差 + 照常发布，
+                # 让飞控按 timestamp_sample / EKF2_DELAY_MAX 自己判新鲜度。
+                # ★绝不能在这里 return：LIO 一旦持续积压就会把整条 EV 流掐掉，
+                #   飞控随之 vision_data_stopped -> reset_vel_to_flow，
+                #   正是本次 -42 m/s 幻影速度的来源。
+                px4_msg.position_variance = [max(v, 4.0) for v in px4_msg.position_variance]
+                px4_msg.velocity_variance = [max(v, 4.0) for v in px4_msg.velocity_variance]
+                px4_msg.orientation_variance = [max(v, 0.25) for v in px4_msg.orientation_variance]
+
+            if jump_detected:
+                # 位姿突变：这一帧的位置和速度都是错的。用 NaN **关闭这两个通道**
+                # 而不是整帧丢弃 —— 消息仍然刷新 EKF2 的 EV received_at_us，
+                # 因此不会触发"数据断流 -> 用光流重置速度"这条危险兜底。
+                px4_msg.position = [float('nan')] * 3
+                px4_msg.velocity = [float('nan')] * 3
+
+            # ---- quality ----
+            # 保持 100。EKF2_EV_QMIN 当前为 0，quality 不参与门控；
+            # 且"值越大越可信还是越小越可信"未在本机核实，乱填比填 100 更危险。
             px4_msg.quality = 100
-            px4_msg.reset_counter = 0
+
+            # ---- reset_counter ----
+            # 来源两类，都是"外部估计器自身发生重置/重定位"这一字段语义：
+            #   1) LIO 主动上报 (/lio/odom_reset_counter: initialpose / kf_init /
+            #      重定位 / IMU 预积分重置)
+            #   2) 本地检测到位姿突变（隐式 reset，未走钩子）
+            # 单调只增；PX4 侧是 uint8，&0xFF 自然回绕。
+            # 不要指望它能纠正状态：按 ev_control 实现，只有"EV 速度是唯一水平辅助源"
+            # 时才触发 resetVelocityTo()，本机不满足该条件。
+            px4_msg.reset_counter = self._odom_reset_out & 0xFF
             
             # 发布消息
             self.px4_visual_pub.publish(px4_msg)
@@ -767,7 +951,14 @@ class MultirotorCommunication(Node):
             )
             
         except Exception as e:
-            self.get_logger().error(f'Error converting to PX4 visual odometry: {str(e)}')
+            # 原先只打一条 error 就完事：不计数、不告警趋势、也不影响后续帧的处理，
+            # 飞行中等于不可见。丢帧会让飞控侧表现为 vision_data_stopped，
+            # 排查时完全无法归因到这里，所以必须显式计数。
+            self._odom_err_cnt += 1
+            self.get_logger().error(
+                f'visual odometry 转换失败 #{self._odom_err_cnt}: '
+                f'{type(e).__name__}: {e}',
+                throttle_duration_sec=1.0)
 
     def goal_marker_callback(self, msg):
         """处理目标点标记，触发自动状态切换，并缓存最新goal"""
