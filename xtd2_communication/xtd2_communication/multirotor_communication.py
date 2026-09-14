@@ -86,7 +86,7 @@ class MultirotorCommunication(Node):
         # 检查主机名，设置 use_sim_time（与 tf_publisher 保持一致）
 
         self.hostname = platform.node()
-        if self.hostname == 'ywj-B250-D3A' or self.hostname == 'DESKTOP-ypat':
+        if self.hostname == 'ywj-B250-D3A' or self.hostname == 'DESKTOP-ypat' or self.hostname == 'DESKTOP-4LS1SSN':
             use_sim_time = True
             odom_topic = self.namespace + 'odometry'
         else:
@@ -1864,7 +1864,7 @@ class MultirotorCommunication(Node):
                 temp_raw = f.read().strip()
             self.board_temperature = float(temp_raw) / 1000.0
         except Exception as e:
-            self.get_logger().warn(f'读取板卡温度失败: {e}')
+            # self.get_logger().warn(f'读取板卡温度失败: {e}')
             return
 
         # 已触发紧急降落：上锁且温度回落到安全范围后清零标记，保证下次飞行仍有温度保护

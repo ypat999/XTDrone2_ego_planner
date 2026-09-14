@@ -10,7 +10,7 @@ import os
 
 # 检查主机名，设置默认use_sim_time
 hostname = platform.node()
-if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
+if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat' or hostname == 'DESKTOP-4LS1SSN':
     default_use_sim_time = True
 else:
     default_use_sim_time = False

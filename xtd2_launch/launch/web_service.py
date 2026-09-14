@@ -11,7 +11,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 # 检查主机名，设置默认namespace
 hostname = platform.node()
-if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
+if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat' or hostname == 'DESKTOP-4LS1SSN':
     default_namespace = '/x500_depth_0/'
     use_sim_time = True
     use_sim_time_str = 'true'

@@ -1,5 +1,6 @@
 import os
 import platform
+import shutil
 from sys import prefix
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription, TimerAction, RegisterEventHandler
@@ -11,7 +12,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 # 检查主机名，设置默认namespace
 hostname = platform.node()
-if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
+if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat' or hostname == 'DESKTOP-4LS1SSN':
     default_namespace = '/x500_depth_0/'
     use_sim_time = True
     use_sim_time_str = 'true'
@@ -28,8 +29,8 @@ build_map_mode = os.environ.get('BUILD_MAP', '').lower() == 'true'
 def generate_launch_description():
     world_name_arg = DeclareLaunchArgument('world_name', 
                     # default_value='aruco', 
-                    default_value='tugbot_warehouse',
-                    # default_value='ego',
+                    # default_value='tugbot_warehouse',
+                    default_value='ego',
 
                     description='Name of the world to launch (without .sdf)')
     model_name_arg = DeclareLaunchArgument('model_name', default_value='gz_x500_depth', description='Name of the model to spawn')
@@ -241,7 +242,7 @@ def generate_launch_description():
     cp_tf_parent = ''
     cp_tf_child = ''
     cp_use_world = False
-    if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
+    if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat' or hostname == 'DESKTOP-4LS1SSN':
         # 仿真: x500_depth 前向 mid360 (/livox/lidar), 相对机体前倾 30°(RPY=0,30,0), 平移(0.1,0,0.3)
         # 雷达系->机体系FRD 变换四元数由 R=Rx(180)*Ry(30) 计算得到
         cp_cloud_topic = '/livox/lidar'
@@ -358,8 +359,8 @@ exit 1
         shell=False
     )
 
-    # 当主机为ywj-B250-D3A或DESKTOP-ypat时，启动整套px4模拟
-    if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
+    # 当主机为仿真机(ywj-B250-D3A/DESKTOP-ypat/DESKTOP-4LS1SSN)时，启动整套px4模拟
+    if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat' or hostname == 'DESKTOP-4LS1SSN':
         
         ld.add_action(world_launch)  # 启动Gazebo模拟环境
         ld.add_action(xrce_dds_process)  # 启动XRCE-DDS Agent
@@ -388,7 +389,7 @@ exit 1
     
     # 当wait_for_px4_odom成功完成后，启动ego_planner_launch
     # 在真实飞机环境下，同时启动super_lio
-    if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat':
+    if hostname == 'ywj-B250-D3A' or hostname == 'DESKTOP-ypat' or hostname == 'DESKTOP-4LS1SSN':
         # 模拟环境
         ego_planner_event_handler = RegisterEventHandler(
             OnProcessExit(
