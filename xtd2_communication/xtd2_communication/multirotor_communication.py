@@ -524,8 +524,20 @@ class MultirotorCommunication(Node):
 
         # 转换坐标系：NED -> ENU (位置)
         enu_position = CoordinateTransform.ned_to_enu_position(msg.position[0], msg.position[1], msg.position[2])
-        # 转换姿态：FRD/NED -> FLU/ENU (vehicle_odometry.q 是 FRD-relative-to-NED)
-        enu_orientation = CoordinateTransform.frd_ned_to_flu_enu_quaternion(msg.q[0], msg.q[1], msg.q[2], msg.q[3])
+        # 转换姿态：FRD/NED -> FLU/ENU (vehicle_odometry.q 是 FRD-relative-to-NED)，
+        # 并【投影为 yaw-only】。原因：下方合成
+        #   world→px4_odom = (world→base_footprint)_LIO ∘ inv(PX4 pose)
+        # 的左因子 base_footprint 按构造是 yaw-only 水平影子系（pitch/roll≡0，
+        # 见 ROSWrapper Fast TF）。右因子若用完整机体姿态，两侧"机体系"定义不一致，
+        # 机体俯仰/横滚对消不掉，px4_odom 这个地面基准会随机体姿态倾斜：远处 setpoint
+        # 被垂直剪变 ≈ L·sinφ → MPC 压低机头追设定值 → φ 更大 → 剪变更大（正反馈）。
+        # 2026-09-14 17:57:46 自动导航撞桌面事故即此链路（sp_z−实际z 随 pitch 由 +0.04 发散到 +1.02m）。
+        # 投影成 yaw-only 后两因子同为水平影子系，姿态完全对消；平移不受影响，
+        # 悬停/小姿态行为与原实现逐点一致。
+        enu_q = CoordinateTransform.frd_ned_to_flu_enu_quaternion(msg.q[0], msg.q[1], msg.q[2], msg.q[3])
+        _r, _p, _yaw = quat2euler([enu_q[0], enu_q[1], enu_q[2], enu_q[3]])
+        _half = _yaw / 2.0
+        enu_orientation = [math.cos(_half), 0.0, 0.0, math.sin(_half)]
 
         # 检查NaN值
         if any(np.isnan(enu_position)) or any(np.isnan(enu_orientation)):

@@ -60,7 +60,10 @@ def main():
     px4_gz_worlds_path = f"{args.px4_dir}/Tools/simulation/gz/worlds"
     gz_resource_path = f"$GZ_SIM_RESOURCE_PATH:$PX4_GZ_MODELS:$PX4_GZ_WORLDS:{xtd2_gz_models_path}"
     
-    px4_cmd = f"PX4_UXRCE_DDS_NS={ns} PX4_GZ_WORLD={args.world} PX4_SYS_AUTOSTART={sys_autostart} PX4_SIM_MODEL={sim_model} PX4_GZ_MODEL_POSE='{args.x},{args.y},{args.z},{args.roll},{args.pitch},{args.yaw}' PX4_GZ_MODELS={px4_gz_models_path} PX4_GZ_WORLDS={px4_gz_worlds_path} XTD2_GZ_MODELS={xtd2_gz_models_path} GZ_SIM_RESOURCE_PATH={gz_resource_path} {args.px4_dir}/build/px4_sitl_default/bin/px4 -d -s {args.px4_dir}/build/px4_sitl_default/etc/init.d-posix/rcS {args.px4_dir}/ROMFS/px4fmu_common -i {args.id} -w {args.px4_dir}/build/px4_sitl_default"
+    # PX4_GZ_STANDALONE=1: Gazebo 已由 gz_launch.py 单独启动(demo 里的 world_launch)，
+    # rcS 直接走 "Standalone PX4 launch, waiting for Gazebo" 分支，不再自己拉起 server/GUI，
+    # 避免因 /world/* 时钟发现竞态而多开一个 gz sim -g 重复窗口。
+    px4_cmd = f"PX4_GZ_STANDALONE=1 PX4_UXRCE_DDS_NS={ns} PX4_GZ_WORLD={args.world} PX4_SYS_AUTOSTART={sys_autostart} PX4_SIM_MODEL={sim_model} PX4_GZ_MODEL_POSE='{args.x},{args.y},{args.z},{args.roll},{args.pitch},{args.yaw}' PX4_GZ_MODELS={px4_gz_models_path} PX4_GZ_WORLDS={px4_gz_worlds_path} XTD2_GZ_MODELS={xtd2_gz_models_path} GZ_SIM_RESOURCE_PATH={gz_resource_path} {args.px4_dir}/build/px4_sitl_default/bin/px4 -d -s {args.px4_dir}/build/px4_sitl_default/etc/init.d-posix/rcS {args.px4_dir}/ROMFS/px4fmu_common -i {args.id} -w {args.px4_dir}/build/px4_sitl_default"
     # px4_cmd = f"PX4_UXRCE_DDS_NS={ns} PX4_GZ_WORLD={args.world} PX4_SYS_AUTOSTART={sys_autostart} PX4_SIM_MODEL={sim_model} PX4_GZ_MODEL_POSE='{args.x},{args.y},{args.z},{args.roll},{args.pitch},{args.yaw}' {args.px4_dir}/build/px4_sitl_default/bin/px4 -d -s {args.px4_dir}/build/px4_sitl_default/etc/init.d-posix/rcS {args.px4_dir}/ROMFS/px4fmu_common -i {args.id} -w {args.px4_dir}/build/px4_sitl_default"
 
     logger.info("Launching PX4 with command: %s", px4_cmd)
