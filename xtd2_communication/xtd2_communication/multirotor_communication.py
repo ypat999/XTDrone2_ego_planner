@@ -45,6 +45,58 @@ PX4_COMPATIBLE_QOS = QoSProfile(
     durability=DurabilityPolicy.TRANSIENT_LOCAL
 )
 
+
+# ---- 发往 PX4 的 EV covariance 契约 ----
+# 本机 GPS 不参与导航，EV 是唯一绝对定位源："位置不可用"没有兜底，直接迫降。
+# 所以这 9 个方差必须被约束住。几条反直觉但已核实的结论，改动前务必先读：
+#
+# 1) 方差【偏小】不会引发 EKF 拒绝 —— PX4 有两道地板：
+#      ev_pos_control.cpp:140  max(pos_cov, EKF2_EVP_NOISE^2, 0.01^2)
+#      EKF2.cpp:2258           max(EKF2_EVP_NOISE^2, 消息自报值)
+#    默认 EKF2_EVP_NOISE=0.1m => 地板 0.01 m²，比我们自己的 MIN 还大。
+#
+# 2) 方差【偏大】才是危险方向，而且它也不走"拒绝"，走"接受但不起作用"：
+#    自报值偏大 -> EV 位置增益≈0 -> EKF 自身位置协方差只涨不降 ->
+#    vehicle_local_position.eph(= sqrt(P_pos 迹), ekf_helper.cpp:215)
+#    超过 COM_POS_FS_EPH(默认 5m) -> local_position_invalid ->
+#    failsafe 逐级降级(Hold/RTL/Land 都要位置) -> DESCEND(不保位置)。
+#
+# 3) 更凶的一条：EKF 收到 reset_counter 变化时走【无门控硬重置】，并把
+#    measurement_var 直接当作重置后的 P（ev_pos_control.cpp:226-234）。
+#    也就是说膨胀的方差会原样变成 eph。上限是这里最关键的护栏。
+#
+# 4) "不可信"一律不用方差表达：方差只表达"正常观测的噪声量级"，
+#    不可信用 NaN 关通道 / reset_counter 声明重置来表达。
+#    因此 MAX 的语义是【方差定义域的上界】：超过它就意味着这一帧不该再以
+#    "观测"的身份进融合，而该走关通道/声明重置。反过来说，链路陈旧、LIO 退化
+#    这类情况都不许再改写方差 —— 方差要如实反映原测量，越权处理只会同时丢掉
+#    信息（飞控本来能按 timestamp 自己判新鲜度）又制造出上面 2)、3) 两条险情。
+#
+# MAX 取 4.0 m²(2m) / 0.25 rad²(0.5rad)：在 EV 地板噪声只有 0.1m 的量级下，
+# 这已经是"基本不可用"的水平，再大就等价于把这条通道关掉，而那属于 NaN 的职责。
+EV_COV_POS_MIN, EV_COV_POS_MAX = 1e-4, 4.0    # m^2     (0.01m / 2m)
+EV_COV_ROT_MIN, EV_COV_ROT_MAX = 1e-4, 0.25   # rad^2   (0.01rad / 0.5rad)
+EV_COV_VEL_MIN, EV_COV_VEL_MAX = 1e-3, 4.0    # (m/s)^2 (0.03m/s / 2m/s)
+
+
+def sanitize_covariance(vals, lo, hi):
+    """把一路方差对角夹进 [lo, hi]，并保证输出一定是有限值。
+
+    返回 (结果列表, 非法元素个数)。非有限(NaN/±Inf)或 <=0 的元素按 hi 处理：
+    hi 是定义域上界（最不可信但仍允许以观测身份进融合），既没谎报可信，
+    也没越出飞控能安全消化的范围。
+    """
+    out = []
+    bad = 0
+    for v in vals:
+        if not math.isfinite(v) or v <= 0.0:
+            out.append(hi)
+            bad += 1
+        else:
+            out.append(min(max(v, lo), hi))
+    return out, bad
+
+
 class MultirotorCommunication(Node):
     def __init__(self, model, id, namespace="", debug=False, allowarm=False, require_pcl_pose=False):
         
@@ -146,6 +198,7 @@ class MultirotorCommunication(Node):
         # 绝不能被任何一个来源直接覆盖赋值，否则会把另一来源的记录抹掉/倒退。
         self._odom_reset_out = 0
         self._cov_warned = False
+        self._cov_bad_cnt = 0             # LIO 自报 covariance 非法(NaN/Inf/<=0)的帧数
         self.last_valid_enu_position = None  # 记录上一次有效的ENU位置
         self._last_switch_progress_log_time = None  # 自动切换进度日志上次输出时间（秒，time.time）
         self._last_switch_progress_state = None  # 上次切换进度状态 (nav_state, armed, flying)，用于检测变化
@@ -785,11 +838,11 @@ class MultirotorCommunication(Node):
         #         msg_for_px4.pose.pose.orientation = msg.pose.pose.orientation
         #         msg_for_px4.twist = msg.twist
         
-        self.publish_px4_visual_odometry(msg_for_px4, stale=stale)
+        self.publish_px4_visual_odometry(msg_for_px4)
         self.callback_stats['ros2_odom_callback']['count'] += 1
         self.callback_stats['ros2_odom_callback']['total_time'] += time.time() - start_time
 
-    def publish_px4_visual_odometry(self, msg: Odometry, stale: bool = False):
+    def publish_px4_visual_odometry(self, msg: Odometry):
         """转换并发布PX4 visual odometry (NED坐标系) - FLU -> NED，使用init_heading补偿"""
         try:
             px4_msg = VehicleOdometry()
@@ -856,11 +909,21 @@ class MultirotorCommunication(Node):
             if self.cur_vehicle_local_position:
                 px4_msg.position = CoordinateTransform.flu_to_ned_position(flu_x, flu_y, flu_z, self.init_vehicle_local_position.heading)
             
-            # 使用当前PX4 odometry的方向 (已经是 FRD/NED 格式)
+            # 姿态：发飞控自身的姿态（不引入 LIO 姿态）。
+            # EKF2_EV_CTRL 的 yaw 位已经关掉，所以这一路当前【没有消费者】：
+            #   EKF2.cpp:2286 起只在 orientation_valid 时填 ev_data.quat，
+            #   ev_control.cpp 的 controlEvYawFusion 又要求 EV_CTRL 的 YAW 位。
+            # 但这段代码不能删：EKF2.cpp:2275-2284 要求 q 必须有限、非零、
+            #   各元素 <=1+1e-5、且 |1-||q||| <= 1e-5，否则 orientation_valid=false，
+            #   ev_data.quat 会一直保持构造时的 NaN。留默认值(float32[4] 全 0)
+            #   正是踩这条。飞控自身 OD 的四元数天然满足。
+            # 这里"发飞控自身姿态 + 姿态方差却抄 LIO 的 rot 后验方差"是一处配不对
+            #   对（同一类错误见上面位置方差没跟着位置转）。当前靠 yaw 位关闭屏蔽，
+            #   若将来重新启用 EV yaw，必须一起改成"发 LIO 姿态 + 透传 LIO rot 方差"。
             if self.cur_vehicle_odometry is not None:
                 px4_msg.q = self.cur_vehicle_odometry.q
             else:
-                # 如果没有当前PX4 odometry，使用默认转换
+                # 没有当前PX4 odometry时退回 LIO 姿态（FLU/ENU -> FRD/NED）
                 flu_qw = msg.pose.pose.orientation.w
                 flu_qx = msg.pose.pose.orientation.x
                 flu_qy = msg.pose.pose.orientation.y
@@ -886,52 +949,68 @@ class MultirotorCommunication(Node):
             flu_wz = msg.twist.twist.angular.z
             px4_msg.angular_velocity = CoordinateTransform.flu_to_frd_angular_velocity(flu_wx, flu_wy, flu_wz)
             
-            # ---- covariance: 透传 LIO 的 ESKF 后验方差 ----
-            # 地板值不可省：上游没实现时 pose/twist.covariance 是全 0，
-            # 把 0 转给飞控等于告诉它"odom 在该方向无穷可信"，比不发更危险。
-            POS_MIN_VAR, VEL_MIN_VAR, ROT_MIN_VAR = 1e-4, 1e-3, 1e-4
+            # ---- covariance: 透传 LIO 的 ESKF 后验方差（受 EV_COV_* 契约约束）----
+            # 契约与推导见文件头 EV_COV_* 的注释：9 个方差必须有限且落在 [MIN, MAX]。
             pc = list(msg.pose.covariance)
             tc = list(msg.twist.covariance)
             pv = [pc[0], pc[7], pc[14]]           # 6x6 行主序对角
             rv = [pc[21], pc[28], pc[35]]
             vv = [tc[0], tc[7], tc[14]]
 
-            if min(pv) > 0.0 and min(vv) > 0.0 and min(rv) > 0.0:
-                self._cov_warned = False
-            else:
-                # 上游未填充 -> 退回固定的保守方差（与改动前行为一致）。
-                # 这里故意不用 NaN：本机 GPS 不参与导航，EV 是唯一绝对定位源，
-                # 把 position 设 NaN 等于彻底关掉定位，比保留已知保守值危险得多。
-                pv = [0.01, 0.01, 0.01]           # 0.1 m
-                rv = [0.01, 0.01, 0.01]           # 0.1 rad
-                vv = [0.04, 0.04, 0.04]           # 0.2 m/s
+            # 位置方差必须跟着位置做同一个坐标变换。
+            # 位置走的是 flu_to_ned_position(..., init_heading)，矩阵为
+            # R = Rz(ψ)·diag(1,-1,-1)（coordinate_transform.body_to_ned_3d_matrix）。
+            # 该矩阵在水平面内是【旋转】而不是轴置换，所以对角元不能原样搬过去，
+            # 必须算 Σ_NED = R Σ Rᵀ 的对角：
+            #   σn² = cos²ψ·σx² + sin²ψ·σy²
+            #   σe² = sin²ψ·σx² + cos²ψ·σy²
+            #   σd² = σz²                        （z 只有反射，方差不变）
+            # 不转的话协方差主轴与位置差一个初始航向角，各向异性(退化方向)时会对错轴。
+            # 速度不用转：它是 BODY_FRD 下的轴反射，对角的方差不变。
+            # 姿态那一路照旧透传 LIO 的 rot 对角：EKF2_EV_CTRL 的 yaw 位已关闭，
+            # 当前无消费者（细节与重启条件见上面 px4_msg.q 处的注释）。
+            if self.init_vehicle_local_position is not None:
+                c = math.cos(self.init_vehicle_local_position.heading)
+                s = math.sin(self.init_vehicle_local_position.heading)
+                pv = [c * c * pv[0] + s * s * pv[1],
+                      s * s * pv[0] + c * c * pv[1],
+                      pv[2]]
+
+            pv, bad_p = sanitize_covariance(pv, EV_COV_POS_MIN, EV_COV_POS_MAX)
+            rv, bad_r = sanitize_covariance(rv, EV_COV_ROT_MIN, EV_COV_ROT_MAX)
+            vv, bad_v = sanitize_covariance(vv, EV_COV_VEL_MIN, EV_COV_VEL_MAX)
+
+            bad_cov = bad_p + bad_r + bad_v
+            if bad_cov:
+                # 包含两种来源：上游压根没填（全 0），或上游填了非法值
+                # （NaN/Inf，通常是 ESKF 里 P_pred/J_prior/Yk 的裸 .inverse()
+                # 在 float32 下病态求逆爆掉）。两种情况都已在上面被替换成可发值。
+                self._cov_bad_cnt += 1
                 if not self._cov_warned:
                     self._cov_warned = True
                     self.get_logger().warning(
-                        'LIO odom 未填充 covariance，已退回固定保守值。'
-                        '注意 EKF2_EV_NOISE_MD 决定飞控是否采纳本消息的方差'
-                        '（本机未验证其方向，请用 slam_data/ulog_md_test.py '
-                        '在地面判定后再决定是否依赖自报值）')
+                        f'LIO odom covariance 非法 {bad_cov}/9 (累计 '
+                        f'{self._cov_bad_cnt} 帧)，已替换为最大不可信度 '
+                        f'{EV_COV_POS_MAX}/{EV_COV_ROT_MAX}/{EV_COV_VEL_MAX}。'
+                        f'原生值 pose[0,7,14,21,28,35]='
+                        f'{[pc[0], pc[7], pc[14], pc[21], pc[28], pc[35]]}, '
+                        f'twist[0,7,14]={[tc[0], tc[7], tc[14]]}')
+            else:
+                self._cov_warned = False
 
-            px4_msg.position_variance = [max(v, POS_MIN_VAR) for v in pv]
-            px4_msg.orientation_variance = [max(v, ROT_MIN_VAR) for v in rv]
-            px4_msg.velocity_variance = [max(v, VEL_MIN_VAR) for v in vv]
+            px4_msg.position_variance = pv
+            px4_msg.orientation_variance = rv
+            px4_msg.velocity_variance = vv
 
             # ---- 通道的有效性控制（三通道各自独立判定）----
             # PX4 ev_control 用 isAllFinite() 逐通道判有效性：
             #   NaN = 干净的"本帧关闭该通道"；0/小值 = 合法观测，会被当真融合。
-            # 且自报 variance 是否被采纳取决于 EKF2_EV_NOISE_MD（本机未验证方向，
-            # 语义与地面判定方法见事故报告附录C / §4.6-4.7）。
-            if stale:
-                # 仅链路延迟大：位置本身没错，只是老了。拉大方差 + 照常发布，
-                # 让飞控按 timestamp_sample / EKF2_DELAY_MAX 自己判新鲜度。
-                # ★绝不能在这里 return：LIO 一旦持续积压就会把整条 EV 流掐掉，
-                #   飞控随之 vision_data_stopped -> reset_vel_to_flow，
-                #   正是本次 -42 m/s 幻影速度的来源。
-                px4_msg.position_variance = [max(v, 4.0) for v in px4_msg.position_variance]
-                px4_msg.velocity_variance = [max(v, 4.0) for v in px4_msg.velocity_variance]
-                px4_msg.orientation_variance = [max(v, 0.25) for v in px4_msg.orientation_variance]
-
+            # 链路陈旧(stale)这里【不做任何处理】：方差照发原值，让飞控按
+            # timestamp_sample / EKF2_DELAY_MAX 自己判新鲜度（见文件头契约第 4 条）。
+            # stale 的计数与告警在 ros2_odom_callback 里，不在这里。
+            # ★也绝不能因为陈旧就 return：LIO 一旦持续积压就会把整条 EV 流掐掉，
+            #   飞控随之 vision_data_stopped -> reset_vel_to_flow，
+            #   正是事故里 -42 m/s 幻影速度的来源。
             if jump_detected:
                 # 位姿突变：这一帧的位置和速度都是错的。用 NaN **关闭这两个通道**
                 # 而不是整帧丢弃 —— 消息仍然刷新 EKF2 的 EV received_at_us，
