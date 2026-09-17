@@ -22,6 +22,17 @@ def generate_launch_description():
         value='1'
     )
 
+    # GZ_IP=127.0.0.1：强制 gz-transport 只绑回环。
+    # 本机是 WSL2 mirrored 网络模式，有多张网卡(eth0/eth1 + lo 上的 10.255.255.254)，
+    # gz-transport 自动选网卡时 server 与 gui 可能选到不同网卡(实测分别绑 192.168.24.10
+    # 与 192.168.201.7)，discovery 与服务应答跨网卡失败(server 报
+    # "RecvSrvRequest() error sending response: Host unreachable")，GUI 永远拿不到
+    # /gazebo/worlds 的 world list，窗口全黑。固定回环后本机 gz 进程必然互通。
+    gz_ip_loopback = SetEnvironmentVariable(
+        name='GZ_IP',
+        value='127.0.0.1'
+    )
+
 
 
     pkg_ros_gz_sim = get_package_share_directory('ros_gz_sim')
@@ -31,6 +42,7 @@ def generate_launch_description():
     gz_model_path = os.environ.get('GZ_SIM_RESOURCE_PATH', '') + ':' + gz_model_path
     
     return LaunchDescription([
+        gz_ip_loopback,
         mesa_adapter,
         gazebo_gpu_rendering,
         DeclareLaunchArgument(

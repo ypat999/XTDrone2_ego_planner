@@ -1,5 +1,5 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription, SetEnvironmentVariable
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
@@ -57,7 +57,16 @@ def generate_launch_description():
 
     
 
+    # GZ_IP=127.0.0.1：与 gz_launch.py 保持一致。PX4 SITL(gz_bridge) 与 ros_gz_bridge
+    # 都是 gz-transport 客户端，WSL2 mirrored 网络下必须固定回环，否则会与
+    # gz-gui/gz-server 选到不同网卡而失联(服务应答 "Host unreachable")。
+    gz_ip_loopback = SetEnvironmentVariable(
+        name='GZ_IP',
+        value='127.0.0.1'
+    )
+
     ld = LaunchDescription([
+        gz_ip_loopback,
         world_name_arg,
         model_name_arg,
         id_arg,
