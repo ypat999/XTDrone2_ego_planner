@@ -175,12 +175,21 @@ class MultirotorCommunication(Node):
         # PX4 -> ROS 的 TF 发布限频。这一路是真降频（vehicle_odometry 频率高于
         # TF 需要），和下面 odom -> PX4 的墙钟限频是两件不同的事，故独立命名。
         self.px4_odom_tf_min_interval = 0.1
-        # odom -> PX4 方向不再做限频（原为墙钟 0.1s 间隔判断）：Mid360 物理上就是
-        # 10Hz (launch 里 publish_freq: 10.0)，墙钟限频省不了算力，只会和到达抖动
-        # 混叠出随机丢帧（通过间隔在 0.1~0.2s 之间跳）；而且管道堆积时它完全失效——
-        # 墙钟照走，过期数据照样当新鲜数据发给飞控。改为按消息时间戳监控新鲜度。
+        # odom -> PX4 的 EV 转发限速。此前"不限频"的前提有误（以为 /lio/robo/odom
+        # 只有 10Hz），实际 ~200Hz：0918 事故 ULog 里 FMU 收到的 EV 流实测 131Hz，
+        # VehicleOdometry 每帧带 21 个 covariance float，属大消息 —— 事件现场是
+        # timesync(13:51:41.7) 与 EV/心跳/轨迹三条入向流(13:51:44.4)先后齐停，
+        # uXRCE-DDS 入向链路被高频大流量压死。
+        # 先限到 20Hz：EKF2 的 EV_MAX_INTERVAL=200ms，50ms 帧距有 4 倍余量；
+        # 要调只调 ev_pub_hz 一个数。
+        # 与旧版墙钟限频的本质区别：旧版把限速和"新鲜度判定"混在一起（管道堆积时
+        # 墙钟照走，过期数据照样当新鲜发）。这里严格分离 —— 下面 stale/空洞/跳变
+        # 监控保持逐帧、按消息时间戳判定；限速只管"发不发"，不参与任何判定。
+        self.ev_pub_hz = 20.0
+        self.ev_pub_min_interval = 1.0 / self.ev_pub_hz
+        self._last_ev_pub_time = 0.0
         self.odom_max_latency = 0.15      # 超过即判定陈旧（> EKF2_DELAY_MAX=200ms 的预算）
-        self.odom_max_gap = 0.30          # 帧间空洞阈值：10Hz 下 >3 帧即视为流断
+        self.odom_max_gap = 0.30          # 帧间空洞阈值：超过 3 个标称周期即视为流断
         self.odom_jump_pos_max = 2.0      # ROS->PX4 方向单帧位置跳变上限 (m)
         self.odom_jump_vel_max = 15.0     # ROS->PX4 方向表观速度上限 (m/s)
         self._last_odom_stamp = None      # 上一帧 odom 的消息时间戳（传感器时基）
@@ -199,6 +208,7 @@ class MultirotorCommunication(Node):
         self._odom_reset_out = 0
         self._cov_warned = False
         self._cov_bad_cnt = 0             # LIO 自报 covariance 非法(NaN/Inf/<=0)的帧数
+        self._pre_hb_err_warn_time = 0.0  # 心跳前置检查异常的告警限频时间戳
         self.last_valid_enu_position = None  # 记录上一次有效的ENU位置
         self._last_switch_progress_log_time = None  # 自动切换进度日志上次输出时间（秒，time.time）
         self._last_switch_progress_state = None  # 上次切换进度状态 (nav_state, armed, flying)，用于检测变化
@@ -278,11 +288,17 @@ class MultirotorCommunication(Node):
             self.get_logger().info('require_pcl_pose enabled: arm will be blocked until valid /pcl_pose is received')
         
         # Gazebo odometry subscription for PX4 visual odometry
+        # BEST_EFFORT： odom 语义上丢帧无害（EKF 按时标融合，20Hz 断一帧远好于
+        # 迟到一帧），而 RELIABLE 的重传机制恰恰会投毒 —— 0918 事件 13:51:28
+        # 出现过一帧时标 13:50:57、迟到 31 秒的样本（reliable 窗口恢复后补投
+        # 未确认旧帧），并连带触发一次 4.08m 假跳变。BE 读者下写端对该读者
+        # 不走可靠协议，过期样本随通道丢弃、永不补投。
+        # 兼容性安全：RELIABLE 发布端与 BEST_EFFORT 订阅端是 DDS 合法组合。
         self.create_subscription(
             Odometry,
             odom_topic,
             self.ros2_odom_callback,
-            10
+            QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
         )
 
         # LIO 的 odom 重置计数。TRANSIENT_LOCAL + KEEP_LAST(1)，
@@ -369,12 +385,24 @@ class MultirotorCommunication(Node):
             self.callback_stats['timer_callback']['total_time'] += time.time() - start_time
             return
 
-        # 检查自动切换状态
-        if self.auto_switch_enabled:
-            self.check_auto_switch_progress()
-        
-        # 检查无人机落地状态并自动解除arm
-        self.check_landing_and_disarm()
+        # 心跳前保护：这两段检查在 OffboardControlMode 发布【之前】跑。
+        # rclpy 里回调抛异常不会杀死 timer，下个周期照样再抛 —— 于是心跳
+        # 每拍都死在同一个地方，节点"活着"（其它回调、日志都在）但飞控再也
+        # 收不到信号，正是 0918 排查里唯一没被设计排除的停发路径。
+        # 异常吞掉并限频告警，让本拍心跳照常发出。
+        try:
+            # 检查自动切换状态
+            if self.auto_switch_enabled:
+                self.check_auto_switch_progress()
+
+            # 检查无人机落地状态并自动解除arm
+            self.check_landing_and_disarm()
+        except Exception as e:
+            import traceback
+            if time.time() - self._pre_hb_err_warn_time > 5.0:
+                self._pre_hb_err_warn_time = time.time()
+                self.get_logger().error(
+                    f'心跳前置检查异常(本拍心跳照常发送): {e!r}\n{traceback.format_exc()}')
         
         # 当OFFBOARD_STATE为ENABLED时，持续发送offboard心跳信号
         if self.OFFBOARD_STATE == "ENABLED":
@@ -502,12 +530,16 @@ class MultirotorCommunication(Node):
                 self.land_command_time = self.get_clock().now()
 
         # 人工介入后又切回offboard，或failsafe恢复
-        if msg.nav_state == 14 and self.OFFBOARD_STATE == "DISABLED":
+        # ★必须同时要求 armed：0918 事件里 PX4 落地自动 disarm 的那帧状态是
+        #   arming 2->1 + nav 12->14（disarm 后 nav 回显 user intention），
+        #   单看 nav_state==14 会把"已上锁"误判成"failsafe恢复"、把状态机
+        #   置回 ENABLED 对着锁着的飞机发轨迹。真恢复必然是保持 arm 的。
+        if msg.arming_state == 2 and msg.nav_state == 14 and self.OFFBOARD_STATE == "DISABLED":
             if self.manual_offboard_exit:
                 self.get_logger().info('检测到人工切回offboard模式，恢复控制能力，等待新目标点')
                 self.manual_offboard_exit = False
                 self.OFFBOARD_STATE = "ENABLED"
-        elif msg.nav_state == 14 and self.emergency_brake_active:
+        elif msg.arming_state == 2 and msg.nav_state == 14 and self.emergency_brake_active:
             # failsafe恢复，刹车期间飞控切回offboard，停止刹车恢复心跳
             self.get_logger().info('failsafe恢复，停止急刹车，恢复offboard心跳等待新目标')
             self.emergency_brake_active = False
@@ -838,7 +870,13 @@ class MultirotorCommunication(Node):
         #         msg_for_px4.pose.pose.orientation = msg.pose.pose.orientation
         #         msg_for_px4.twist = msg.twist
         
-        self.publish_px4_visual_odometry(msg_for_px4)
+        # ---- EV 转发限速（见 __init__ 中 ev_pub_hz 注释）----
+        # 只掐"发不发"：上面逐帧的 stale/空洞判定照跑，跳变守卫在真正要发的
+        # 帧里对着上一发帧算（dt 用消息时间戳，表观速度不受降频影响）。
+        now_ev = time.time()
+        if now_ev - self._last_ev_pub_time >= self.ev_pub_min_interval:
+            self._last_ev_pub_time = now_ev
+            self.publish_px4_visual_odometry(msg_for_px4)
         self.callback_stats['ros2_odom_callback']['count'] += 1
         self.callback_stats['ros2_odom_callback']['total_time'] += time.time() - start_time
 
