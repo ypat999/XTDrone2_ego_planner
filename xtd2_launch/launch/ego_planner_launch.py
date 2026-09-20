@@ -306,7 +306,14 @@ def generate_launch_description():
             {'ros_ns': namespace},
             # Safe zone descent参数
             {'safe_zone_descent/enabled': True},
-            {'safe_zone_descent/speed': 0.2},
+            # xy水平修正速度上限(m/s)：闭环前视制导下，偏移立即以该上限满力修正
+            {'safe_zone_descent/speed': 0.5},
+            # z垂直下降速度上限(m/s)：维持实机验证过的0.2，与xy速度独立调节
+            {'safe_zone_descent/descend_speed': 0.2},
+            # 前视时间(s)：设定点相对飞机实际位置的提前量，兼得"快速纠偏"与"到点自然减速"
+            {'safe_zone_descent/lookahead_time': 0.5},
+            # 降落yaw对准速度(rad/s)
+            {'safe_zone_descent/yaw_speed': 1.0},
             {'safe_zone_descent/zone_size_x': 1.0},
             {'safe_zone_descent/zone_size_y': 1.0},
             {'safe_zone_descent/zone_size_z': 1.0},
