@@ -21,9 +21,9 @@ def generate_launch_description():
     namespace = LaunchConfiguration('namespace', default=default_namespace)
     drone_id = LaunchConfiguration('drone_id', default=0)
 
-    map_size_x = LaunchConfiguration('map_size_x', default=250.0)
-    map_size_y = LaunchConfiguration('map_size_y', default=250.0)
-    map_size_z = LaunchConfiguration('map_size_z', default=20.0)
+    map_size_x = LaunchConfiguration('map_size_x', default=500.0)
+    map_size_y = LaunchConfiguration('map_size_y', default=500.0)
+    map_size_z = LaunchConfiguration('map_size_z', default=30.0)
 
     max_vel = LaunchConfiguration('max_vel', default=2.0)
     max_acc = LaunchConfiguration('max_acc', default=1.0)
