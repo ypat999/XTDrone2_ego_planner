@@ -132,6 +132,47 @@ ros2 run xtd2_control multirotor_keyboard_control --model gz_x500_depth --id 0
 rviz2
 ```
 
+## 精准降落（SZD 安全区降落）
+
+系统链路：任务层 `go_home` → `/goal_pose`（traj_server）→ 返航 bspline → 进入 world 原点
+±0.5m 安全区后 FSMA 自动切换 SZD 降落 → 落定触发 `/mavros/landing_result`(SUCCESS) 上报。
+
+核心组件与责任划分（`map->odom` 由 lidar_localization 独家持有，
+`Livox_mid360_drone.py` 已停用恒等 map->odom 静态发布，避免双写竞态）：
+
+1. **lidar_localization 原点基准**（精准回到起飞点）
+   - 启动时飞机在坪上（xy < `origin_baseline_radius`）积累 `origin_baseline_frames` 帧
+     点云，按 map->base_link 位姿全分辨率合并为"原点基准地图"（可落盘
+     `/tmp/origin_baseline.pcd` 检查），**先攒基准、后放行全局图初始定位**；
+   - 起飞（首次离圈）武装后，返航再次进圈即接管该帧流程：单帧点云直接与基准
+     GICP 匹配（1Hz），fitness ≤ `origin_baseline_score_threshold` 且优于进圈后
+     历史最低误差时才更新 `map->odom` 静态 TF，实现厘米级锚定起飞点；
+   - 出圈自动恢复全局图定位（下次起飞重新匹配），>30°/>1m 突变拒绝（防误匹配/TF异常）。
+2. **traj_server SZD 闭环前视制导**（锚定 world (0,0)，误差归零而非跟随）
+   - 降落点 xy 强制为 world 原点，z = 目标z + `z_offset`；
+   - 水平段：设定点 = 飞机实际位置 + 朝原点 `min(d, speed·T)` 前伸，误差立即满力修正、
+     接近时按 `d/T` 自然减速（不再开环爬行冲过头）；垂直段 xy 钉死原点边降边拉回；
+   - 参数见 `xtd2_launch/launch/ego_planner_launch.py`（speed=xy 上限 0.5、
+     descend_speed=z 下降 0.2、lookahead_time、yaw_speed、z_offset 等，均支持运行时调）。
+
+## 关键参数文件
+
+| 文件 | 用途 |
+|---|---|
+| `xtd2_launch/config/global_config.py` | **全局主机配置中心**：话题名、命名空间、sim time 等 |
+| `xtd2_launch/launch/ego_planner_launch.py` | traj_server SZD 降落参数（xy/z 速度、前视时间、z_offset 等）|
+| `lio/lidar_localization_ros2/param/localization.yaml` | 定位与原点基准精准降落参数（基准帧数/半径/阈值/落盘路径等）|
+| `xtd2_third_party_pkgs/motion_planning/ego-planner-swarm/src/planner/plan_manage/launch/algorithm_param.launch` | 算法参数（速度/加速度/膨胀半径/控制点距离等）|
+| `PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/px4_custom_params.md` | PX4仿真环境参数（MPC、遥操作、故障恢复等）|
+
+## 子模块速查（本分支近期钉定）
+
+| 子模块 | 分支 | 提交 | 本轮关键变更 |
+|---|---|---|---|
+| `lio/lidar_localization_ros2` | `main` | `3b23f12` | 原点基准精准降落：启动攒基准→起飞武装→返航1Hz单帧匹配→最低误差独占更新 map->odom 静态TF |
+| `xtd2_third_party_pkgs/motion_planning/ego-planner-swarm` | `master` | `db8dbf4` | xtd2_traj_server：SZD 降落点锚定 world(0,0)、闭环前视制导、xy/z 速度参数拆分 |
+| `lio/Super-LIO` | `no-de-check` | `035e058` | launch 停用恒等 map->odom 静态发布（由 lidar_localization 独家持有，消除双写竞态） |
+
 ## 高级功能 / Advanced Features
 
 ### 坐标转换系统
