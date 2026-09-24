@@ -2,9 +2,66 @@
 
 ## 介绍
 
-XTDrone2是基于PX4、ROS2与Gazebo Ignition的无人机通用仿真平台。
+XTDrone2 起初沿自基于 PX4 / ROS2 / Gazebo 的 [XTDrone](https://gitee.com/robin_shaun/XTDrone)
+通用无人机仿真平台，当前已演进为一套**以真实无人机为主体、仿真用于验证的自主飞行与无人值守巡检系统**。
 
-在[XTDrone](https://gitee.com/robin_shaun/XTDrone)的基础上，XTDrone2更新采用了更模块化和轻量化的仿真器Gazebo Ignition；同时由于ROS1版本不再更新维护，XTDrone2将全部基于ROS2进行开发；同时PX4的版本也采用了更新更稳定的1.15版本。
+## 当前系统简介（Current System Overview）
+
+> 本仓库当前分支 `dev/ego-planner-swarm` 面向一个**特定真实平台**（机载 RK3588 + MID360 LiDAR +
+> PX4 EV-only 定位 + MQTT 云端任务下发）。沿用 XTDrone/XTDrone2 的 ROS2 组件风格，
+> 但在定位、规划、控制权与任务架构上与通用仿真平台已有本质差异。仿真分支（Gazebo SITL）
+> 保留用于开发与验证。
+
+### 系统定位
+
+| 维度 | 说明 |
+|---|---|
+| 定位源 | **LiDAR 视觉惯性里程计**（Super-LIO）+ 先验地图全局定位（lidar_localization），作为 PX4 的**唯一绝对定位输入（External Vision / EV-only）**；不依赖 GPS |
+| 规划 | EGO Planner（ego_planner_node）+ 轨迹服务器（xtd2_traj_server），局部实时避障轨迹 |
+| 控制链 | comms（multirotor_communication，ROS2↔PX4 经 MicroXRCEAgent）为 **PX4 的 FMU 唯一写者**，负责 EV 发布 / offboard 心跳 / setpoint 输出与完整性守卫 |
+| 任务 | task_dispatcher（机载）经 MQTT 接收云端指令，编排航点/巡检/停靠/机库联动 |
+| 计算平台 | 机载 RK3588，任务/控制/规划/定位/媒体按核隔离调度 |
+| 降落 | 原点基准精准降落（SZD 安全区），厘米级回机库 |
+
+### 关键链路（一张图）
+
+```text
+云端 MQTT ◀─► task_dispatcher（任务编排）──MissionIntent──► ego_planner / traj_server
+        （航点/巡检/停靠）             （局部轨迹生成）
+                                                         │
+                                            ┌────────────┘
+                                            ▼
+Super-LIO（定位，EV唯一源）──odom──► comms（FMU 唯一写者）
+  + lidar_localization（地图系锚定）     │   EV / offboard心跳 / setpoint + 完整性守卫
+                                        ▼
+                              MicroXRCEAgent（ROS2↔PX4 DDS）
+                                        ▼
+                                      PX4（EV-only + 独立 failsafe）
+```
+
+### 核心组件与职责（详见子模块速查）
+
+| 组件 | 包 | 职责 |
+|---|---|---|
+| Super-LIO | `lio/Super-LIO` | LiDAR(-Inertial) 里程计，世界点云 + odom，EV 唯一定位源 |
+| lidar_localization_ros2 | `lio/lidar_localization_ros2` | 先验地图全局定位 `/pcl_pose`，原点基准精准降落 |
+| ego-planner-swarm | `xtd2_third_party_pkgs/motion_planning` | `ego_planner_node` 规划 + `xtd2_traj_server` 轨迹执行/SZD |
+| xtd2_communication | `xtd2_communication` | `multirotor_communication`（comms，FMU 唯一写者）、`obstacle_distance_publisher` |
+| xtd2_launch | `xtd2_launch` | 单/多机 launch、systemd 服务、TF、RViz、Web 桥 |
+| xtd2_msgs | `xtd2_msgs` | `XTD2Cmd.srv` / `XTD2VehicleState.msg` 机载-外部契约 |
+| xtd2_control | `xtd2_control` | 键盘遥控 / 任务服务器（调试） |
+| task_dispatcher | `uav_service/src/task_dispatcher` | 云端 MQTT 任务编排、巡航/巡检/停靠/机库、媒体上报 |
+
+### 与上游 XTDrone 的主要差异
+
+- **实机为主、仿真验证为辅**：真机链路（Super-LIO + comms + ego_planner）为当前主线，Gazebo SITL 仅作验证。
+- **定位去 GPS 化**：以 LiDAR + 地图定位为唯一绝对源，PX4 采用 EV-only 配置。
+- **控制权单一化**：comms 是 FMU 唯一写者；其余模块（含 task_dispatcher）禁止直写 `/fmu/in/*`。
+  系统安全降级方案（Control Authority / Capability / 安全状态机 / Flight epoch）见
+  `系统失效降级方案设计.md`（仓库根目录）。
+- **任务接入云端**：通过 task_dispatcher + MQTT 实现无人值守任务下发与状态/事件上报。
+
+> 其余特性（三维定位、MID360、智能坐标转换、PX4 启动检测、多机协同等）见下。
 
 ### 最新特性
 
@@ -154,6 +211,23 @@ rviz2
      接近时按 `d/T` 自然减速（不再开环爬行冲过头）；垂直段 xy 钉死原点边降边拉回；
    - 参数见 `xtd2_launch/launch/ego_planner_launch.py`（speed=xy 上限 0.5、
      descend_speed=z 下降 0.2、lookahead_time、yaw_speed、z_offset 等，均支持运行时调）。
+
+## 实机断链整改与 EV 契约（comms / LIO 侧安全加固）
+
+实机以 **External Vision（EV）作为 PX4 唯一绝对定位源**，因此「发往 PX4 的定位数据」就是
+控制链的生命线。以下为近期针对 0918 断链事故的整改（详见 `系统失效降级方案设计.md`）：
+
+- **EV 协方差显式契约**：发往 PX4 的 EV covariance 收紧为显式契约，非法值（NaN/Inf）在源头上
+  被 sanitize，杜绝异常进 EKF（`b5e7c96`）。
+- **断链整改**：EV 限频 20Hz + odom 订阅降为 **BEST_EFFORT**（防止 RELIABLE 重传迟到旧帧投毒，
+  0918 事件曾现迟到 31s 的补投帧）+ 心跳发布前置保护，保证控制回路的时序完整性（`b6361ac`）。
+- **px4_odom 配准降级为 yaw-only**：`px4_odom` 的配准模式收敛为 yaw only，减少对平移的误配
+  （`db666f4`）。
+- **定位-全局定位分工**：Super-LIO 提供 odom（相对），lidar_localization 独家持有 `map->odom`
+  提供地图系锚定；互不抢写（见上节精准降落）。
+
+以上所有失效场景与降级动作（Authority/Capability/安全状态机/Flight epoch）的系统设计，
+统一见仓库根目录 `系统失效降级方案设计.md`。
 
 ## 关键参数文件
 
