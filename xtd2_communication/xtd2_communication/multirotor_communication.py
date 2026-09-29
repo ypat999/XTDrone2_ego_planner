@@ -529,19 +529,19 @@ class MultirotorCommunication(Node):
             if self.land_command_time is None:
                 self.land_command_time = self.get_clock().now()
 
-        # 人工介入后又切回offboard，或failsafe恢复
+        # 手动切回offboard时统一恢复内部状态（不自动重切offboard，等人工操作）
         # ★必须同时要求 armed：0918 事件里 PX4 落地自动 disarm 的那帧状态是
         #   arming 2->1 + nav 12->14（disarm 后 nav 回显 user intention），
         #   单看 nav_state==14 会把"已上锁"误判成"failsafe恢复"、把状态机
         #   置回 ENABLED 对着锁着的飞机发轨迹。真恢复必然是保持 arm 的。
+        # OFFBOARD_STATE=DISABLED 可能由人工介入/急刹车完成/外部LAND/落地等多条
+        # 路径置位。恢复不能只认某个flag，否则会出现 flag 已清、状态却永久卡在
+        # DISABLED 的死锁：之后所有 cmd_* 回调都会静默丢弃轨迹，飞机不动。
         if msg.arming_state == 2 and msg.nav_state == 14 and self.OFFBOARD_STATE == "DISABLED":
-            if self.manual_offboard_exit:
-                self.get_logger().info('检测到人工切回offboard模式，恢复控制能力，等待新目标点')
-                self.manual_offboard_exit = False
-                self.OFFBOARD_STATE = "ENABLED"
-        elif msg.arming_state == 2 and msg.nav_state == 14 and self.emergency_brake_active:
-            # failsafe恢复，刹车期间飞控切回offboard，停止刹车恢复心跳
-            self.get_logger().info('failsafe恢复，停止急刹车，恢复offboard心跳等待新目标')
+            self.get_logger().info(
+                f'检测到切回offboard模式，恢复控制能力(人工介入={self.manual_offboard_exit}, '
+                f'急刹车={self.emergency_brake_active})，等待新目标点')
+            self.manual_offboard_exit = False
             self.emergency_brake_active = False
             self.emergency_brake_start_time = None
             self.OFFBOARD_STATE = "ENABLED"
@@ -1096,9 +1096,11 @@ class MultirotorCommunication(Node):
         # 始终刷新缓存的goal，外部调度系统可能高频发送
         self.cached_goal_pose = msg
 
-        # 人工介入退出offboard（QGC切position），阻断目标点直到落地
+        # 人工介入退出offboard（QGC切position），阻断目标点直到手动切回offboard
         if self.manual_offboard_exit:
-            self.get_logger().debug('人工介入模式，拦截目标点')
+            self.get_logger().info(
+                '人工介入模式，拦截目标点（等待手动切回offboard后自动恢复）',
+                throttle_duration_sec=5.0)
             self.callback_stats['goal_marker_callback']['count'] += 1
             self.callback_stats['goal_marker_callback']['total_time'] += time.time() - start_time
             return

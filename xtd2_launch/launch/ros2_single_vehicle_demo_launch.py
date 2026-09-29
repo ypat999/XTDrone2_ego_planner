@@ -294,7 +294,7 @@ def generate_launch_description():
     px4_cp_param_set = ExecuteProcess(
         cmd=[
             'bash', '-c',
-            "BIN=$HOME/git/PX4-Autopilot/build/px4_sitl_default/bin/px4-param; "
+            "BIN=$(getent passwd $(id -un) | cut -d: -f6)/git/PX4-Autopilot/build/px4_sitl_default/bin/px4-param; "
             "echo '设置 PX4 CP 参数 (CP_GO_NO_DATA=1: 无数据时允许飞行)...'; "
             "$BIN --instance ${PX4_ID} set COM_OBS_AVOID 0; "
             "$BIN --instance ${PX4_ID} set CP_GO_NO_DATA 1; "

@@ -21,9 +21,9 @@ def generate_launch_description():
     namespace = LaunchConfiguration('namespace', default=default_namespace)
     drone_id = LaunchConfiguration('drone_id', default=0)
 
-    map_size_x = LaunchConfiguration('map_size_x', default=500.0)
-    map_size_y = LaunchConfiguration('map_size_y', default=500.0)
-    map_size_z = LaunchConfiguration('map_size_z', default=30.0)
+    map_size_x = LaunchConfiguration('map_size_x', default=400.0)
+    map_size_y = LaunchConfiguration('map_size_y', default=400.0)
+    map_size_z = LaunchConfiguration('map_size_z', default=20.0)
 
     max_vel = LaunchConfiguration('max_vel', default=2.0)
     max_acc = LaunchConfiguration('max_acc', default=1.0)
@@ -84,7 +84,7 @@ def generate_launch_description():
             
             # FSM 参数
             # FSM (Finite State Machine) 参数 - 有限状态机控制参数
-            {'fsm/flight_type': 1},  # 飞行类型: 1=PRESET_TARGET(预设目标点模式), 2=MANUAL_TARGET(手动目标点模式)
+            {'fsm/flight_type': 1},  # 飞行类型: 2=PRESET_TARGET(预设目标点模式), 1=MANUAL_TARGET(手动目标点模式)
                                        # PRESET_TARGET模式会使用预设的航点序列，MANUAL_TARGET模式通过RViz交互选择目标点
             
             {'fsm/thresh_replan_time': 1.0},  # 重规划时间阈值(秒): 当距离上次规划超过此时间时触发重规划
@@ -152,7 +152,7 @@ def generate_launch_description():
             {'grid_map/local_update_range_z': 8.0},  # 局部更新范围Z   8.0  
             {'grid_map/obstacles_inflation': 0.4},  # 障碍物膨胀半径 0.6
             {'grid_map/local_map_margin': 2},  # 局部地图边界
-            {'grid_map/ground_height': -1.5},  # 地面高度
+            {'grid_map/ground_height': -2.0},  # 地面高度
 
             # Grid Map 深度滤波参数 - 点云预处理和滤波设置
             {'grid_map/use_depth_filter': False},  # 深度滤波开关: True=启用深度滤波, False=禁用
@@ -280,11 +280,6 @@ def generate_launch_description():
             {'optimization/max_vel': max_vel},  # 优化最大速度
             {'optimization/max_acc': max_acc},  # 优化最大加速度
             
-            # B-Spline parameters - B样条参数
-            {'bspline/limit_vel': max_vel},  # B样条速度限制
-            {'bspline/limit_acc': max_acc},  # B样条加速度限制
-            {'bspline/limit_ratio': 1.1},  # B样条限制比例
-
             # Object prediction parameters - 目标预测参数
             {'prediction/obj_num': 1},  # 目标数量
             {'prediction/lambda': 1.0},  # 预测权重系数
